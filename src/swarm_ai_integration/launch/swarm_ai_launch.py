@@ -86,6 +86,19 @@ def generate_launch_description():
         description='Baud rate for LiDAR sensors'
     )
 
+    # Black Box Recorder arguments
+    log_directory_arg = DeclareLaunchArgument(
+        'log_directory',
+        default_value='/var/log/swarm_blackbox',
+        description='Directory for black box log files'
+    )
+
+    enable_blackbox_arg = DeclareLaunchArgument(
+        'enable_blackbox',
+        default_value='true',
+        description='Enable black box flight data recorder'
+    )
+
     # AI Adapter Node - converts sensor data to observation array
     ai_adapter_node = Node(
         package='swarm_ai_integration',
@@ -256,6 +269,24 @@ def generate_launch_description():
         ]
     )
 
+    # Black Box Recorder Node - logs all flight data
+    black_box_recorder_node = Node(
+        package='swarm_ai_integration',
+        executable='black_box_recorder_node.py',
+        name='black_box_recorder',
+        output='screen',
+        parameters=[{
+            'log_directory': LaunchConfiguration('log_directory'),
+            'max_file_size_mb': 100,
+            'max_files_per_session': 20,
+            'compress_old_files': True,
+            'log_level': 'INFO',
+            'buffer_size': 1000,
+            'flush_interval': 5.0
+        }],
+        condition=IfCondition(LaunchConfiguration('enable_blackbox'))
+    )
+
     # Log info about the launch
     launch_info = LogInfo(
         msg=[
@@ -277,6 +308,8 @@ def generate_launch_description():
         front_lidar_port_arg,
         down_lidar_port_arg,
         lidar_baud_rate_arg,
+        log_directory_arg,
+        enable_blackbox_arg,
 
         # Launch info
         launch_info,
@@ -289,4 +322,5 @@ def generate_launch_description():
         fc_adapter_node,
         front_lidar_node,
         down_lidar_node,
+        black_box_recorder_node,
     ])
