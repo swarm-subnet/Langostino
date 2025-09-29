@@ -132,6 +132,15 @@ class LidarReaderNode(Node):
         # Status publishing timer
         self.status_timer = self.create_timer(1.0, self.publish_status)
 
+        print(f'🚀 LiDAR Reader Node Starting:')
+        print(f'   • I2C Bus: {self.i2c_bus}')
+        print(f'   • Address: 0x{self.i2c_address:02x}')
+        print(f'   • Position: {self.sensor_position}')
+        print(f'   • Rate: {self.publish_rate} Hz')
+        print(f'   • Range: {self.min_range}m - {self.max_range}m')
+        print(f'   • Filter: {"ON" if self.enable_filtering else "OFF"}')
+        print('-' * 50)
+
         self.get_logger().info(
             f'LiDAR Reader Node initialized - I2C Bus: {self.i2c_bus}, Address: 0x{self.i2c_address:02x}, '
             f'Position: {self.sensor_position}, Rate: {self.publish_rate} Hz'
@@ -150,10 +159,12 @@ class LidarReaderNode(Node):
                 _ = self.i2c_bus_conn.read_byte(self.i2c_address)
 
                 self.sensor_healthy = True
+                print(f'✓ I2C Connected: Bus {self.i2c_bus}, Address 0x{self.i2c_address:02x}')
                 self.get_logger().info(f'I2C bus {self.i2c_bus} connected to address 0x{self.i2c_address:02x}')
                 return True
 
         except Exception as e:
+            print(f'✗ I2C Connection Failed: Bus {self.i2c_bus}, Address 0x{self.i2c_address:02x} - {e}')
             self.get_logger().error(f'Failed to connect to I2C device 0x{self.i2c_address:02x} on bus {self.i2c_bus}: {e}')
             self.sensor_healthy = False
             self.stats['connection_errors'] += 1
@@ -186,6 +197,8 @@ class LidarReaderNode(Node):
                 # Convert to uint32 little-endian and then to meters
                 distance_mm = struct.unpack('<I', bytes(data))[0]
                 distance_m = distance_mm / 1000.0
+
+                print(f'📏 Raw I2C Reading: {distance_mm}mm ({distance_m:.3f}m)')
 
                 return distance_m
 
@@ -251,6 +264,8 @@ class LidarReaderNode(Node):
                     # Apply filtering
                     filtered_distance = self.apply_distance_filter(distance_m)
 
+                    print(f'✓ Valid Distance: {filtered_distance:.3f}m (pos: {self.sensor_position})')
+
                     # Update statistics
                     self.stats['valid_readings'] += 1
                     self.stats['last_distance'] = filtered_distance
@@ -268,21 +283,25 @@ class LidarReaderNode(Node):
                     self.publish_point_message(filtered_distance)
 
                 else:
+                    print(f'✗ Invalid Distance: {distance_m:.3f}m (out of range: {self.min_range}-{self.max_range}m)')
                     self.stats['invalid_readings'] += 1
                     self.consecutive_invalid_readings += 1
 
                     # If too many consecutive invalid readings, mark sensor as unhealthy
                     if self.consecutive_invalid_readings > self.max_invalid_readings:
                         self.sensor_healthy = False
+                        print(f'⚠️  Sensor marked as unhealthy after {self.consecutive_invalid_readings} invalid readings')
                         self.get_logger().warn(
                             f'Too many consecutive invalid readings ({self.consecutive_invalid_readings}), '
                             'marking sensor as unhealthy'
                         )
             else:
+                print(f'✗ I2C Read Failed - No data received')
                 self.stats['invalid_readings'] += 1
                 self.consecutive_invalid_readings += 1
 
         except Exception as e:
+            print(f'💥 Timer Callback Error: {e}')
             self.get_logger().error(f'Unexpected error in timer callback: {e}')
             self.sensor_healthy = False
             self.stats['connection_errors'] += 1
