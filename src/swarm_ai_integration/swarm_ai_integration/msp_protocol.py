@@ -275,21 +275,24 @@ class MSPDataTypes:
 
     @staticmethod
     def unpack_gps_data(data: bytes) -> Dict[str, Union[int, float]]:
-        """Unpack GPS data"""
-        if len(data) < 17:
-            logger.warning(f"Insufficient data for GPS: {len(data)} bytes")
+        """Unpack GPS data - INAV 7 format with fix byte and HDOP"""
+        if len(data) < 18:
+            logger.warning(f"Insufficient data for GPS: {len(data)} bytes (expected 18)")
             return {}
 
-        lat, lon, alt, speed, ground_course, satellites = struct.unpack('<iiHHHB', data[:17])
+        # INAV MSP_RAW_GPS: lat(4), lon(4), alt(2), speed(2), ground_course(2), sats(1), fix(1), hdop(2)
+        lat, lon, alt, speed, ground_course, satellites, fix_type, hdop = struct.unpack('<iiHHHBBH', data[:18])
         result = {
             'latitude': lat / 1e7,
             'longitude': lon / 1e7,
             'altitude': alt,
             'speed': speed,
             'ground_course': ground_course / 10.0,
-            'satellites': satellites
+            'satellites': satellites,
+            'fix_type': fix_type,
+            'hdop': hdop
         }
-        logger.debug(f"Unpacked GPS: lat={result['latitude']}°, lon={result['longitude']}°, sats={satellites}")
+        logger.debug(f"Unpacked GPS: lat={result['latitude']}°, lon={result['longitude']}°, sats={satellites}, fix={fix_type}, hdop={hdop}")
         return result
 
     @staticmethod
