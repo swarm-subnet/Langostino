@@ -305,7 +305,8 @@ class MSPDataTypes:
             logger.warning(f"Insufficient data for status: {len(data)} bytes")
             return {}
 
-        cycle_time, i2c_errors, sensor_flags, flight_mode_flags, profile = struct.unpack('<HHHHI', data[:11])
+        # INAV MSP_STATUS format: cycle_time(2), i2c_errors(2), sensor(2), flag(4), current_profile(1)
+        cycle_time, i2c_errors, sensor_flags, flight_mode_flags, profile = struct.unpack('<HHHIB', data[:11])
 
         result = {
             'cycle_time': cycle_time,
