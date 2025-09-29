@@ -29,7 +29,7 @@ from sensor_msgs.msg import Imu, NavSatFix, BatteryState
 from geometry_msgs.msg import PoseStamped, TwistStamped, Vector3Stamped
 from nav_msgs.msg import Odometry
 
-from .msp_protocol import (
+from swarm_ai_integration.msp_protocol import (
     MSPMessage, MSPCommand, MSPDirection, MSPDataTypes,
     MSPProtocolError, MSPTimeoutError, MSPChecksumError
 )
