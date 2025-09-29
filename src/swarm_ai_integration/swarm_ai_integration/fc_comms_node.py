@@ -361,13 +361,14 @@ class FCCommsNode(Node):
         gps_msg.longitude = gps_data['longitude']
         gps_msg.altitude = gps_data['altitude'] / 100.0  # Convert cm to m
 
-        # Set status based on satellite count
-        if gps_data['satellites'] >= 6:
+        # Set status based on fix_type from FC
+        fix_type_value = gps_data.get('fix_type', 0)
+        if fix_type_value >= 2:
             gps_msg.status.status = gps_msg.status.STATUS_FIX
-            fix_type = 'FIX'
-        elif gps_data['satellites'] >= 3:
+            fix_type = '3D_FIX'
+        elif fix_type_value == 1:
             gps_msg.status.status = gps_msg.status.STATUS_SBAS_FIX
-            fix_type = 'SBAS'
+            fix_type = '2D_FIX'
         else:
             gps_msg.status.status = gps_msg.status.STATUS_NO_FIX
             fix_type = 'NO_FIX'
