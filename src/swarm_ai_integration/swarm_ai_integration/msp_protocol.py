@@ -68,7 +68,6 @@ class MSPCommand(IntEnum):
     MSP_NAV_CONFIG = 122
     MSP_SET_NAV_CONFIG = 123
     MSP_WP = 118
-    MSP_SET_WP = 209
     MSP_BOXNAMES = 116
     MSP_PIDNAMES = 117
     MSP_BOXIDS = 119
