@@ -4,8 +4,8 @@
 ai_adapter_node:
   ros__parameters:
     # LiDAR processing
-    max_ray_distance: 10.0          # Maximum LiDAR range (meters)
-    update_rate: 30.0               # Observation update rate (Hz)
+    max_ray_distance: 50.0          # Maximum LiDAR range (meters)
+    update_rate: 100.0               # Observation update rate (Hz)
     lidar_angle_resolution: 1.0     # Angular resolution for ray mapping (degrees)
 
     # Coordinate frame settings
@@ -15,11 +15,6 @@ ai_adapter_node:
     # Data validation
     max_position_jump: 5.0          # Maximum allowed position change per update (meters)
     max_velocity: 10.0              # Maximum expected velocity (m/s)
-
-    # GPS conversion (replace with your local origin)
-    gps_origin_lat: 37.7749         # GPS origin latitude (degrees)
-    gps_origin_lon: -122.4194       # GPS origin longitude (degrees)
-    gps_origin_alt: 0.0             # GPS origin altitude (meters)
 
     # Debug settings
     debug_mode: false               # Enable debug output
@@ -137,27 +132,27 @@ fc_adapter_node:
     history_length: 5               # Command history length
 
 # LiDAR Reader Node Parameters (Front Sensor)
-front_lidar/lidar_reader_front:
-  ros__parameters:
-    # I2C communication
-    i2c_bus: 1                      # I2C bus number
-    i2c_address: 0x08               # I2C device address
-    distance_register: 0x24         # Distance data register address
+# front_lidar/lidar_reader_front:
+#   ros__parameters:
+#     # I2C communication
+#     i2c_bus: 1                      # I2C bus number
+#     i2c_address: 0x08               # I2C device address
+#     distance_register: 0x24         # Distance data register address
 
-    # Sensor configuration
-    frame_id: "front_lidar_link"    # TF frame for front sensor
-    sensor_position: "front"        # Sensor mounting position
-    publish_rate: 100.0             # Publishing rate (Hz, max 100Hz per specs)
+#     # Sensor configuration
+#     frame_id: "front_lidar_link"    # TF frame for front sensor
+#     sensor_position: "front"        # Sensor mounting position
+#     publish_rate: 100.0             # Publishing rate (Hz, max 100Hz per specs)
 
-    # Range limits
-    max_range: 50.0                 # Maximum valid range (meters)
-    min_range: 0.05                 # Minimum valid range (meters)
-    field_of_view: 0.035            # Sensor FOV (radians, ~2 degrees)
+#     # Range limits
+#     max_range: 50.0                 # Maximum valid range (meters)
+#     min_range: 0.05                 # Minimum valid range (meters)
+#     field_of_view: 0.035            # Sensor FOV (radians, ~2 degrees)
 
-    # Data processing
-    enable_filtering: true          # Enable distance filtering
-    filter_window_size: 5           # Moving average window size
-    max_invalid_readings: 10        # Max consecutive invalid readings before error
+#     # Data processing
+#     enable_filtering: true          # Enable distance filtering
+#     filter_window_size: 5           # Moving average window size
+#     max_invalid_readings: 10        # Max consecutive invalid readings before error
 
 # LiDAR Reader Node Parameters (Down Sensor)
 down_lidar/lidar_reader_down:
