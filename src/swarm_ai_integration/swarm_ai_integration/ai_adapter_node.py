@@ -208,12 +208,15 @@ class AIAdapterNode(Node):
             msg.twist.linear.z
         ], dtype=np.float32)
 
+        print(f"[DEBUG] FC State - Velocity: [{self.velocity[0]:.3f}, {self.velocity[1]:.3f}, {self.velocity[2]:.3f}]")
+
         self.data_received['fc_state'] = True
 
     def rpm_callback(self, msg: Float32MultiArray):
         """Process motor RPM data"""
         if len(msg.data) >= 4:
             self.rpm = np.array(msg.data[:4], dtype=np.float32)
+            print(f"[DEBUG] FC RPM - Motors: [{self.rpm[0]:.1f}, {self.rpm[1]:.1f}, {self.rpm[2]:.1f}, {self.rpm[3]:.1f}]")
             self.data_received['rpm'] = True
 
     def goal_callback(self, msg: PoseStamped):
@@ -308,6 +311,10 @@ class AIAdapterNode(Node):
                 lidar_scaled,    # 16-D
                 goal_vector      # 3-D
             ]).astype(np.float32)
+
+            print(f"[DEBUG] Observation Array - Shape: {full_obs.shape}, Min: {np.min(full_obs):.3f}, Max: {np.max(full_obs):.3f}, Mean: {np.mean(full_obs):.3f}")
+            print(f"[DEBUG] LiDAR distances: {self.lidar_distances[:8]}")
+            print(f"[DEBUG] Goal vector: [{goal_vector[0]:.3f}, {goal_vector[1]:.3f}, {goal_vector[2]:.3f}]")
 
             # Publish observation
             obs_msg = Float32MultiArray()
