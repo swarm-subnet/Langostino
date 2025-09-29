@@ -136,7 +136,9 @@ class FCCommsNode(Node):
         # Start communication thread
         self.start_communication()
 
-        self.get_logger().info(f'FC Communications Node initialized - Port: {self.serial_port}')
+        self.get_logger().info(f'🚀 FC Communications Node initialized')
+        self.get_logger().info(f'📡 Serial: {self.serial_port} @ {self.baud_rate} baud')
+        self.get_logger().info(f'📊 Telemetry rate: {self.telemetry_rate} Hz')
 
     def start_communication(self):
         """Start the communication thread"""
@@ -144,12 +146,15 @@ class FCCommsNode(Node):
         self.comm_thread = threading.Thread(target=self.communication_worker)
         self.comm_thread.daemon = True
         self.comm_thread.start()
+        self.get_logger().info('🔄 Communication thread started')
 
     def stop_communication(self):
         """Stop the communication thread"""
+        self.get_logger().info('⏸️  Stopping communication thread...')
         self.running = False
         if self.comm_thread and self.comm_thread.is_alive():
             self.comm_thread.join(timeout=2.0)
+        self.get_logger().info('✅ Communication thread stopped')
 
     def connect_serial(self) -> bool:
         """Establish serial connection to flight controller"""
@@ -157,6 +162,7 @@ class FCCommsNode(Node):
             if self.serial_conn and self.serial_conn.is_open:
                 self.serial_conn.close()
 
+            self.get_logger().info(f'🔌 Connecting to {self.serial_port}...')
             self.serial_conn = serial.Serial(
                 port=self.serial_port,
                 baudrate=self.baud_rate,
@@ -166,11 +172,11 @@ class FCCommsNode(Node):
 
             self.connected = True
             self.last_heartbeat = time.time()
-            self.get_logger().info(f'Connected to flight controller on {self.serial_port}')
+            self.get_logger().info(f'✅ Connected to flight controller on {self.serial_port}')
             return True
 
         except Exception as e:
-            self.get_logger().error(f'Failed to connect to flight controller: {e}')
+            self.get_logger().error(f'❌ Failed to connect to flight controller: {e}')
             self.connected = False
             return False
 
@@ -179,6 +185,7 @@ class FCCommsNode(Node):
         if self.serial_conn and self.serial_conn.is_open:
             try:
                 self.serial_conn.close()
+                self.get_logger().info('🔌 Serial connection closed')
             except Exception as e:
                 self.get_logger().debug(f'Error closing serial connection: {e}')
 
@@ -196,6 +203,7 @@ class FCCommsNode(Node):
                     if current_time - last_reconnect_attempt > self.reconnect_interval:
                         if self.connect_serial():
                             self.stats['reconnects'] += 1
+                            self.get_logger().info(f'♻️  Reconnect #{self.stats["reconnects"]}')
                         last_reconnect_attempt = current_time
                     else:
                         time.sleep(0.1)
@@ -209,11 +217,11 @@ class FCCommsNode(Node):
 
                 # Check connection health
                 if time.time() - self.last_heartbeat > 10.0:  # 10 second timeout
-                    self.get_logger().warn('Flight controller communication timeout')
+                    self.get_logger().warn('⚠️  Flight controller communication timeout')
                     self.disconnect_serial()
 
             except Exception as e:
-                self.get_logger().error(f'Communication worker error: {e}')
+                self.get_logger().error(f'❌ Communication worker error: {e}')
                 self.stats['errors'] += 1
                 self.disconnect_serial()
                 time.sleep(1.0)
@@ -239,6 +247,9 @@ class FCCommsNode(Node):
             self.serial_conn.write(encoded)
             self.serial_conn.flush()
             self.stats['messages_sent'] += 1
+            
+            cmd_name = self._get_command_name(message.command)
+            self.get_logger().debug(f'📤 Sent: {cmd_name} (#{self.stats["messages_sent"]})')
             return True
 
         except Exception as e:
@@ -279,6 +290,9 @@ class FCCommsNode(Node):
 
     def handle_msp_response(self, message: MSPMessage):
         """Handle incoming MSP response messages"""
+        cmd_name = self._get_command_name(message.command)
+        self.get_logger().info(f'📥 Received: {cmd_name} (code={message.command}, size={message.size} bytes)')
+        
         try:
             if message.command == MSPCommand.MSP_RAW_IMU:
                 self.handle_imu_data(message.data)
@@ -292,9 +306,11 @@ class FCCommsNode(Node):
                 self.handle_battery_data(message.data)
             elif message.command == MSPCommand.MSP_MOTOR:
                 self.handle_motor_data(message.data)
+            else:
+                self.get_logger().debug(f'   ℹ️  Unhandled message type: {cmd_name}')
 
         except Exception as e:
-            self.get_logger().debug(f'Error handling MSP response: {e}')
+            self.get_logger().error(f'❌ Error handling {cmd_name}: {e}')
 
     def handle_imu_data(self, data: bytes):
         """Handle IMU data from flight controller"""
@@ -324,12 +340,17 @@ class FCCommsNode(Node):
 
         self.imu_pub.publish(imu_msg)
         self.last_telemetry['imu'] = imu_msg
+        
+        self.get_logger().info(f'   ➜ Published to /fc/imu_raw | '
+                              f'acc=[{imu_msg.linear_acceleration.x:.2f}, {imu_msg.linear_acceleration.y:.2f}, {imu_msg.linear_acceleration.z:.2f}] m/s² | '
+                              f'gyro=[{imu_msg.angular_velocity.x:.2f}, {imu_msg.angular_velocity.y:.2f}, {imu_msg.angular_velocity.z:.2f}] rad/s')
 
     def handle_gps_data(self, data: bytes):
         """Handle GPS data from flight controller"""
         gps_data = MSPDataTypes.unpack_gps_data(data)
 
         if not gps_data:
+            self.get_logger().warn('   ⚠️  Empty GPS data received')
             return
 
         gps_msg = NavSatFix()
@@ -343,10 +364,13 @@ class FCCommsNode(Node):
         # Set status based on satellite count
         if gps_data['satellites'] >= 6:
             gps_msg.status.status = gps_msg.status.STATUS_FIX
+            fix_type = 'FIX'
         elif gps_data['satellites'] >= 3:
             gps_msg.status.status = gps_msg.status.STATUS_SBAS_FIX
+            fix_type = 'SBAS'
         else:
             gps_msg.status.status = gps_msg.status.STATUS_NO_FIX
+            fix_type = 'NO_FIX'
 
         gps_msg.status.service = gps_msg.status.SERVICE_GPS
 
@@ -355,6 +379,11 @@ class FCCommsNode(Node):
 
         self.gps_pub.publish(gps_msg)
         self.last_telemetry['gps'] = gps_msg
+        
+        self.get_logger().info(f'   ➜ Published to /fc/gps_fix | '
+                              f'lat={gps_msg.latitude:.6f}° lon={gps_msg.longitude:.6f}° | '
+                              f'alt={gps_msg.altitude:.1f}m | '
+                              f'sats={gps_data["satellites"]} ({fix_type})')
 
     def handle_attitude_data(self, data: bytes):
         """Handle attitude data from flight controller"""
@@ -370,6 +399,9 @@ class FCCommsNode(Node):
 
         self.attitude_pub.publish(attitude_msg)
         self.last_telemetry['attitude'] = attitude_msg
+        
+        self.get_logger().info(f'   ➜ Published to /fc/attitude | '
+                              f'roll={roll:.1f}° pitch={pitch:.1f}° yaw={yaw:.1f}°')
 
     def handle_status_data(self, data: bytes):
         """Handle flight controller status"""
@@ -384,6 +416,12 @@ class FCCommsNode(Node):
 
             self.status_pub.publish(status_msg)
             self.last_telemetry['status'] = status_msg
+            
+            self.get_logger().info(f'   ➜ Published to /fc/status | '
+                                  f'cycle={status_data["cycle_time"]}µs | '
+                                  f'i2c_err={status_data["i2c_errors"]} | '
+                                  f'sensors=0x{status_data["sensor_flags"]:04x} | '
+                                  f'mode=0x{status_data["flight_mode_flags"]:04x}')
 
     def handle_battery_data(self, data: bytes):
         """Handle battery/analog data"""
@@ -401,6 +439,15 @@ class FCCommsNode(Node):
 
             self.battery_pub.publish(battery_msg)
             self.last_telemetry['battery'] = battery_msg
+            
+            power = battery_msg.voltage * battery_msg.current
+            self.get_logger().info(f'   ➜ Published to /fc/battery | '
+                                  f'voltage={battery_msg.voltage:.2f}V | '
+                                  f'current={battery_msg.current:.2f}A | '
+                                  f'power={power:.2f}W | '
+                                  f'rssi={rssi}')
+        else:
+            self.get_logger().warn(f'   ⚠️  Insufficient battery data: {len(data)} bytes')
 
     def handle_motor_data(self, data: bytes):
         """Handle motor RPM/command data"""
@@ -413,17 +460,26 @@ class FCCommsNode(Node):
             motor_msg = Float32MultiArray()
             motor_msg.data = motor_values
             self.motor_rpm_pub.publish(motor_msg)
+            
+            motors_str = ', '.join([f'M{i+1}={int(v)}' for i, v in enumerate(motor_values)])
+            self.get_logger().info(f'   ➜ Published to /fc/motor_rpm | {motors_str}')
+        else:
+            self.get_logger().warn(f'   ⚠️  Insufficient motor data: {len(data)} bytes')
 
     def msp_command_callback(self, msg: Float32MultiArray):
         """Handle raw MSP command requests"""
         if len(msg.data) < 1:
+            self.get_logger().warn('⚠️  Received empty MSP command')
             return
 
         command = int(msg.data[0])
         payload = bytes([int(x) for x in msg.data[1:]])
+        cmd_name = self._get_command_name(command)
 
         msp_msg = MSPMessage(command, payload)
         self.command_queue.put(msp_msg)
+        
+        self.get_logger().info(f'🎮 Queued MSP command from /fc/msp_command: {cmd_name} (code={command}, payload={len(payload)} bytes)')
 
     def rc_override_callback(self, msg: Float32MultiArray):
         """Handle RC channel override commands"""
@@ -436,6 +492,11 @@ class FCCommsNode(Node):
             payload = MSPDataTypes.pack_rc_channels(channels)
             msp_msg = MSPMessage(MSPCommand.MSP_SET_RAW_RC, payload)
             self.command_queue.put(msp_msg)
+            
+            ch_str = f'[{channels[0]}, {channels[1]}, {channels[2]}, {channels[3]}]'
+            self.get_logger().info(f'🎮 Queued RC override from /fc/rc_override: RPYT={ch_str}')
+        else:
+            self.get_logger().warn(f'⚠️  Invalid RC override data: {len(msg.data)} values (need at least 4)')
 
     def request_telemetry(self):
         """Request telemetry data from flight controller"""
@@ -465,15 +526,33 @@ class FCCommsNode(Node):
             # Request FC status as heartbeat
             msp_msg = MSPMessage(MSPCommand.MSP_IDENT)
             self.command_queue.put(msp_msg)
+            self.get_logger().debug('💓 Heartbeat sent')
 
     def publish_connection_status(self):
         """Publish connection status"""
         conn_msg = Bool()
         conn_msg.data = self.connected
         self.connected_pub.publish(conn_msg)
+        
+        status = '🟢 CONNECTED' if self.connected else '🔴 DISCONNECTED'
+        self.get_logger().debug(f'{status} | Sent: {self.stats["messages_sent"]} | '
+                               f'Received: {self.stats["messages_received"]} | '
+                               f'Errors: {self.stats["errors"]}')
+
+    def _get_command_name(self, command: int) -> str:
+        """Get command name from code"""
+        try:
+            return MSPCommand(command).name
+        except ValueError:
+            return f"UNKNOWN_{command}"
 
     def destroy_node(self):
         """Cleanup when node is destroyed"""
+        self.get_logger().info('🛑 Shutting down FC Communications Node...')
+        self.get_logger().info(f'📊 Final stats - Sent: {self.stats["messages_sent"]}, '
+                              f'Received: {self.stats["messages_received"]}, '
+                              f'Errors: {self.stats["errors"]}, '
+                              f'Reconnects: {self.stats["reconnects"]}')
         self.stop_communication()
         self.disconnect_serial()
         super().destroy_node()
