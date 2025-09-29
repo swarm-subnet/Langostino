@@ -68,22 +68,28 @@ def generate_launch_description():
         description='Baud rate for serial communication'
     )
 
-    front_lidar_port_arg = DeclareLaunchArgument(
-        'front_lidar_port',
-        default_value='/dev/ttyAMA0',
-        description='Serial port for front LiDAR sensor'
+    front_lidar_i2c_bus_arg = DeclareLaunchArgument(
+        'front_lidar_i2c_bus',
+        default_value='1',
+        description='I2C bus number for front LiDAR sensor'
     )
 
-    down_lidar_port_arg = DeclareLaunchArgument(
-        'down_lidar_port',
-        default_value='/dev/ttyUSB1',
-        description='Serial port for down-facing LiDAR sensor'
+    front_lidar_i2c_address_arg = DeclareLaunchArgument(
+        'front_lidar_i2c_address',
+        default_value='8',
+        description='I2C address for front LiDAR sensor (decimal)'
     )
 
-    lidar_baud_rate_arg = DeclareLaunchArgument(
-        'lidar_baud_rate',
-        default_value='921600',
-        description='Baud rate for LiDAR sensors'
+    down_lidar_i2c_bus_arg = DeclareLaunchArgument(
+        'down_lidar_i2c_bus',
+        default_value='1',
+        description='I2C bus number for down-facing LiDAR sensor'
+    )
+
+    down_lidar_i2c_address_arg = DeclareLaunchArgument(
+        'down_lidar_i2c_address',
+        default_value='9',
+        description='I2C address for down-facing LiDAR sensor (decimal)'
     )
 
     # Black Box Recorder arguments
@@ -222,8 +228,9 @@ def generate_launch_description():
         namespace='front_lidar',
         output='screen',
         parameters=[{
-            'serial_port': LaunchConfiguration('front_lidar_port'),
-            'baud_rate': LaunchConfiguration('lidar_baud_rate'),
+            'i2c_bus': LaunchConfiguration('front_lidar_i2c_bus'),
+            'i2c_address': LaunchConfiguration('front_lidar_i2c_address'),
+            'distance_register': 0x24,
             'publish_rate': 100.0,
             'frame_id': 'front_lidar_link',
             'sensor_position': 'front',
@@ -249,8 +256,9 @@ def generate_launch_description():
         namespace='down_lidar',
         output='screen',
         parameters=[{
-            'serial_port': LaunchConfiguration('down_lidar_port'),
-            'baud_rate': LaunchConfiguration('lidar_baud_rate'),
+            'i2c_bus': LaunchConfiguration('down_lidar_i2c_bus'),
+            'i2c_address': LaunchConfiguration('down_lidar_i2c_address'),
+            'distance_register': 0x24,
             'publish_rate': 100.0,
             'frame_id': 'down_lidar_link',
             'sensor_position': 'down',
@@ -305,9 +313,10 @@ def generate_launch_description():
         debug_mode_arg,
         serial_port_arg,
         baud_rate_arg,
-        front_lidar_port_arg,
-        down_lidar_port_arg,
-        lidar_baud_rate_arg,
+        front_lidar_i2c_bus_arg,
+        front_lidar_i2c_address_arg,
+        down_lidar_i2c_bus_arg,
+        down_lidar_i2c_address_arg,
         log_directory_arg,
         enable_blackbox_arg,
 

@@ -22,7 +22,7 @@
   <!-- Python dependencies for AI model -->
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-scipy</exec_depend>
-  <exec_depend>python3-serial</exec_depend>
+  <exec_depend>python3-smbus2</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

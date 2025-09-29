@@ -1,22 +1,15 @@
 #!/usr/bin/env python3
 """
-LiDAR Reader Node - NLink_TOFSense Protocol Implementation
+LiDAR Reader Node - I2C Protocol Implementation
 
-This node reads distance data from NLink TOFSense LiDAR sensors using the
-NLink_TOFSense_Frame0 protocol over UART. It supports multiple sensor instances
-for different mounting positions (front, down, etc.).
+This node reads distance data from LiDAR sensors via I2C communication.
+It supports multiple sensor instances for different mounting positions (front, down, etc.).
 
-Protocol Format:
-- Header: 0x57 0x00
-- ID: sensor identifier
-- System Time: 4 bytes (ms)
-- Distance: 4 bytes (raw value / 256 / 1000 = meters)
-- Status: 1 byte
-- Signal Strength: 2 bytes
-- Range Precision: 1 byte
-- Checksum: 1 byte (sum of bytes 0-14)
-
-Total frame size: 16 bytes
+I2C Protocol:
+- I2C Address: 0x08 (default)
+- Distance Register: 0x24 (base address for distance data)
+- Data Format: 4 bytes, little-endian uint32 representing distance in millimeters
+- Conversion: distance_mm / 1000.0 = distance in meters
 
 The node publishes sensor_msgs/Range messages containing distance measurements
 and provides diagnostic information about sensor health and data quality.
@@ -30,7 +23,7 @@ from sensor_msgs.msg import Range
 from std_msgs.msg import Header, Float32MultiArray, String, Bool
 from geometry_msgs.msg import PointStamped
 
-import serial
+from smbus2 import SMBus
 import struct
 import time
 import threading
@@ -41,10 +34,10 @@ import numpy as np
 
 class LidarReaderNode(Node):
     """
-    LiDAR Reader Node for NLink TOFSense sensors.
+    LiDAR Reader Node for I2C-based LiDAR sensors.
 
-    This node handles serial communication with NLink TOFSense LiDAR sensors,
-    parses the proprietary protocol, and publishes ROS2 Range messages.
+    This node handles I2C communication with LiDAR sensors,
+    reads distance data, and publishes ROS2 Range messages.
 
     Publishers:
         /lidar_distance (sensor_msgs/Range): Distance measurements
@@ -57,12 +50,12 @@ class LidarReaderNode(Node):
         super().__init__('lidar_reader_node')
 
         # Declare parameters
-        self.declare_parameter('serial_port', '/dev/ttyAMA0')
-        self.declare_parameter('baud_rate', 921600)
-        self.declare_parameter('publish_rate', 100.0)  # Hz
+        self.declare_parameter('i2c_bus', 1)  # I2C bus number
+        self.declare_parameter('i2c_address', 0x08)  # I2C device address
+        self.declare_parameter('distance_register', 0x24)  # Distance data register
+        self.declare_parameter('publish_rate', 100.0)  # Hz (max 100Hz per specs)
         self.declare_parameter('frame_id', 'lidar_link')
         self.declare_parameter('sensor_position', 'front')  # front, down, etc.
-        self.declare_parameter('timeout', 0.1)  # Serial timeout
         self.declare_parameter('max_range', 50.0)  # Maximum valid range (meters)
         self.declare_parameter('min_range', 0.05)  # Minimum valid range (meters)
         self.declare_parameter('field_of_view', 0.035)  # FOV in radians (~2 degrees)
@@ -71,12 +64,12 @@ class LidarReaderNode(Node):
         self.declare_parameter('max_invalid_readings', 10)  # Max consecutive invalid readings
 
         # Get parameters
-        self.serial_port = self.get_parameter('serial_port').get_parameter_value().string_value
-        self.baud_rate = self.get_parameter('baud_rate').get_parameter_value().integer_value
+        self.i2c_bus = self.get_parameter('i2c_bus').get_parameter_value().integer_value
+        self.i2c_address = self.get_parameter('i2c_address').get_parameter_value().integer_value
+        self.distance_register = self.get_parameter('distance_register').get_parameter_value().integer_value
         self.publish_rate = self.get_parameter('publish_rate').get_parameter_value().double_value
         self.frame_id = self.get_parameter('frame_id').get_parameter_value().string_value
         self.sensor_position = self.get_parameter('sensor_position').get_parameter_value().string_value
-        self.timeout = self.get_parameter('timeout').get_parameter_value().double_value
         self.max_range = self.get_parameter('max_range').get_parameter_value().double_value
         self.min_range = self.get_parameter('min_range').get_parameter_value().double_value
         self.field_of_view = self.get_parameter('field_of_view').get_parameter_value().double_value
@@ -84,26 +77,23 @@ class LidarReaderNode(Node):
         self.filter_window_size = self.get_parameter('filter_window_size').get_parameter_value().integer_value
         self.max_invalid_readings = self.get_parameter('max_invalid_readings').get_parameter_value().integer_value
 
-        # Serial connection
-        self.serial_conn: Optional[serial.Serial] = None
-        self.serial_lock = threading.Lock()
+        # I2C connection
+        self.i2c_bus_conn: Optional[SMBus] = None
+        self.i2c_lock = threading.Lock()
 
         # Data processing
-        self.buffer = bytearray()
         self.distance_filter = deque(maxlen=self.filter_window_size)
         self.last_valid_distance = 0.0
         self.consecutive_invalid_readings = 0
 
         # Statistics and monitoring
         self.stats = {
-            'total_frames': 0,
-            'valid_frames': 0,
-            'invalid_frames': 0,
-            'checksum_errors': 0,
+            'total_readings': 0,
+            'valid_readings': 0,
+            'invalid_readings': 0,
+            'i2c_errors': 0,
             'out_of_range_readings': 0,
             'last_distance': 0.0,
-            'last_signal_strength': 0,
-            'last_status': 0,
             'connection_errors': 0
         }
 
@@ -131,10 +121,10 @@ class LidarReaderNode(Node):
         self.point_pub = self.create_publisher(PointStamped, 'lidar_point', sensor_qos)
         self.healthy_pub = self.create_publisher(Bool, 'lidar_healthy', reliable_qos)
 
-        # Initialize serial connection
-        self.connect_serial()
+        # Initialize I2C connection
+        self.connect_i2c()
 
-        # Create timer for reading serial data
+        # Create timer for reading I2C data
         if self.publish_rate > 0:
             timer_period = 1.0 / self.publish_rate
             self.timer = self.create_timer(timer_period, self.timer_callback)
@@ -143,138 +133,67 @@ class LidarReaderNode(Node):
         self.status_timer = self.create_timer(1.0, self.publish_status)
 
         self.get_logger().info(
-            f'LiDAR Reader Node initialized - Port: {self.serial_port}, '
+            f'LiDAR Reader Node initialized - I2C Bus: {self.i2c_bus}, Address: 0x{self.i2c_address:02x}, '
             f'Position: {self.sensor_position}, Rate: {self.publish_rate} Hz'
         )
 
-    def connect_serial(self) -> bool:
-        """Initialize serial connection to LiDAR sensor"""
+    def connect_i2c(self) -> bool:
+        """Initialize I2C connection to LiDAR sensor"""
         try:
-            with self.serial_lock:
-                if self.serial_conn and self.serial_conn.is_open:
-                    self.serial_conn.close()
+            with self.i2c_lock:
+                if self.i2c_bus_conn:
+                    self.i2c_bus_conn.close()
 
-                self.serial_conn = serial.Serial(
-                    port=self.serial_port,
-                    baudrate=self.baud_rate,
-                    timeout=self.timeout,
-                    bytesize=serial.EIGHTBITS,
-                    parity=serial.PARITY_NONE,
-                    stopbits=serial.STOPBITS_ONE
-                )
+                self.i2c_bus_conn = SMBus(self.i2c_bus)
 
-                # Clear input/output buffers
-                self.serial_conn.reset_input_buffer()
-                self.serial_conn.reset_output_buffer()
+                # Test connection by trying to read a byte
+                _ = self.i2c_bus_conn.read_byte(self.i2c_address)
 
                 self.sensor_healthy = True
-                self.get_logger().info(f'Serial port {self.serial_port} opened at {self.baud_rate} baud')
+                self.get_logger().info(f'I2C bus {self.i2c_bus} connected to address 0x{self.i2c_address:02x}')
                 return True
 
-        except serial.SerialException as e:
-            self.get_logger().error(f'Failed to open serial port {self.serial_port}: {e}')
+        except Exception as e:
+            self.get_logger().error(f'Failed to connect to I2C device 0x{self.i2c_address:02x} on bus {self.i2c_bus}: {e}')
             self.sensor_healthy = False
             self.stats['connection_errors'] += 1
-            return False
-        except Exception as e:
-            self.get_logger().error(f'Unexpected error opening serial port: {e}')
-            self.sensor_healthy = False
+            if self.i2c_bus_conn:
+                try:
+                    self.i2c_bus_conn.close()
+                except:
+                    pass
+                self.i2c_bus_conn = None
             return False
 
-    def parse_frame(self, frame: bytes) -> Optional[Tuple[float, int, int, int, int]]:
+    def read_distance_i2c(self) -> Optional[float]:
         """
-        Parse NLink_TOFSense_Frame0 protocol frame.
+        Read distance data from I2C sensor.
 
-        Frame format (16 bytes):
-        - Bytes 0-1: Header (0x57, 0x00)
-        - Byte 2: Sensor ID
-        - Bytes 3-6: System time (4 bytes, little endian, milliseconds)
-        - Bytes 7-10: Distance (4 bytes, little endian, raw units)
-        - Byte 11: Status
-        - Bytes 12-13: Signal strength (2 bytes, little endian)
-        - Byte 14: Range precision
-        - Byte 15: Checksum (sum of bytes 0-14)
-
-        Args:
-            frame: 16-byte frame data
+        Reads 4 bytes from the distance register (0x24) which contains
+        distance in millimeters as a little-endian uint32.
 
         Returns:
-            Tuple of (distance_m, system_time_ms, status, signal_strength, range_precision)
-            or None if parsing fails
+            Distance in meters, or None if reading fails
         """
-        if len(frame) != 16:
-            return None
-
-        # Check header
-        if frame[0] != 0x57 or frame[1] != 0x00:
-            return None
-
-        # Calculate and verify checksum
-        calculated_checksum = sum(frame[:15]) & 0xFF
-        received_checksum = frame[15]
-
-        if calculated_checksum != received_checksum:
-            self.get_logger().debug(
-                f'Checksum mismatch: calculated 0x{calculated_checksum:02x}, '
-                f'received 0x{received_checksum:02x}'
-            )
-            self.stats['checksum_errors'] += 1
-            return None
-
         try:
-            # Parse fields
-            sensor_id = frame[2]
+            with self.i2c_lock:
+                if not self.i2c_bus_conn:
+                    return None
 
-            # System time (4 bytes, little endian)
-            system_time = struct.unpack('<I', frame[3:7])[0]
+                # Read 4 bytes from distance register
+                data = self.i2c_bus_conn.read_i2c_block_data(self.i2c_address, self.distance_register, 4)
 
-            # Distance (4 bytes, little endian) - convert from raw to meters
-            distance_raw = struct.unpack('<I', frame[7:11])[0]
-            distance_m = distance_raw / 256.0 / 1000.0
+                # Convert to uint32 little-endian and then to meters
+                distance_mm = struct.unpack('<I', bytes(data))[0]
+                distance_m = distance_mm / 1000.0
 
-            # Status byte
-            status = frame[11]
+                return distance_m
 
-            # Signal strength (2 bytes, little endian)
-            signal_strength = struct.unpack('<H', frame[12:14])[0]
-
-            # Range precision
-            range_precision = frame[14]
-
-            return (distance_m, system_time, status, signal_strength, range_precision)
-
-        except struct.error as e:
-            self.get_logger().debug(f'Error unpacking frame data: {e}')
+        except Exception as e:
+            self.get_logger().debug(f'I2C read error: {e}')
+            self.stats['i2c_errors'] += 1
             return None
 
-    def find_frame_in_buffer(self) -> Optional[bytes]:
-        """
-        Look for a valid frame in the buffer using sliding window approach.
-
-        Returns:
-            16-byte frame if found and valid, None otherwise
-        """
-        # Need at least 16 bytes for a complete frame
-        while len(self.buffer) >= 16:
-            # Look for frame header (0x57 0x00)
-            if self.buffer[0] == 0x57 and self.buffer[1] == 0x00:
-                # Extract potential frame
-                potential_frame = bytes(self.buffer[:16])
-
-                # Verify checksum quickly
-                checksum = sum(potential_frame[:15]) & 0xFF
-                if checksum == potential_frame[15]:
-                    # Valid frame found, remove from buffer
-                    del self.buffer[:16]
-                    return potential_frame
-                else:
-                    # Invalid checksum, skip first byte and continue searching
-                    del self.buffer[0]
-            else:
-                # No header at current position, skip first byte
-                del self.buffer[0]
-
-        return None
 
     def apply_distance_filter(self, distance: float) -> float:
         """
@@ -295,13 +214,12 @@ class LidarReaderNode(Node):
         # Return moving average
         return float(np.mean(self.distance_filter))
 
-    def validate_distance(self, distance: float, status: int) -> bool:
+    def validate_distance(self, distance: float) -> bool:
         """
-        Validate distance measurement against range and status criteria.
+        Validate distance measurement against range criteria.
 
         Args:
             distance: Distance measurement in meters
-            status: Sensor status byte
 
         Returns:
             True if distance is valid, False otherwise
@@ -311,84 +229,63 @@ class LidarReaderNode(Node):
             self.stats['out_of_range_readings'] += 1
             return False
 
-        # Check sensor status (implementation depends on sensor documentation)
-        # For now, assume status 0 is good, others may indicate issues
-        if status != 0:
-            self.get_logger().debug(f'Sensor status warning: {status}')
-
         return True
 
     def timer_callback(self):
-        """Read serial data and publish parsed distance measurements."""
+        """Read I2C data and publish distance measurements."""
         if not self.sensor_healthy:
             # Try to reconnect periodically
             if time.time() - self.last_reading_time > 5.0:  # Every 5 seconds
-                self.connect_serial()
+                self.connect_i2c()
             return
 
         try:
-            with self.serial_lock:
-                if not self.serial_conn or not self.serial_conn.is_open:
-                    self.sensor_healthy = False
-                    return
+            # Read distance from I2C sensor
+            distance_m = self.read_distance_i2c()
 
-                # Read available data
-                if self.serial_conn.in_waiting > 0:
-                    new_data = self.serial_conn.read(self.serial_conn.in_waiting)
-                    self.buffer.extend(new_data)
+            if distance_m is not None:
+                self.stats['total_readings'] += 1
 
-            # Try to find and parse frames
-            frame = self.find_frame_in_buffer()
-            if frame:
-                self.stats['total_frames'] += 1
+                # Validate distance
+                if self.validate_distance(distance_m):
+                    # Apply filtering
+                    filtered_distance = self.apply_distance_filter(distance_m)
 
-                parsed_data = self.parse_frame(frame)
-                if parsed_data:
-                    distance_m, system_time, status, signal_strength, range_precision = parsed_data
+                    # Update statistics
+                    self.stats['valid_readings'] += 1
+                    self.stats['last_distance'] = filtered_distance
+                    self.last_valid_distance = filtered_distance
+                    self.last_reading_time = time.time()
+                    self.consecutive_invalid_readings = 0
 
-                    # Validate distance
-                    if self.validate_distance(distance_m, status):
-                        # Apply filtering
-                        filtered_distance = self.apply_distance_filter(distance_m)
+                    # Publish Range message
+                    self.publish_range_message(filtered_distance)
 
-                        # Update statistics
-                        self.stats['valid_frames'] += 1
-                        self.stats['last_distance'] = filtered_distance
-                        self.stats['last_signal_strength'] = signal_strength
-                        self.stats['last_status'] = status
-                        self.last_valid_distance = filtered_distance
-                        self.last_reading_time = time.time()
-                        self.consecutive_invalid_readings = 0
+                    # Publish raw data
+                    self.publish_raw_data(distance_m)
 
-                        # Publish Range message
-                        self.publish_range_message(filtered_distance)
+                    # Publish 3D point
+                    self.publish_point_message(filtered_distance)
 
-                        # Publish raw data
-                        self.publish_raw_data(distance_m, system_time, status, signal_strength, range_precision)
-
-                        # Publish 3D point
-                        self.publish_point_message(filtered_distance)
-
-                    else:
-                        self.stats['invalid_frames'] += 1
-                        self.consecutive_invalid_readings += 1
-
-                        # If too many consecutive invalid readings, mark sensor as unhealthy
-                        if self.consecutive_invalid_readings > self.max_invalid_readings:
-                            self.sensor_healthy = False
-                            self.get_logger().warn(
-                                f'Too many consecutive invalid readings ({self.consecutive_invalid_readings}), '
-                                'marking sensor as unhealthy'
-                            )
                 else:
-                    self.stats['invalid_frames'] += 1
+                    self.stats['invalid_readings'] += 1
+                    self.consecutive_invalid_readings += 1
 
-        except serial.SerialException as e:
-            self.get_logger().error(f'Serial communication error: {e}')
-            self.sensor_healthy = False
-            self.stats['connection_errors'] += 1
+                    # If too many consecutive invalid readings, mark sensor as unhealthy
+                    if self.consecutive_invalid_readings > self.max_invalid_readings:
+                        self.sensor_healthy = False
+                        self.get_logger().warn(
+                            f'Too many consecutive invalid readings ({self.consecutive_invalid_readings}), '
+                            'marking sensor as unhealthy'
+                        )
+            else:
+                self.stats['invalid_readings'] += 1
+                self.consecutive_invalid_readings += 1
+
         except Exception as e:
             self.get_logger().error(f'Unexpected error in timer callback: {e}')
+            self.sensor_healthy = False
+            self.stats['connection_errors'] += 1
 
     def publish_range_message(self, distance: float):
         """Publish sensor_msgs/Range message"""
@@ -407,17 +304,12 @@ class LidarReaderNode(Node):
         except Exception as e:
             self.get_logger().error(f'Error publishing range message: {e}')
 
-    def publish_raw_data(self, distance: float, system_time: int, status: int,
-                        signal_strength: int, range_precision: int):
+    def publish_raw_data(self, distance: float):
         """Publish raw sensor data for debugging"""
         try:
             raw_msg = Float32MultiArray()
             raw_msg.data = [
-                float(distance),
-                float(system_time),
-                float(status),
-                float(signal_strength),
-                float(range_precision),
+                float(distance),  # Distance in meters
                 float(time.time())  # ROS timestamp
             ]
 
@@ -464,8 +356,8 @@ class LidarReaderNode(Node):
             self.healthy_pub.publish(health_msg)
 
             # Detailed status message
-            if self.stats['total_frames'] > 0:
-                success_rate = (self.stats['valid_frames'] / self.stats['total_frames']) * 100
+            if self.stats['total_readings'] > 0:
+                success_rate = (self.stats['valid_readings'] / self.stats['total_readings']) * 100
             else:
                 success_rate = 0.0
 
@@ -474,12 +366,12 @@ class LidarReaderNode(Node):
             status_parts = [
                 f"Health: {'OK' if self.sensor_healthy else 'ERROR'}",
                 f"Position: {self.sensor_position}",
+                f"I2C: 0x{self.i2c_address:02x}",
                 f"Distance: {self.stats['last_distance']:.3f}m",
                 f"Success: {success_rate:.1f}%",
-                f"Signal: {self.stats['last_signal_strength']}",
                 f"LastRead: {time_since_last:.1f}s ago",
-                f"Frames: {self.stats['total_frames']}",
-                f"Errors: {self.stats['invalid_frames']}"
+                f"Readings: {self.stats['total_readings']}",
+                f"I2C_Errors: {self.stats['i2c_errors']}"
             ]
 
             status_msg = String()
@@ -492,12 +384,12 @@ class LidarReaderNode(Node):
     def destroy_node(self):
         """Clean up resources when node is destroyed"""
         try:
-            with self.serial_lock:
-                if self.serial_conn and self.serial_conn.is_open:
-                    self.serial_conn.close()
-                    self.get_logger().info(f'Serial port {self.serial_port} closed')
+            with self.i2c_lock:
+                if self.i2c_bus_conn:
+                    self.i2c_bus_conn.close()
+                    self.get_logger().info(f'I2C bus {self.i2c_bus} closed')
         except Exception as e:
-            self.get_logger().debug(f'Error closing serial port: {e}')
+            self.get_logger().debug(f'Error closing I2C bus: {e}')
 
         super().destroy_node()
 
