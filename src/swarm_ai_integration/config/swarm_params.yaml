@@ -82,7 +82,7 @@ safety_monitor_node:
 fc_comms_node:
   ros__parameters:
     # Serial communication
-    serial_port: "/dev/ttyUSB0"     # Serial port for INAV communication
+    serial_port: "/dev/ttyAMA0"     # Serial port for INAV communication
     baud_rate: 115200               # Serial baud rate
     timeout: 1.0                    # Serial timeout (seconds)
 
