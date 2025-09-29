@@ -57,7 +57,7 @@ class FCCommsNode(Node):
         super().__init__('fc_comms_node')
 
         # Declare parameters
-        self.declare_parameter('serial_port', '/dev/ttyUSB0')
+        self.declare_parameter('serial_port', '/dev/ttyAMA0')
         self.declare_parameter('baud_rate', 115200)
         self.declare_parameter('timeout', 1.0)
         self.declare_parameter('reconnect_interval', 5.0)
