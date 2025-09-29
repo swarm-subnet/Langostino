@@ -17,8 +17,8 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from std_msgs.msg import Float32MultiArray, Header
-from sensor_msgs.msg import LaserScan, Imu, NavSatFix
-from geometry_msgs.msg import PoseStamped, TwistStamped, Vector3Stamped
+from sensor_msgs.msg import LaserScan, Imu, NavSatFix, Range
+from geometry_msgs.msg import PoseStamped, TwistStamped, Vector3Stamped, Point
 from nav_msgs.msg import Odometry
 import tf2_ros
 import tf2_geometry_msgs
@@ -68,6 +68,7 @@ class AIAdapterNode(Node):
 
         # Constants from swarm simulation
         self.MAX_RAY_DISTANCE = 10.0  # Maximum LiDAR range in meters
+        self.min_range = 0.05  # Minimum valid LiDAR range in meters
         self.GRAVITY = 9.8
 
         # TF2 for coordinate transformations
@@ -89,17 +90,19 @@ class AIAdapterNode(Node):
 
         # Subscribers
         self.imu_sub = self.create_subscription(
-            Imu, '/imu/data', self.imu_callback, sensor_qos)
+            Imu, '/fc/imu_raw', self.imu_callback, sensor_qos)
         self.gps_sub = self.create_subscription(
-            NavSatFix, '/gps/fix', self.gps_callback, sensor_qos)
+            NavSatFix, '/fc/gps_fix', self.gps_callback, sensor_qos)
         self.lidar_sub = self.create_subscription(
-            LaserScan, '/lidar_scan', self.lidar_callback, sensor_qos)
+            Range, '/lidar_distance', self.lidar_callback, sensor_qos)
         self.fc_state_sub = self.create_subscription(
             TwistStamped, '/fc/state', self.fc_state_callback, reliable_qos)
         self.rpm_sub = self.create_subscription(
-            Float32MultiArray, '/fc/rpm', self.rpm_callback, reliable_qos)
+            Float32MultiArray, '/fc/motor_rpm', self.rpm_callback, reliable_qos)
         self.goal_sub = self.create_subscription(
             PoseStamped, '/goal_pose', self.goal_callback, reliable_qos)
+        self.goal_point_sub = self.create_subscription(
+            Point, '/set_goal', self.set_goal_callback, reliable_qos)
 
         # Publishers
         self.obs_pub = self.create_publisher(
@@ -145,58 +148,46 @@ class AIAdapterNode(Node):
 
         self.data_received['gps'] = True
 
-    def lidar_callback(self, msg: LaserScan):
-        """Process LiDAR data to create 16-directional distance measurements"""
-        # Convert LaserScan to 16 specific directions matching simulation
-        # The simulation uses these 16 directions (from moving_drone.py:116-138):
-        # - 2 vertical (up/down)
-        # - 8 horizontal (0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°)
-        # - 6 diagonal (±30° elevation)
+    def lidar_callback(self, msg: Range):
+        """Process single LiDAR range data - simplified for single sensor setup"""
+        # For now, use the single range measurement for all directions
+        # This is a simplified approach since we have a single LiDAR sensor
+        # In a full implementation, you'd have multiple sensors or a scanning LiDAR
 
-        ranges = np.array(msg.ranges)
-        valid_ranges = ranges[np.isfinite(ranges)]
+        distance = msg.range
+        if np.isfinite(distance) and self.min_range <= distance <= msg.max_range:
+            # Use this single measurement for multiple directions
+            # This assumes obstacles are primarily in the sensor's direction
 
-        if len(valid_ranges) == 0:
-            return
-
-        # Map LiDAR scan to 16 specific directions
-        num_rays = len(ranges)
-        angle_min = msg.angle_min
-        angle_increment = msg.angle_increment
-
-        # Define target angles for the 16 directions (in radians)
-        target_angles = [
-            0.0,                    # Forward
-            np.pi/4,               # Forward-Right (45°)
-            np.pi/2,               # Right (90°)
-            3*np.pi/4,             # Back-Right (135°)
-            np.pi,                 # Back (180°)
-            5*np.pi/4,             # Back-Left (225°)
-            3*np.pi/2,             # Left (270°)
-            7*np.pi/4,             # Forward-Left (315°)
-        ]
-
-        # For horizontal rays (first 8), find closest LiDAR measurements
-        for i, target_angle in enumerate(target_angles):
-            # Find closest ray index
-            ray_index = int((target_angle - angle_min) / angle_increment)
-            ray_index = max(0, min(ray_index, num_rays - 1))
-
-            distance = ranges[ray_index]
-            if np.isfinite(distance):
-                self.lidar_distances[i + 2] = min(distance, self.MAX_RAY_DISTANCE)
+            # Based on sensor_position parameter, determine which directions to populate
+            if hasattr(msg, 'header') and 'down' in msg.header.frame_id:
+                # Down-facing sensor - primarily affects vertical measurements
+                self.lidar_distances[1] = distance  # Down ray
+                self.lidar_distances[0] = self.MAX_RAY_DISTANCE  # Up ray (no obstacles above)
+                # Keep horizontal rays at max distance for down sensor
+                self.lidar_distances[2:10] = self.MAX_RAY_DISTANCE
             else:
-                self.lidar_distances[i + 2] = self.MAX_RAY_DISTANCE
+                # Assume forward-facing or general purpose sensor
+                # Use for forward direction and approximate others
+                self.lidar_distances[2] = distance  # Forward (0°)
+                # Set adjacent directions to similar values with some variation
+                self.lidar_distances[3] = min(distance * 1.1, self.MAX_RAY_DISTANCE)  # 45°
+                self.lidar_distances[9] = min(distance * 1.1, self.MAX_RAY_DISTANCE)  # 315°
+                # Keep other directions at reasonable distances
+                for i in [4, 5, 6, 7, 8]:  # Side and back directions
+                    self.lidar_distances[i] = self.MAX_RAY_DISTANCE
 
-        # For vertical and diagonal rays, use statistical approximation
-        # Up/Down rays (indices 0, 1)
-        self.lidar_distances[0] = self.MAX_RAY_DISTANCE  # Up (no obstacle above)
-        self.lidar_distances[1] = np.min(valid_ranges) if len(valid_ranges) > 0 else self.MAX_RAY_DISTANCE  # Down
+                # Set vertical distances based on common assumptions
+                self.lidar_distances[0] = self.MAX_RAY_DISTANCE  # Up (no obstacles above)
+                self.lidar_distances[1] = max(distance * 0.8, 1.0)  # Down (approximate ground distance)
 
-        # Diagonal rays (indices 10-15) - use horizontal approximations
-        for i in range(6):
-            horizontal_idx = 2 + (i % 4)  # Map to corresponding horizontal ray
-            self.lidar_distances[10 + i] = self.lidar_distances[horizontal_idx]
+            # Diagonal rays (indices 10-15) - use approximations based on horizontal
+            for i in range(6):
+                horizontal_idx = 2 + (i % 4)
+                self.lidar_distances[10 + i] = self.lidar_distances[horizontal_idx]
+        else:
+            # Invalid reading - use maximum range for safety
+            self.lidar_distances.fill(self.MAX_RAY_DISTANCE)
 
         self.data_received['lidar'] = True
 
@@ -229,6 +220,17 @@ class AIAdapterNode(Node):
 
         self.data_received['goal'] = True
 
+    def set_goal_callback(self, msg: Point):
+        """Process simple goal point (convenience method)"""
+        self.goal_position = np.array([
+            msg.x,
+            msg.y,
+            msg.z
+        ], dtype=np.float32)
+
+        self.data_received['goal'] = True
+        self.get_logger().info(f'Goal set to: [{msg.x:.2f}, {msg.y:.2f}, {msg.z:.2f}]')
+
     def quaternion_to_euler(self, quat):
         """Convert quaternion to Euler angles (roll, pitch, yaw)"""
         x, y, z, w = quat
@@ -259,7 +261,6 @@ class AIAdapterNode(Node):
         """
         # Convert quaternion to Euler angles
         euler = self.quaternion_to_euler(self.orientation)
-        roll, pitch, yaw = euler
 
         # Compute accelerations (simple finite difference approximation)
         dt = 0.033  # 30 Hz
@@ -288,12 +289,16 @@ class AIAdapterNode(Node):
         - LiDAR distances (16-D)
         - Goal vector (3-D)
         """
-        # Check if we have minimum required data
-        required_data = ['imu', 'gps', 'lidar', 'goal']
+        # Check if we have minimum required data (goal is optional)
+        required_data = ['imu', 'gps', 'lidar']
         if not all(self.data_received[key] for key in required_data):
             missing = [key for key in required_data if not self.data_received[key]]
             self.get_logger().warn(f'Missing sensor data: {missing}', throttle_duration_sec=1.0)
             return
+
+        # Warn about missing goal but continue processing
+        if not self.data_received['goal']:
+            self.get_logger().warn('No goal position set - using default goal', throttle_duration_sec=5.0)
 
         try:
             # Compute base observation (112-D)
@@ -303,7 +308,12 @@ class AIAdapterNode(Node):
             lidar_scaled = self.lidar_distances / self.MAX_RAY_DISTANCE
 
             # Compute goal vector (relative position, scaled)
-            goal_vector = (self.goal_position - self.position) / self.MAX_RAY_DISTANCE
+            if self.data_received['goal']:
+                goal_vector = (self.goal_position - self.position) / self.MAX_RAY_DISTANCE
+            else:
+                # Use default goal slightly above current position if no goal is set
+                default_goal = self.position + np.array([5.0, 0.0, 2.0])  # 5m forward, 2m up
+                goal_vector = (default_goal - self.position) / self.MAX_RAY_DISTANCE
 
             # Concatenate to form 131-D observation
             full_obs = np.concatenate([
