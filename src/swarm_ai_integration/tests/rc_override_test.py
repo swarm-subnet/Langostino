@@ -8,7 +8,7 @@ import time
 import argparse
 import serial
 from typing import Optional, Dict
-from msp import MSPMessage, MSPCommand, MSPDirection, MSPDataTypes
+from swarm_ai_integration.msp_protocol import MSPMessage, MSPCommand, MSPDirection, MSPDataTypes
 
 class FlightController:
     def __init__(self, port='/dev/ttyAMA0', baudrate=115200):
