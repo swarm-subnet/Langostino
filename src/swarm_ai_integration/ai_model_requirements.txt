@@ -1,0 +1,5 @@
+numpy>=1.24,<2.0
+typing-extensions
+gymnasium
+stable-baselines3
+torch
