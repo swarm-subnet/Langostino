@@ -26,7 +26,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from std_msgs.msg import Bool, String, Float32MultiArray, Header
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState
-from geometry_msgs.msg import PoseStamped, TwistStamped, Vector3Stamped
+from geometry_msgs.msg import PoseStamped, TwistStamped, Vector3Stamped, QuaternionStamped
 from nav_msgs.msg import Odometry
 
 from swarm_ai_integration.msp_protocol import (
@@ -46,7 +46,8 @@ class FCCommsNode(Node):
     Publishers:
         /fc/imu_raw (sensor_msgs/Imu): IMU data from flight controller
         /fc/gps_fix (sensor_msgs/NavSatFix): GPS data from flight controller
-        /fc/attitude (geometry_msgs/Vector3Stamped): Attitude (roll, pitch, yaw)
+        /fc/attitude (geometry_msgs/QuaternionStamped): Attitude quaternion (from roll, pitch, yaw)
+        /fc/attitude_euler (geometry_msgs/Vector3Stamped): Attitude Euler angles (roll, pitch, yaw)
         /fc/status (std_msgs/String): Flight controller status
         /fc/battery (sensor_msgs/BatteryState): Battery status
         /fc/connected (std_msgs/Bool): Connection status
@@ -88,6 +89,7 @@ class FCCommsNode(Node):
             'imu': None,
             'gps': None,
             'attitude': None,
+            'attitude_euler': None,
             'status': None,
             'battery': None
         }
@@ -122,7 +124,8 @@ class FCCommsNode(Node):
         # Publishers
         self.imu_pub = self.create_publisher(Imu, '/fc/imu_raw', sensor_qos)
         self.gps_pub = self.create_publisher(NavSatFix, '/fc/gps_fix', sensor_qos)
-        self.attitude_pub = self.create_publisher(Vector3Stamped, '/fc/attitude', sensor_qos)
+        self.attitude_pub = self.create_publisher(QuaternionStamped, '/fc/attitude', sensor_qos)
+        self.attitude_euler_pub = self.create_publisher(Vector3Stamped, '/fc/attitude_euler', sensor_qos)
         self.status_pub = self.create_publisher(String, '/fc/status', reliable_qos)
         self.battery_pub = self.create_publisher(BatteryState, '/fc/battery', sensor_qos)
         self.connected_pub = self.create_publisher(Bool, '/fc/connected', reliable_qos)
@@ -139,6 +142,33 @@ class FCCommsNode(Node):
         self.get_logger().info(f'🚀 FC Communications Node initialized')
         self.get_logger().info(f'📡 Serial: {self.serial_port} @ {self.baud_rate} baud')
         self.get_logger().info(f'📊 Telemetry rate: {self.telemetry_rate} Hz')
+
+    def euler_to_quaternion(self, roll: float, pitch: float, yaw: float) -> tuple:
+        """
+        Convert Euler angles (roll, pitch, yaw) in radians to quaternion (x, y, z, w)
+        Using the aerospace sequence (ZYX): yaw -> pitch -> roll
+        
+        Args:
+            roll: rotation around x-axis in radians
+            pitch: rotation around y-axis in radians
+            yaw: rotation around z-axis in radians
+            
+        Returns:
+            tuple: (qx, qy, qz, qw)
+        """
+        cy = np.cos(yaw * 0.5)
+        sy = np.sin(yaw * 0.5)
+        cp = np.cos(pitch * 0.5)
+        sp = np.sin(pitch * 0.5)
+        cr = np.cos(roll * 0.5)
+        sr = np.sin(roll * 0.5)
+
+        qw = cr * cp * cy + sr * sp * sy
+        qx = sr * cp * cy - cr * sp * sy
+        qy = cr * sp * cy + sr * cp * sy
+        qz = cr * cp * sy - sr * sp * cy
+
+        return (qx, qy, qz, qw)
 
     def start_communication(self):
         """Start the communication thread"""
@@ -394,22 +424,44 @@ class FCCommsNode(Node):
         """Handle attitude data from flight controller"""
         roll, pitch, yaw = MSPDataTypes.unpack_attitude(data)
 
-        attitude_msg = Vector3Stamped()
-        attitude_msg.header.stamp = self.get_clock().now().to_msg()
-        attitude_msg.header.frame_id = 'fc_attitude'
+        # Convert to radians
+        roll_rad = np.radians(roll)
+        pitch_rad = np.radians(pitch)
+        yaw_rad = np.radians(yaw)
 
-        # Store as radians in the attitude message
-        # Using x=roll, y=pitch, z=yaw for clarity
-        attitude_msg.vector.x = np.radians(roll)   # roll
-        attitude_msg.vector.y = np.radians(pitch)  # pitch
-        attitude_msg.vector.z = np.radians(yaw)    # yaw
+        # Create timestamp
+        stamp = self.get_clock().now().to_msg()
 
-        self.attitude_pub.publish(attitude_msg)
-        self.last_telemetry['attitude'] = attitude_msg
+        # Publish Euler angles
+        euler_msg = Vector3Stamped()
+        euler_msg.header.stamp = stamp
+        euler_msg.header.frame_id = 'fc_attitude'
+        euler_msg.vector.x = roll_rad   # roll
+        euler_msg.vector.y = pitch_rad  # pitch
+        euler_msg.vector.z = yaw_rad    # yaw
+
+        self.attitude_euler_pub.publish(euler_msg)
+        self.last_telemetry['attitude_euler'] = euler_msg
+
+        # Convert to quaternion
+        qx, qy, qz, qw = self.euler_to_quaternion(roll_rad, pitch_rad, yaw_rad)
+
+        # Publish quaternion
+        quat_msg = QuaternionStamped()
+        quat_msg.header.stamp = stamp
+        quat_msg.header.frame_id = 'fc_attitude'
+        quat_msg.quaternion.x = qx
+        quat_msg.quaternion.y = qy
+        quat_msg.quaternion.z = qz
+        quat_msg.quaternion.w = qw
+
+        self.attitude_pub.publish(quat_msg)
+        self.last_telemetry['attitude'] = quat_msg
         
-        self.get_logger().info(f'   ➜ Published to /fc/attitude | '
-                              f'roll={roll:.1f}° pitch={pitch:.1f}° yaw={yaw:.1f}° | '
-                              f'(x={attitude_msg.vector.x:.3f}, y={attitude_msg.vector.y:.3f}, z={attitude_msg.vector.z:.3f} rad)')
+        self.get_logger().info(f'   ➜ Published to /fc/attitude (quaternion) | '
+                              f'q=[x={qx:.3f}, y={qy:.3f}, z={qz:.3f}, w={qw:.3f}]')
+        self.get_logger().info(f'   ➜ Published to /fc/attitude_euler | '
+                              f'roll={roll:.1f}° pitch={pitch:.1f}° yaw={yaw:.1f}°')
 
     def handle_status_data(self, data: bytes):
         """Handle flight controller status"""
