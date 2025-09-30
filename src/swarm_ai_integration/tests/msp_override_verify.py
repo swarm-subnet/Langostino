@@ -200,7 +200,7 @@ def main():
 
             # Send override for this cycle
             cli.send(MSPCommand.MSP_SET_RAW_RC, payload)
-
+            time.sleep(0.003)
             # Immediately ask for MSP_RC and (optionally) MSP_STATUS
             rc = cli.req(MSPCommand.MSP_RC, expect=MSPCommand.MSP_RC, timeout=0.25)
             status_str = ""
