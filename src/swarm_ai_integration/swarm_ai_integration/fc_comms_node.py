@@ -393,7 +393,7 @@ class FCCommsNode(Node):
 
         gps_msg.latitude = gps_data['latitude']
         gps_msg.longitude = gps_data['longitude']
-        gps_msg.altitude = gps_data['altitude']  # meters (no /100)
+        gps_msg.altitude = float(gps_data['altitude'])  # meters
 
         fix_type_value = gps_data.get('fix_type', 0)
         # Map: 0=NO_FIX, 1=2D, 2=3D (treat >=3 as 3D as well)
