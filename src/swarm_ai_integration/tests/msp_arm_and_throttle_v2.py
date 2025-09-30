@@ -1,23 +1,15 @@
 #!/usr/bin/env python3
 """
 msp_arm_and_throttle.py
-Arms via AUX1 HIGH (Mode Ranges must map ARM to AUX1 high), then bumps THROTTLE.
-Prints Tx/Rx each cycle (like the verifier). AERT ordering:
-  CH1=Aileron (Roll), CH2=Elevator (Pitch), CH3=Rudder (Yaw), CH4=Throttle, CH5=AUX1, ...
+Hardcoded: 2s ARM (AUX1 high), 8s THROTTLE bump, 2s DISARM.
+- Prints Tx/Rx every frame.
+- Channel order assumed RPYT (Roll, Pitch, Yaw, Throttle), then AUX:
+    CH1=Roll, CH2=Pitch, CH3=Yaw, CH4=Throttle, CH5=AUX1, CH6=AUX2, ...
 
-STATUS:
-- This script does NOT parse MSP_STATUS in the protocol. If you pass --status-every > 0,
-  it will *safely* fetch MSP_STATUS and extract only the raw flags from bytes 6..9
-  (little-endian), printing them as "(xx)". Otherwise no STATUS is requested.
+No MSP_STATUS requests at all.
 
 Usage:
-  python3 msp_arm_and_throttle.py throttle --throttle 1600 --seconds 3 \
-      --port /dev/ttyAMA0 --baudrate 115200 --echo-every 1 --status-every 0
-
-SAFETY:
-- Props OFF for bench tests. Use a safe area when spinning motors.
-- Modes: ARM on AUX1 HIGH; "MSP RC Override" mode ON.
-- `msp_override_channels` must include A,E,R,T + AUX1 (e.g., 31).
+  python3 msp_arm_and_throttle.py --port /dev/ttyAMA0 --baudrate 115200
 """
 
 import time
@@ -29,13 +21,14 @@ from swarm_ai_integration.msp_protocol import (
     MSPMessage, MSPCommand, MSPDirection, MSPDataTypes
 )
 
-STREAM_HZ = 40  # steady stream rate for RC frames
+STREAM_HZ = 40  # Hz
+THROTTLE_VAL = 1600  # hardcoded throttle during 8s phase
 
-# AERT indices (0-based)
-IDX_ROLL = 0      # Aileron
-IDX_PITCH = 1     # Elevator
-IDX_YAW = 2       # Rudder
-IDX_THR = 3       # Throttle
+# RPYT indices (0-based)
+IDX_ROLL = 0
+IDX_PITCH = 1
+IDX_YAW = 2
+IDX_THR = 3
 IDX_AUX1 = 4
 IDX_AUX2 = 5
 IDX_AUX3 = 6
@@ -85,13 +78,11 @@ class MSPClient:
                 time.sleep(0.003)
                 continue
             if len(self.rx) - start < 6:
-                time.sleep(0.002)
-                continue
+                time.sleep(0.002); continue
             size = self.rx[start + 3]
             frame_len = 6 + size
             if len(self.rx) - start < frame_len:
-                time.sleep(0.002)
-                continue
+                time.sleep(0.002); continue
             frame = bytes(self.rx[start:start + frame_len])
             del self.rx[:start + frame_len]
             msg = MSPMessage.decode(frame)
@@ -100,7 +91,6 @@ class MSPClient:
         return None
 
     def req(self, cmd: int, expect: Optional[int] = None, data: bytes = b'', timeout: float = 0.6) -> Optional[Dict[str, Any]]:
-        """Generic request/response helper (used for MSP_RC echo; STATUS optional)."""
         if expect is None:
             expect = cmd
         try:
@@ -112,11 +102,7 @@ class MSPClient:
         end = time.time() + timeout
         while time.time() < end:
             msg = self._read_frame(timeout=end - time.time())
-            if not msg:
-                continue
-            if msg.direction != MSPDirection.RESPONSE:
-                continue
-            if msg.command != expect:
+            if not msg or msg.direction != MSPDirection.RESPONSE or msg.command != expect:
                 continue
             return self._parse(msg)
         return None
@@ -125,137 +111,74 @@ class MSPClient:
     def _parse(msg: MSPMessage) -> Dict[str, Any]:
         if msg.command == MSPCommand.MSP_RC:
             return {"channels": MSPDataTypes.unpack_rc_channels(msg.data)}
-        # For STATUS we intentionally return raw bytes only; no struct unpack dependency.
         return {"raw_data": msg.data}
 
-    # ------------ Logging helpers ------------
+    # ---------- echo streaming ----------
 
     @staticmethod
     def _fmt_line(prefix: str, values: List[int]) -> str:
         return f"{prefix}: " + " ".join(str(v) for v in values)
 
-    def _status_flags_hex(self, raw: Optional[bytes]) -> str:
-        """
-        Safely extract 4-byte box_flags (bytes 6..9 little-endian) if present.
-        Returns "(xx)" like the verifier; "(--)" if unavailable.
-        """
-        if not raw or len(raw) < 10:
-            return "(--)"
-        flags = int.from_bytes(raw[6:10], byteorder="little", signed=False)
-        return f" ({flags:02x})"
-
-    # ------------ High-level helpers ------------
-
-    def stream_rc_echo(
-        self,
-        channels: List[int],
-        seconds: float,
-        hz: int,
-        echo_every: int = 1,
-        status_every: int = 0,
-        maxchan_print: int = 16
-    ):
-        """
-        Stream an RC frame and print Tx/Rx lines. Optionally fetch STATUS flags.
-        - echo_every: query/print MSP_RC every N frames (1 = every frame)
-        - status_every: fetch MSP_STATUS every N frames (0 = never)
-        """
+    def stream_rc_echo(self, channels: List[int], seconds: float, hz: int = STREAM_HZ):
+        """Stream one RC frame for `seconds` at `hz`, printing Tx/Rx each frame."""
         period = 1.0 / float(hz)
         t_end = time.time() + seconds
-        cycle = 0
         payload = MSPDataTypes.pack_rc_channels(channels)
+        n = len(channels)
 
         while time.time() < t_end:
             t0 = time.time()
             self.send(MSPCommand.MSP_SET_RAW_RC, payload)
+            rc = self.req(MSPCommand.MSP_RC, expect=MSPCommand.MSP_RC, timeout=0.25)
 
-            do_echo = (echo_every > 0 and (cycle % echo_every) == 0)
-            do_status = (status_every > 0 and (cycle % status_every) == 0)
+            print(self._fmt_line("Tx", channels))
+            if rc and "channels" in rc:
+                rx_vals = rc["channels"][:n]
+                print(self._fmt_line("Rx", rx_vals))
+            else:
+                print("Rx: <no MSP_RC>")
 
-            status_suffix = ""
-            if do_status:
-                st = self.req(MSPCommand.MSP_STATUS, expect=MSPCommand.MSP_STATUS, timeout=0.2)
-                status_suffix = self._status_flags_hex(st.get("raw_data") if st else None)
-
-            if do_echo:
-                rc = self.req(MSPCommand.MSP_RC, expect=MSPCommand.MSP_RC, timeout=0.25)
-                tx_line = self._fmt_line("Tx", channels[:maxchan_print])
-                if rc and "channels" in rc:
-                    rx_vals = rc["channels"][:maxchan_print]
-                    rx_line = self._fmt_line("Rx", rx_vals) + (status_suffix if status_suffix else "")
-                else:
-                    rx_line = "Rx: <no MSP_RC>" + (status_suffix if status_suffix else "")
-                print(tx_line)
-                print(rx_line)
-
-            cycle += 1
-            # maintain cadence
             sleep_left = period - (time.time() - t0)
             if sleep_left > 0:
                 time.sleep(sleep_left)
 
-    def arm(self, echo_every: int, status_every: int, hz: int) -> bool:
-        """Send AUX1 HIGH with THROTTLE low for ~1s; prints Tx/Rx if echo enabled."""
-        print("=== ARM (AUX1 HIGH, THR LOW; no status parsing) ===")
+    # ---------- hardcoded phases ----------
+
+    def phase_arm_2s(self):
+        print("=== ARM (2s) — AUX1 HIGH (CH5=1800), THR LOW (CH4=1000) ===")
         ch = [1500] * 8
+        ch[IDX_ROLL] = 1500
+        ch[IDX_PITCH] = 1500
+        ch[IDX_YAW] = 1500
         ch[IDX_THR] = 1000
         ch[IDX_AUX1] = 1800
-        self.stream_rc_echo(ch, seconds=1.0, hz=hz, echo_every=echo_every, status_every=status_every)
-        print("Sent arming pulse.")
-        return True
+        self.stream_rc_echo(ch, seconds=2.0, hz=STREAM_HZ)
 
-    def disarm(self, echo_every: int, status_every: int, hz: int):
-        """Send AUX1 LOW for ~0.8s; prints Tx/Rx if echo enabled."""
-        print("=== DISARM (AUX1 LOW; no status parsing) ===")
+    def phase_throttle_8s(self):
+        print(f"=== THROTTLE (8s) — THR={THROTTLE_VAL}, AUX1 HIGH ===")
         ch = [1500] * 8
+        ch[IDX_ROLL] = 1500
+        ch[IDX_PITCH] = 1500
+        ch[IDX_YAW] = 1500
+        ch[IDX_THR] = THROTTLE_VAL
+        ch[IDX_AUX1] = 1800
+        self.stream_rc_echo(ch, seconds=8.0, hz=STREAM_HZ)
+
+    def phase_disarm_2s(self):
+        print("=== DISARM (2s) — AUX1 LOW (CH5=1000), THR LOW (CH4=1000) ===")
+        ch = [1500] * 8
+        ch[IDX_ROLL] = 1500
+        ch[IDX_PITCH] = 1500
+        ch[IDX_YAW] = 1500
         ch[IDX_THR] = 1000
         ch[IDX_AUX1] = 1000
-        self.stream_rc_echo(ch, seconds=0.8, hz=hz, echo_every=echo_every, status_every=status_every)
-        print("Sent disarm pulse.")
-
-    def throttle_bump(
-        self,
-        throttle: int,
-        seconds: float,
-        hz: int,
-        auto_arm: bool,
-        echo_every: int,
-        status_every: int
-    ) -> bool:
-        """Hold AUX1 high and stream THROTTLE (AERT index 3) at `throttle` for `seconds`, with Tx/Rx prints."""
-        print(f"=== THROTTLE BUMP: {throttle} for {seconds}s @ {hz}Hz (AERT order) ===")
-
-        if auto_arm:
-            self.arm(echo_every=echo_every, status_every=status_every, hz=hz)
-
-        # Bump throttle while keeping AUX1 HIGH
-        ch = [1500] * 8
-        ch[IDX_THR] = throttle
-        ch[IDX_AUX1] = 1800
-        print("Streaming throttle bump...")
-        self.stream_rc_echo(ch, seconds=seconds, hz=hz, echo_every=echo_every, status_every=status_every)
-
-        # Idle throttle briefly (still armed)
-        print("Dropping to idle throttle...")
-        ch[IDX_THR] = 1000
-        self.stream_rc_echo(ch, seconds=0.6, hz=hz, echo_every=echo_every, status_every=status_every)
-
-        # Disarm for safety
-        self.disarm(echo_every=echo_every, status_every=status_every, hz=hz)
-        return True
+        self.stream_rc_echo(ch, seconds=2.0, hz=STREAM_HZ)
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Arm and throttle via MSP override (AERT order) with Tx/Rx echo")
-    ap.add_argument("action", choices=["arm", "disarm", "throttle"])
+    ap = argparse.ArgumentParser(description="Hardcoded MSP RPYT arm/throttle/disarm with Tx/Rx echo")
     ap.add_argument("--port", default="/dev/ttyAMA0")
     ap.add_argument("--baudrate", type=int, default=115200)
-    ap.add_argument("--throttle", type=int, default=1600, help="1000-2000")
-    ap.add_argument("--seconds", type=float, default=3.0)
-    ap.add_argument("--hz", type=int, default=STREAM_HZ)
-    ap.add_argument("--no-arm", action="store_true", help="do not auto-arm before throttle bump")
-    ap.add_argument("--echo-every", type=int, default=1, help="print Tx/Rx every N frames (1 = every frame)")
-    ap.add_argument("--status-every", type=int, default=0, help="fetch STATUS every N frames (0 = never)")
     args = ap.parse_args()
 
     cli = MSPClient(args.port, args.baudrate)
@@ -263,24 +186,13 @@ def main():
         return 1
 
     try:
-        if args.action == "arm":
-            ok = cli.arm(echo_every=args.echo_every, status_every=args.status_every, hz=args.hz)
-            return 0 if ok else 2
-        elif args.action == "disarm":
-            cli.disarm(echo_every=args.echo_every, status_every=args.status_every, hz=args.hz)
-            return 0
-        elif args.action == "throttle":
-            ok = cli.throttle_bump(
-                throttle=args.throttle,
-                seconds=args.seconds,
-                hz=args.hz,
-                auto_arm=not args.no_arm,
-                echo_every=args.echo_every,
-                status_every=args.status_every
-            )
-            return 0 if ok else 3
+        cli.phase_arm_2s()        # 2 seconds
+        cli.phase_throttle_8s()   # 8 seconds at THROTTLE_VAL
+        cli.phase_disarm_2s()     # 2 seconds
     finally:
         cli.close()
+    return 0
+
 
 if __name__ == "__main__":
     import sys
