@@ -119,7 +119,8 @@ class MSPClient:
         if msg.command == MSPCommand.MSP_RC:
             return {"channels": MSPDataTypes.unpack_rc_channels(msg.data)}
         if msg.command == MSPCommand.MSP_STATUS:
-            return MSPDataTypes.unpack_status(msg.data)
+            #return MSPDataTypes.unpack_status(msg.data)
+            pass
         return {"raw_data": msg.data}
 
 def build_tx_frame(maxchan: int, defval: int, overrides: Dict[int, int]) -> List[int]:
