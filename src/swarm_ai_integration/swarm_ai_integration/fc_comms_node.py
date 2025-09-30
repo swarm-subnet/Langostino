@@ -399,15 +399,17 @@ class FCCommsNode(Node):
         attitude_msg.header.frame_id = 'fc_attitude'
 
         # Store as radians in the attitude message
-        attitude_msg.vector.x = np.radians(roll)
-        attitude_msg.vector.y = np.radians(pitch)
-        attitude_msg.vector.z = np.radians(yaw)
+        # Using x=roll, y=pitch, z=yaw for clarity
+        attitude_msg.vector.x = np.radians(roll)   # roll
+        attitude_msg.vector.y = np.radians(pitch)  # pitch
+        attitude_msg.vector.z = np.radians(yaw)    # yaw
 
         self.attitude_pub.publish(attitude_msg)
         self.last_telemetry['attitude'] = attitude_msg
         
         self.get_logger().info(f'   ➜ Published to /fc/attitude | '
-                              f'roll={roll:.1f}° pitch={pitch:.1f}° yaw={yaw:.1f}°')
+                              f'roll={roll:.1f}° pitch={pitch:.1f}° yaw={yaw:.1f}° | '
+                              f'(x={attitude_msg.vector.x:.3f}, y={attitude_msg.vector.y:.3f}, z={attitude_msg.vector.z:.3f} rad)')
 
     def handle_status_data(self, data: bytes):
         """Handle flight controller status"""
