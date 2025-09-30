@@ -179,26 +179,26 @@ class AIAdapterNode(Node):
 
         return np.array([east, north, up], dtype=np.float32)
 
-    def _goal_vector_normalized(self):
+    def _goal_vector_scaled(self):
         """
-        Build normalized goal vector (ENU) in range roughly [-1, 1] by dividing by MAX_RAY_DISTANCE,
-        and clipping to ±1.
+        Simulation-equivalent goal: (GOAL_POS - pos_w) / MAX_RAY_DISTANCE
+        - World frame = ENU (meters), using a local tangent approximation.
+        - No clipping.
         """
         # Need both current position and waypoint goal
+        if not (self.data_received['waypoint'] and self.data_received['gps']):
+            return np.zeros(3, dtype=np.float32)
+
         lat, lon, alt = self.position.tolist()
         g_lat, g_lon, g_alt = self.goal_geodetic.tolist()
 
-        # If goal not received yet, return zeros
-        if not self.data_received['waypoint']:
-            return np.zeros(3, dtype=np.float32)
-
+        # ENU offset from current position to goal, in meters (world frame)
         enu = self._enu_offset_from_latlonalt(
             goal_lat=g_lat, goal_lon=g_lon, goal_alt=g_alt,
             ref_lat=lat,     ref_lon=lon,     ref_alt=alt
         )
-        # Normalize by ±MAX_RAY_DISTANCE
-        goal_norm = np.clip(enu / float(self.MAX_RAY_DISTANCE), -1.0, 1.0).astype(np.float32)
-        return goal_norm
+        # Scale by max ray distance (no clip)
+        return (enu / float(self.MAX_RAY_DISTANCE)).astype(np.float32)
 
     def _prepare_action_for_tick(self) -> np.ndarray:
         """
@@ -393,7 +393,7 @@ class AIAdapterNode(Node):
         print(f'   {ang_vel}')
         print(f'   wx={ang_vel[0]:.4f}, wy={ang_vel[1]:.4f}, wz={ang_vel[2]:.4f} rad/s')
 
-        print('\n🎯 GOAL VECTOR [128:131] (3 values, normalized) — from /fc/waypoint → ENU (±10 m cap):')
+        print('\n🎯 GOAL VECTOR [128:131] (3 values) — from /fc/waypoint → ENU / 10 m (no clip):')
         print(f'   {goal_vector}')
         print(f'   gx={goal_vector[0]:.4f}, gy={goal_vector[1]:.4f}, gz={goal_vector[2]:.4f}')
         goal_distance_normalized = np.linalg.norm(goal_vector)
@@ -460,7 +460,7 @@ class AIAdapterNode(Node):
             lidar_obs = self.lidar_distances.copy()
 
             # 3) Goal (3-D) — from /fc/waypoint → ENU normalized
-            goal_vector = self._goal_vector_normalized()
+            goal_vector = self._goal_vector_scaled()
 
             # Concatenate -> 131-D
             full_obs = np.concatenate([base_obs, lidar_obs, goal_vector]).astype(np.float32)
