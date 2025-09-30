@@ -52,6 +52,8 @@ class FCCommsNode(Node):
         /fc/battery (sensor_msgs/BatteryState): Battery status
         /fc/connected (std_msgs/Bool): Connection status
         /fc/motor_rpm (std_msgs/Float32MultiArray): Motor RPM data
+        self.gps_speed_course_pub = self.create_publisher(Float32MultiArray, '/fc/gps_speed_course', sensor_qos)
+        self.waypoint_pub = self.create_publisher(Float32MultiArray, '/fc/waypoint', reliable_qos)
     """
 
     def __init__(self):
@@ -131,6 +133,8 @@ class FCCommsNode(Node):
         self.connected_pub = self.create_publisher(Bool, '/fc/connected', reliable_qos)
         self.motor_rpm_pub = self.create_publisher(Float32MultiArray, '/fc/motor_rpm', sensor_qos)
         self.gps_speed_course_pub = self.create_publisher(Float32MultiArray, '/fc/gps_speed_course', sensor_qos)
+        self.waypoint_pub = self.create_publisher(Float32MultiArray, '/fc/waypoint', reliable_qos)
+
 
 
         # Timers
@@ -338,6 +342,8 @@ class FCCommsNode(Node):
                 self.handle_battery_data(message.data)
             elif message.command == MSPCommand.MSP_MOTOR:
                 self.handle_motor_data(message.data)
+            elif message.command == MSPCommand.MSP_WP:
+                self.handle_waypoint_data(message.data)
             else:
                 self.get_logger().debug(f'   ℹ️  Unhandled message type: {cmd_name}')
 
@@ -543,6 +549,37 @@ class FCCommsNode(Node):
             self.get_logger().info(f'   ➜ Published to /fc/motor_rpm | {motors_str}')
         else:
             self.get_logger().warn(f'   ⚠️  Insufficient motor data: {len(data)} bytes')
+    
+    def handle_waypoint_data(self, data: bytes):
+        """Handle waypoint data (MSP_WP) from flight controller"""
+        wp = MSPDataTypes.unpack_waypoint(data)
+        if not wp:
+            self.get_logger().warn('   ⚠️  Empty/invalid waypoint data received')
+            return
+
+        # Publish as Float32MultiArray: [wp_no, lat_deg, lon_deg, alt_m, heading_deg, staytime_s, navflag]
+        msg = Float32MultiArray()
+        msg.data = [
+            float(wp['wp_no']),
+            float(wp['latitude']),
+            float(wp['longitude']),
+            float(wp['altitude_m']),
+            float(wp['heading_deg']),
+            float(wp['staytime_s']),
+            float(wp['navflag']),
+        ]
+        self.waypoint_pub.publish(msg)
+
+        self.get_logger().info(
+            f'   ➜ Published to /fc/waypoint | '
+            f'wp#{wp["wp_no"]} '
+            f'lat={wp["latitude"]:.7f} lon={wp["longitude"]:.7f} | '
+            f'alt={wp["altitude_m"]:.1f}m | '
+            f'heading={wp["heading_deg"]:.1f}° | '
+            f'stay={wp["staytime_s"]}s | '
+            f'navflag=0x{wp["navflag"]:02x}'
+        )
+
 
     def msp_command_callback(self, msg: Float32MultiArray):
         """Handle raw MSP command requests"""

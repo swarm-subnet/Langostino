@@ -309,7 +309,63 @@ class MSPDataTypes:
             'satellites': num_sat,
             'fix_type':  fix
         }
+    
+    @staticmethod
+    def unpack_waypoint(data: bytes) -> Dict[str, Any]:
+        """
+        Unpack MSP_WP (code=118) payload.
 
+        Layout (19 bytes total):
+            0      : uint8   wp_no
+            1..4   : int32   lat        (deg * 1e7, signed)
+            5..8   : int32   lon        (deg * 1e7, signed)
+            9..12  : uint32  altHold    (commonly centimeters; converted to meters below)
+            13..14 : uint16  heading    (commonly deci-degrees; converted to degrees below)
+            15..16 : uint16  staytime   (commonly seconds)
+            17     : (reserved/unused in this schema)
+            18     : uint8   navflag
+
+        Returns:
+            {
+            'wp_no': int,
+            'latitude': float (deg),
+            'longitude': float (deg),
+            'altitude_m': float,
+            'heading_deg': float,
+            'staytime_s': int,
+            'navflag': int
+            }
+        """
+        if len(data) < 19:
+            logger.warning(f"Insufficient data for MSP_WP: {len(data)} bytes (expected >=19)")
+            return {}
+
+        wp_no = data[0]
+        lat_i  = struct.unpack_from('<i', data, 1)[0]
+        lon_i  = struct.unpack_from('<i', data, 5)[0]
+        alt_u  = struct.unpack_from('<I', data, 9)[0]
+        head_u = struct.unpack_from('<H', data, 13)[0]
+        stay_u = struct.unpack_from('<H', data, 15)[0]
+        navflag = data[18]
+
+        # Conversions consistent with common MSP conventions
+        lat_deg = lat_i / 1e7
+        lon_deg = lon_i / 1e7
+        altitude_m = float(alt_u) / 100.0      # altHold usually in cm → meters
+        heading_deg = float(head_u) / 10.0     # heading usually in deci-degrees → degrees
+        staytime_s = int(stay_u)               # seconds
+
+        result = {
+            'wp_no': int(wp_no),
+            'latitude': lat_deg,
+            'longitude': lon_deg,
+            'altitude_m': altitude_m,
+            'heading_deg': heading_deg,
+            'staytime_s': staytime_s,
+            'navflag': int(navflag),
+        }
+        logger.debug(f"Unpacked WP: {result}")
+        return result
 
     @staticmethod
     def pack_motor_commands(motors: List[int]) -> bytes:
