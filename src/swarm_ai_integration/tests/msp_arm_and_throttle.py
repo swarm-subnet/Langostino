@@ -2,6 +2,7 @@
 """
 msp_arm_and_throttle.py
 Arms via AUX1 HIGH (Mode Ranges must map ARM to AUX1 high), then bumps THROTTLE.
+This version does NOT request or parse MSP_STATUS at all.
 
 Usage:
   python3 msp_arm_and_throttle.py throttle --throttle 1600 --seconds 3 \
@@ -10,6 +11,7 @@ Usage:
 SAFETY:
 - Test with PROPS OFF first; restrain craft; use in a safe area.
 - Ensure Mode Ranges: ARM on AUX1 HIGH.
+- MSP RC Override mode must be ON and msp_override_channels mask must include AUX1 and the axes you drive.
 """
 
 import time
@@ -82,6 +84,7 @@ class MSPClient:
         return None
 
     def req(self, cmd: int, expect: Optional[int] = None, data: bytes = b'', timeout: float = 0.6) -> Optional[Dict[str, Any]]:
+        """Generic request/response helper (kept for MSP_RC reads if you want to inspect echo)."""
         if expect is None:
             expect = cmd
         try:
@@ -104,74 +107,55 @@ class MSPClient:
 
     @staticmethod
     def _parse(msg: MSPMessage) -> Dict[str, Any]:
-        if msg.command == MSPCommand.MSP_STATUS:
-            pass
         if msg.command == MSPCommand.MSP_RC:
             return {"channels": MSPDataTypes.unpack_rc_channels(msg.data)}
+        # We do NOT parse MSP_STATUS here
         return {"raw_data": msg.data}
 
     # ------------ High-level helpers ------------
 
     def stream_rc(self, channels: List[int], seconds: float, hz: int = STREAM_HZ):
+        """Continuously stream an RC frame for `seconds` at `hz` (no STATUS used)."""
         period = 1.0 / float(hz)
         t_end = time.time() + seconds
         payload = MSPDataTypes.pack_rc_channels(channels)
         while time.time() < t_end:
-            # Re-pack is cheap, but we keep the pre-packed payload for cadence
             self.send(MSPCommand.MSP_SET_RAW_RC, payload)
             time.sleep(period)
 
-    def get_status(self) -> Optional[Dict[str, Any]]:
-        return self.req(MSPCommand.MSP_STATUS, expect=MSPCommand.MSP_STATUS, timeout=0.5)
-
-    def arm(self, force: bool = False) -> bool:
-        print("=== ARM (AUX1 HIGH) ===")
-        if not force:
-            st = self.get_status()
-            if not st:
-                print("⚠️  No STATUS; proceeding with caution.")
-            elif not st.get("armed", False):
-                # You can add detailed arming checks here if desired
-                pass
-
+    def arm(self) -> bool:
+        """Send AUX1 HIGH with throttle low for 1s; no STATUS verification."""
+        print("=== ARM (AUX1 HIGH, no status check) ===")
         # MSP order: [ROLL, PITCH, THROTTLE, YAW, AUX1, AUX2, AUX3, AUX4]
-        # Arm with THR low and AUX1 high
         arm_frame = [1500, 1500, 1000, 1500, 1800, 1000, 1000, 1000]
         self.stream_rc(arm_frame, seconds=1.0, hz=STREAM_HZ)
-
-        st2 = self.get_status()
-        if st2 and st2.get("armed", False):
-            print("✅ Armed")
-            return True
-        print("❌ Did not arm. Check Mode Ranges (ARM on AUX1 high) and arming flags.")
-        return False
+        print("Sent arming pulse (AUX1 HIGH).")
+        return True
 
     def disarm(self):
-        print("=== DISARM (AUX1 LOW) ===")
+        """Send AUX1 LOW for ~0.8s; no STATUS verification."""
+        print("=== DISARM (AUX1 LOW, no status check) ===")
         disarm_frame = [1500, 1500, 1000, 1500, 1000, 1000, 1000, 1000]
         self.stream_rc(disarm_frame, seconds=0.8, hz=STREAM_HZ)
-        st = self.get_status()
-        if st and not st.get("armed", True):
-            print("✅ Disarmed")
-        else:
-            print("⚠️  Disarm not confirmed; check arming flags.")
+        print("Sent disarm pulse (AUX1 LOW).")
 
     def throttle_bump(self, throttle: int, seconds: float, hz: int = STREAM_HZ, auto_arm: bool = True) -> bool:
-        print(f"=== THROTTLE BUMP: {throttle} for {seconds}s @ {hz}Hz ===")
+        """
+        Hold AUX1 high and stream THROTTLE at `throttle` for `seconds`.
+        MSP order is [ROLL, PITCH, THROTTLE, YAW, AUX1,...], so throttle is index 2.
+        """
+        print(f"=== THROTTLE BUMP: {throttle} for {seconds}s @ {hz}Hz (no status checks) ===")
 
         if auto_arm:
-            if not self.arm(force=False):
-                print("⚠️  Trying forced arm...")
-                if not self.arm(force=True):
-                    print("❌ Could not arm; aborting.")
-                    return False
+            self.arm()
 
-        # Hold AUX1 high while bumping throttle (index 2)
+        # Bump throttle while keeping AUX1 HIGH
         frame = [1500, 1500, throttle, 1500, 1800, 1000, 1000, 1000]
         print("Streaming throttle bump...")
         self.stream_rc(frame, seconds=seconds, hz=hz)
 
-        print("Dropping to idle throttle (still armed briefly)...")
+        # Idle throttle briefly (still armed)
+        print("Dropping to idle throttle...")
         idle = [1500, 1500, 1000, 1500, 1800, 1000, 1000, 1000]
         self.stream_rc(idle, seconds=0.6, hz=hz)
 
@@ -181,14 +165,15 @@ class MSPClient:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Arm and throttle via MSP override")
+    ap = argparse.ArgumentParser(description="Arm and throttle via MSP override (no MSP_STATUS used)")
     ap.add_argument("action", choices=["arm", "disarm", "throttle"])
     ap.add_argument("--port", default="/dev/ttyAMA0")
     ap.add_argument("--baudrate", type=int, default=115200)
     ap.add_argument("--throttle", type=int, default=1600, help="1000-2000")
     ap.add_argument("--seconds", type=float, default=3.0)
     ap.add_argument("--hz", type=int, default=STREAM_HZ)
-    ap.add_argument("--force", action="store_true", help="skip arming checks")
+    # --force is ignored here (no status checks), but kept for CLI compatibility
+    ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
 
     cli = MSPClient(args.port, args.baudrate)
@@ -197,7 +182,7 @@ def main():
 
     try:
         if args.action == "arm":
-            ok = cli.arm(force=args.force)
+            ok = cli.arm()
             return 0 if ok else 2
         elif args.action == "disarm":
             cli.disarm()
