@@ -333,10 +333,14 @@ class FCCommsNode(Node):
         imu_msg.angular_velocity.y = float(imu_data['gyro'][1] * gyro_scale)
         imu_msg.angular_velocity.z = float(imu_data['gyro'][2] * gyro_scale)
 
-        # Set covariances (unknown)
-        imu_msg.linear_acceleration_covariance[0] = -1.0
-        imu_msg.angular_velocity_covariance[0] = -1.0
-        imu_msg.orientation_covariance[0] = -1.0
+        # Orientation is not provided by MSP_RAW_IMU, leave as identity quaternion
+        imu_msg.orientation.x = 0.0
+        imu_msg.orientation.y = 0.0
+        imu_msg.orientation.z = 0.0
+        imu_msg.orientation.w = 1.0
+
+        # Don't set covariances (leave as zeros - unknown)
+        # Arrays are already initialized to zeros by default
 
         self.imu_pub.publish(imu_msg)
         self.last_telemetry['imu'] = imu_msg
@@ -375,7 +379,7 @@ class FCCommsNode(Node):
 
         gps_msg.status.service = gps_msg.status.SERVICE_GPS
 
-        # Set covariances (unknown)
+        # Don't set covariances (leave as zeros - unknown)
         gps_msg.position_covariance_type = gps_msg.COVARIANCE_TYPE_UNKNOWN
 
         self.gps_pub.publish(gps_msg)
@@ -394,6 +398,7 @@ class FCCommsNode(Node):
         attitude_msg.header.stamp = self.get_clock().now().to_msg()
         attitude_msg.header.frame_id = 'fc_attitude'
 
+        # Store as radians in the attitude message
         attitude_msg.vector.x = np.radians(roll)
         attitude_msg.vector.y = np.radians(pitch)
         attitude_msg.vector.z = np.radians(yaw)
