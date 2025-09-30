@@ -393,10 +393,10 @@ class FCCommsNode(Node):
 
         gps_msg.latitude = gps_data['latitude']
         gps_msg.longitude = gps_data['longitude']
-        gps_msg.altitude = gps_data['altitude'] / 100.0  # Convert cm to m
+        gps_msg.altitude = gps_data['altitude']  # meters (no /100)
 
-        # Set status based on fix_type from FC
         fix_type_value = gps_data.get('fix_type', 0)
+        # Map: 0=NO_FIX, 1=2D, 2=3D (treat >=3 as 3D as well)
         if fix_type_value >= 2:
             gps_msg.status.status = gps_msg.status.STATUS_FIX
             fix_type = '3D_FIX'
@@ -415,10 +415,12 @@ class FCCommsNode(Node):
         self.gps_pub.publish(gps_msg)
         self.last_telemetry['gps'] = gps_msg
         
-        self.get_logger().info(f'   ➜ Published to /fc/gps_fix | '
-                              f'lat={gps_msg.latitude:.6f}° lon={gps_msg.longitude:.6f}° | '
-                              f'alt={gps_msg.altitude:.1f}m | '
-                              f'sats={gps_data["satellites"]} ({fix_type})')
+        self.get_logger().info(
+            f'   ➜ Published to /fc/gps_fix | '
+            f'lat={gps_msg.latitude:.6f}° lon={gps_msg.longitude:.6f}° | '
+            f'alt={gps_msg.altitude:.1f}m | '
+            f'sats={gps_data["satellites"]} ({fix_type})'
+        )
 
     def handle_attitude_data(self, data: bytes):
         """Handle attitude data from flight controller"""

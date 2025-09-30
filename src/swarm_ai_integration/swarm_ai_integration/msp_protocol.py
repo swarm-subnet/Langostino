@@ -275,25 +275,41 @@ class MSPDataTypes:
 
     @staticmethod
     def unpack_gps_data(data: bytes) -> Dict[str, Union[int, float]]:
-        """Unpack GPS data - INAV 7 format with fix byte and HDOP"""
-        if len(data) < 18:
-            logger.warning(f"Insufficient data for GPS: {len(data)} bytes (expected 18)")
+        """
+        Unpack GPS data for MSP_RAW_GPS (code=106) per ROS/INAV layout:
+
+        Byte layout (length = 16 bytes):
+            0   : uint8   fix
+            1   : uint8   numSat
+            2-5 : int32   lat       (° * 1e7, signed)
+            6-9 : int32   lon       (° * 1e7, signed)
+            10-11: uint16 altitude  (meters)
+            12-13: uint16 speed     (cm/s)
+            14-15: uint16 ground_course (deg * 10)
+
+        Returns keys:
+            latitude (float, deg), longitude (float, deg),
+            altitude (int, m), speed (int, cm/s),
+            ground_course (float, deg),
+            satellites (int), fix_type (int)
+        """
+        import struct
+        if len(data) < 16:
+            logger.warning(f"Insufficient data for GPS: {len(data)} bytes (expected 16)")
             return {}
 
-        # INAV MSP_RAW_GPS: lat(4), lon(4), alt(2), speed(2), ground_course(2), sats(1), fix(1), hdop(2)
-        lat, lon, alt, speed, ground_course, satellites, fix_type, hdop = struct.unpack('<iiHHHBBH', data[:18])
-        result = {
-            'latitude': lat / 1e7,
-            'longitude': lon / 1e7,
-            'altitude': alt,
-            'speed': speed,
-            'ground_course': ground_course / 10.0,
-            'satellites': satellites,
-            'fix_type': fix_type,
-            'hdop': hdop
+        fix, num_sat, lat_i, lon_i, alt_m, speed_cms, course_10deg = struct.unpack('<BBiiHHH', data[:16])
+
+        return {
+            'latitude':  lat_i / 1e7,
+            'longitude': lon_i / 1e7,
+            'altitude':  alt_m,                       # meters (do NOT divide by 100)
+            'speed':     speed_cms,                   # cm/s
+            'ground_course': course_10deg / 10.0,     # degrees
+            'satellites': num_sat,
+            'fix_type':  fix
         }
-        logger.debug(f"Unpacked GPS: lat={result['latitude']}°, lon={result['longitude']}°, sats={satellites}, fix={fix_type}, hdop={hdop}")
-        return result
+
 
     @staticmethod
     def pack_motor_commands(motors: List[int]) -> bytes:
