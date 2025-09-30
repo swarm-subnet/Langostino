@@ -222,6 +222,57 @@ class MSPDataTypes:
         result = (roll_dd / 10.0, pitch_dd / 10.0, yaw_dd / 10.0)
         logger.debug(f"Unpacked attitude: roll={result[0]}°, pitch={result[1]}°, yaw={result[2]}°")
         return result
+    
+    @staticmethod
+    def unpack_status(data: bytes) -> Dict[str, Any]:
+        """
+        Unpack MSP_STATUS (code=101).
+        INAV layout:
+          0..1  : uint16 time_us
+          2..3  : uint16 errors
+          4..5  : uint16 sensors_mask
+          6..9  : uint32 box_flags
+          10    : uint8  current_setting
+        Total 11 bytes. Some older targets may omit current_setting (10 bytes).
+        """
+        res: Dict[str, Any] = {}
+        try:
+            if len(data) >= 11:
+                # time_us, errors, sensors_mask, box_flags, current_setting
+                time_us, errors, sensors_u16, flags_u32, current_setting = struct.unpack_from('<HHHIB', data, 0)
+                res.update({
+                    'cycle_time': time_us,
+                    'i2c_errors': errors,
+                    'sensor_mask': sensors_u16,
+                    'box_flags': flags_u32,
+                    'current_setting': current_setting,
+                })
+            elif len(data) >= 10:
+                # Older variant without current_setting
+                time_us, errors, sensors_u16, flags_u32 = struct.unpack_from('<HHHI', data, 0)
+                res.update({
+                    'cycle_time': time_us,
+                    'i2c_errors': errors,
+                    'sensor_mask': sensors_u16,
+                    'box_flags': flags_u32,
+                    'current_setting': None,
+                })
+            else:
+                logger.warning(f"MSP_STATUS: insufficient length {len(data)}")
+                return {}
+        except struct.error as e:
+            logger.error(f"MSP_STATUS unpack error: {e}; data={data.hex()}")
+            return {}
+
+        # convenience booleans for common sensors
+        s = res['sensor_mask']
+        res['accelerometer'] = bool(s & (1 << 0))
+        res['barometer']     = bool(s & (1 << 1))
+        res['magnetometer']  = bool(s & (1 << 2))
+        res['gps']           = bool(s & (1 << 3))
+        res['sonar']         = bool(s & (1 << 4))
+        # NOTE: We do NOT infer "armed" from box_flags here (box IDs vary). Use box_flags directly.
+        return res
 
     @staticmethod
     def pack_rc_channels(channels: List[int]) -> bytes:

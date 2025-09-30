@@ -119,10 +119,7 @@ class MSPClient:
         if msg.command == MSPCommand.MSP_RC:
             return {"channels": MSPDataTypes.unpack_rc_channels(msg.data)}
         if msg.command == MSPCommand.MSP_STATUS:
-            import struct
-            if len(msg.data) >= 11:
-                cycle_time, i2c_errors, sensor, flag, _ = struct.unpack('<HHIBB', msg.data[:11])
-                return {"armed": bool(flag & 1), "cycle_time": cycle_time, "i2c_errors": i2c_errors, "sensor": sensor, "flag": flag}
+            return MSPDataTypes.unpack_status(msg.data)
         return {"raw_data": msg.data}
 
 def build_tx_frame(maxchan: int, defval: int, overrides: Dict[int, int]) -> List[int]:
@@ -209,7 +206,8 @@ def main():
             if args.status_every > 0 and (cycle % max(1, args.status_every) == 0):
                 st = cli.req(MSPCommand.MSP_STATUS, expect=MSPCommand.MSP_STATUS, timeout=0.2)
                 if st:
-                    status_str = f" {'armed' if st.get('armed', False) else ''} ({st.get('flag', 0):02x})".rstrip()
+                    status_str = f" ({st.get('box_flags', 0):02x})" if st else ""
+
 
             # Print Tx / Rx similar to the example
             if args.maxchan <= 18:
