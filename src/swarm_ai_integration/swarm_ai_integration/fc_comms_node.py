@@ -2,15 +2,11 @@
 """
 Flight Controller Communications Node - MSP Interface for INAV 7
 
-This node manages bidirectional communication with INAV 7 flight controllers
-using the MultiWii Serial Protocol (MSP). It handles:
-- Sending control commands to the FC
-- Receiving telemetry data (IMU, GPS, status)
-- Managing connection health and recovery
-- Protocol-level error handling
-
-The node maintains persistent connection with the flight controller and
-provides ROS2 interfaces for high-level control and monitoring.
+Manages bidirectional communication with INAV 7 flight controllers using MSP.
+- Sends control commands
+- Receives telemetry (IMU, GPS, status, motors)
+- Publishes derived topics (gps_speed_course, waypoint)
+- Polls waypoint #0 every 0.1 s and publishes it on /fc/waypoint
 """
 
 import serial
@@ -44,16 +40,16 @@ class FCCommsNode(Node):
         /fc/rc_override (std_msgs/Float32MultiArray): RC channel overrides
 
     Publishers:
-        /fc/imu_raw (sensor_msgs/Imu): IMU data from flight controller
-        /fc/gps_fix (sensor_msgs/NavSatFix): GPS data from flight controller
-        /fc/attitude (geometry_msgs/QuaternionStamped): Attitude quaternion (from roll, pitch, yaw)
-        /fc/attitude_euler (geometry_msgs/Vector3Stamped): Attitude Euler angles (roll, pitch, yaw)
-        /fc/status (std_msgs/String): Flight controller status
-        /fc/battery (sensor_msgs/BatteryState): Battery status
-        /fc/connected (std_msgs/Bool): Connection status
-        /fc/motor_rpm (std_msgs/Float32MultiArray): Motor RPM data
-        self.gps_speed_course_pub = self.create_publisher(Float32MultiArray, '/fc/gps_speed_course', sensor_qos)
-        self.waypoint_pub = self.create_publisher(Float32MultiArray, '/fc/waypoint', reliable_qos)
+        /fc/imu_raw (sensor_msgs/Imu): IMU data
+        /fc/gps_fix (sensor_msgs/NavSatFix): GPS data
+        /fc/attitude (geometry_msgs/QuaternionStamped): Attitude quaternion
+        /fc/attitude_euler (geometry_msgs/Vector3Stamped): Euler angles [rad]
+        /fc/status (std_msgs/String): FC status
+        /fc/battery (sensor_msgs/BatteryState): Battery
+        /fc/connected (std_msgs/Bool): Connection flag
+        /fc/motor_rpm (std_msgs/Float32MultiArray): Motors
+        /fc/gps_speed_course (std_msgs/Float32MultiArray): [speed_mps, course_deg]
+        /fc/waypoint (std_msgs/Float32MultiArray): [wp_no, lat, lon, alt_m, heading_deg, stay_s, navflag]
     """
 
     def __init__(self):
@@ -135,33 +131,22 @@ class FCCommsNode(Node):
         self.gps_speed_course_pub = self.create_publisher(Float32MultiArray, '/fc/gps_speed_course', sensor_qos)
         self.waypoint_pub = self.create_publisher(Float32MultiArray, '/fc/waypoint', reliable_qos)
 
-
-
         # Timers
         self.telemetry_timer = self.create_timer(1.0 / self.telemetry_rate, self.request_telemetry)
         self.heartbeat_timer = self.create_timer(1.0 / self.heartbeat_rate, self.send_heartbeat)
         self.status_timer = self.create_timer(1.0, self.publish_connection_status)
+        # Poll waypoint #0 every 0.1s
+        self.wp_poll_timer = self.create_timer(0.1, self.poll_waypoint_zero)
 
         # Start communication thread
         self.start_communication()
 
         self.get_logger().info(f'🚀 FC Communications Node initialized')
         self.get_logger().info(f'📡 Serial: {self.serial_port} @ {self.baud_rate} baud')
-        self.get_logger().info(f'📊 Telemetry rate: {self.telemetry_rate} Hz')
+        self.get_logger().info(f'📊 Telemetry rate: {self.telemetry_rate} Hz (plus WP poll @ 10 Hz)')
 
     def euler_to_quaternion(self, roll: float, pitch: float, yaw: float) -> tuple:
-        """
-        Convert Euler angles (roll, pitch, yaw) in radians to quaternion (x, y, z, w)
-        Using the aerospace sequence (ZYX): yaw -> pitch -> roll
-        
-        Args:
-            roll: rotation around x-axis in radians
-            pitch: rotation around y-axis in radians
-            yaw: rotation around z-axis in radians
-            
-        Returns:
-            tuple: (qx, qy, qz, qw)
-        """
+        """Convert Euler angles (radians) to quaternion (x, y, z, w) using ZYX order."""
         cy = np.cos(yaw * 0.5)
         sy = np.sin(yaw * 0.5)
         cp = np.cos(pitch * 0.5)
@@ -350,6 +335,8 @@ class FCCommsNode(Node):
         except Exception as e:
             self.get_logger().error(f'❌ Error handling {cmd_name}: {e}')
 
+    # ----------------- Handlers -----------------
+
     def handle_imu_data(self, data: bytes):
         """Handle IMU data from flight controller"""
         imu_data = MSPDataTypes.unpack_raw_imu(data)
@@ -377,15 +364,14 @@ class FCCommsNode(Node):
         imu_msg.orientation.z = 0.0
         imu_msg.orientation.w = 1.0
 
-        # Don't set covariances (leave as zeros - unknown)
-        # Arrays are already initialized to zeros by default
-
         self.imu_pub.publish(imu_msg)
         self.last_telemetry['imu'] = imu_msg
         
-        self.get_logger().info(f'   ➜ Published to /fc/imu_raw | '
-                              f'acc=[{imu_msg.linear_acceleration.x:.2f}, {imu_msg.linear_acceleration.y:.2f}, {imu_msg.linear_acceleration.z:.2f}] m/s² | '
-                              f'gyro=[{imu_msg.angular_velocity.x:.2f}, {imu_msg.angular_velocity.y:.2f}, {imu_msg.angular_velocity.z:.2f}] rad/s')
+        self.get_logger().info(
+            f'   ➜ Published to /fc/imu_raw | '
+            f'acc=[{imu_msg.linear_acceleration.x:.2f}, {imu_msg.linear_acceleration.y:.2f}, {imu_msg.linear_acceleration.z:.2f}] m/s² | '
+            f'gyro=[{imu_msg.angular_velocity.x:.2f}, {imu_msg.angular_velocity.y:.2f}, {imu_msg.angular_velocity.z:.2f}] rad/s'
+        )
 
     def handle_gps_data(self, data: bytes):
         """Handle GPS data from flight controller"""
@@ -430,6 +416,7 @@ class FCCommsNode(Node):
             f'sats={gps_data["satellites"]} ({fix_type})'
         )
 
+        # Publish speed/course helper topic
         speed_cms = int(gps_data.get('speed', 0))          # cm/s from MSP
         speed_mps = float(speed_cms) / 100.0               # -> m/s
         course_deg = float(gps_data.get('ground_course', 0.0))  # deg
@@ -438,7 +425,6 @@ class FCCommsNode(Node):
         speed_msg.data = [speed_mps, course_deg]           # [m/s, deg]
         self.gps_speed_course_pub.publish(speed_msg)
 
-        # (optional) richer log:
         self.get_logger().info(
             f'   ➜ Published to /fc/gps_speed_course | '
             f'speed={speed_mps:.2f} m/s | course={course_deg:.1f}°'
@@ -482,10 +468,14 @@ class FCCommsNode(Node):
         self.attitude_pub.publish(quat_msg)
         self.last_telemetry['attitude'] = quat_msg
         
-        self.get_logger().info(f'   ➜ Published to /fc/attitude (quaternion) | '
-                              f'q=[x={qx:.3f}, y={qy:.3f}, z={qz:.3f}, w={qw:.3f}]')
-        self.get_logger().info(f'   ➜ Published to /fc/attitude_euler | '
-                              f'roll={roll:.1f}° pitch={pitch:.1f}° yaw={yaw:.1f}°')
+        self.get_logger().info(
+            f'   ➜ Published to /fc/attitude (quaternion) | '
+            f'q=[x={qx:.3f}, y={qy:.3f}, z={qz:.3f}, w={qw:.3f}]'
+        )
+        self.get_logger().info(
+            f'   ➜ Published to /fc/attitude_euler | '
+            f'roll={roll:.1f}° pitch={pitch:.1f}° yaw={yaw:.1f}°'
+        )
 
     def handle_status_data(self, data: bytes):
         """Handle flight controller status"""
@@ -493,19 +483,23 @@ class FCCommsNode(Node):
 
         if status_data:
             status_msg = String()
-            status_msg.data = f"Cycle: {status_data['cycle_time']}us, " \
-                             f"I2C Errors: {status_data['i2c_errors']}, " \
-                             f"Sensors: 0x{status_data['sensor_flags']:04x}, " \
-                             f"Mode: 0x{status_data['flight_mode_flags']:04x}"
+            status_msg.data = (
+                f"Cycle: {status_data['cycle_time']}us, "
+                f"I2C Errors: {status_data['i2c_errors']}, "
+                f"Sensors: 0x{status_data['sensor_flags']:04x}, "
+                f"Mode: 0x{status_data['flight_mode_flags']:04x}"
+            )
 
             self.status_pub.publish(status_msg)
             self.last_telemetry['status'] = status_msg
             
-            self.get_logger().info(f'   ➜ Published to /fc/status | '
-                                  f'cycle={status_data["cycle_time"]}µs | '
-                                  f'i2c_err={status_data["i2c_errors"]} | '
-                                  f'sensors=0x{status_data["sensor_flags"]:04x} | '
-                                  f'mode=0x{status_data["flight_mode_flags"]:04x}')
+            self.get_logger().info(
+                f'   ➜ Published to /fc/status | '
+                f'cycle={status_data["cycle_time"]}µs | '
+                f'i2c_err={status_data["i2c_errors"]} | '
+                f'sensors=0x{status_data["sensor_flags"]:04x} | '
+                f'mode=0x{status_data["flight_mode_flags"]:04x}'
+            )
 
     def handle_battery_data(self, data: bytes):
         """Handle battery/analog data"""
@@ -516,8 +510,8 @@ class FCCommsNode(Node):
             battery_msg.header.stamp = self.get_clock().now().to_msg()
             battery_msg.header.frame_id = 'fc_battery'
 
-            battery_msg.voltage = float(vbat / 10.0)  # Convert to volts
-            battery_msg.current = float(amperage / 100.0)  # Convert to amps
+            battery_msg.voltage = float(vbat / 10.0)        # volts
+            battery_msg.current = float(amperage / 100.0)   # amps
             battery_msg.power_supply_status = battery_msg.POWER_SUPPLY_STATUS_UNKNOWN
             battery_msg.power_supply_technology = battery_msg.POWER_SUPPLY_TECHNOLOGY_LIPO
 
@@ -525,11 +519,13 @@ class FCCommsNode(Node):
             self.last_telemetry['battery'] = battery_msg
             
             power = battery_msg.voltage * battery_msg.current
-            self.get_logger().info(f'   ➜ Published to /fc/battery | '
-                                  f'voltage={battery_msg.voltage:.2f}V | '
-                                  f'current={battery_msg.current:.2f}A | '
-                                  f'power={power:.2f}W | '
-                                  f'rssi={rssi}')
+            self.get_logger().info(
+                f'   ➜ Published to /fc/battery | '
+                f'voltage={battery_msg.voltage:.2f}V | '
+                f'current={battery_msg.current:.2f}A | '
+                f'power={power:.2f}W | '
+                f'rssi={rssi}'
+            )
         else:
             self.get_logger().warn(f'   ⚠️  Insufficient battery data: {len(data)} bytes')
 
@@ -549,7 +545,7 @@ class FCCommsNode(Node):
             self.get_logger().info(f'   ➜ Published to /fc/motor_rpm | {motors_str}')
         else:
             self.get_logger().warn(f'   ⚠️  Insufficient motor data: {len(data)} bytes')
-    
+
     def handle_waypoint_data(self, data: bytes):
         """Handle waypoint data (MSP_WP) from flight controller"""
         wp = MSPDataTypes.unpack_waypoint(data)
@@ -580,6 +576,17 @@ class FCCommsNode(Node):
             f'navflag=0x{wp["navflag"]:02x}'
         )
 
+    # --------------- Outgoing requests / timers ---------------
+
+    def poll_waypoint_zero(self):
+        """Poll waypoint index 0 every 0.1s."""
+        if not self.connected:
+            return
+        payload = MSPDataTypes.pack_waypoint_request(0)
+        self.command_queue.put(MSPMessage(MSPCommand.MSP_WP, payload))
+        self.get_logger().debug('🗺️  Polled MSP_WP for index #0')
+
+    # --------------- Command subscribers ---------------
 
     def msp_command_callback(self, msg: Float32MultiArray):
         """Handle raw MSP command requests"""
@@ -650,9 +657,11 @@ class FCCommsNode(Node):
         self.connected_pub.publish(conn_msg)
         
         status = '🟢 CONNECTED' if self.connected else '🔴 DISCONNECTED'
-        self.get_logger().debug(f'{status} | Sent: {self.stats["messages_sent"]} | '
-                               f'Received: {self.stats["messages_received"]} | '
-                               f'Errors: {self.stats["errors"]}')
+        self.get_logger().debug(
+            f'{status} | Sent: {self.stats["messages_sent"]} | '
+            f'Received: {self.stats["messages_received"]} | '
+            f'Errors: {self.stats["errors"]}'
+        )
 
     def _get_command_name(self, command: int) -> str:
         """Get command name from code"""
@@ -664,10 +673,12 @@ class FCCommsNode(Node):
     def destroy_node(self):
         """Cleanup when node is destroyed"""
         self.get_logger().info('🛑 Shutting down FC Communications Node...')
-        self.get_logger().info(f'📊 Final stats - Sent: {self.stats["messages_sent"]}, '
-                              f'Received: {self.stats["messages_received"]}, '
-                              f'Errors: {self.stats["errors"]}, '
-                              f'Reconnects: {self.stats["reconnects"]}')
+        self.get_logger().info(
+            f'📊 Final stats - Sent: {self.stats["messages_sent"]}, '
+            f'Received: {self.stats["messages_received"]}, '
+            f'Errors: {self.stats["errors"]}, '
+            f'Reconnects: {self.stats["reconnects"]}'
+        )
         self.stop_communication()
         self.disconnect_serial()
         super().destroy_node()

@@ -268,7 +268,7 @@ class MSPDataTypes:
 
     @staticmethod
     def pack_gps_data(lat: int, lon: int, alt: int, speed: int,
-                     ground_course: int, satellites: int) -> bytes:
+                      ground_course: int, satellites: int) -> bytes:
         """Pack GPS data"""
         logger.debug(f"Packing GPS: lat={lat}, lon={lon}, alt={alt}m, speed={speed}cm/s, course={ground_course}°, sats={satellites}")
         return struct.pack('<iiHHHB', lat, lon, alt, speed, ground_course, satellites)
@@ -293,7 +293,6 @@ class MSPDataTypes:
             ground_course (float, deg),
             satellites (int), fix_type (int)
         """
-        import struct
         if len(data) < 16:
             logger.warning(f"Insufficient data for GPS: {len(data)} bytes (expected 16)")
             return {}
@@ -303,13 +302,18 @@ class MSPDataTypes:
         return {
             'latitude':  lat_i / 1e7,
             'longitude': lon_i / 1e7,
-            'altitude':  alt_m,                       # meters (do NOT divide by 100)
+            'altitude':  alt_m,                       # meters
             'speed':     speed_cms,                   # cm/s
             'ground_course': course_10deg / 10.0,     # degrees
             'satellites': num_sat,
             'fix_type':  fix
         }
-    
+
+    @staticmethod
+    def pack_waypoint_request(wp_no: int) -> bytes:
+        """Payload for MSP_WP request: single byte with waypoint index."""
+        return struct.pack('<B', wp_no & 0xFF)
+
     @staticmethod
     def unpack_waypoint(data: bytes) -> Dict[str, Any]:
         """
@@ -324,17 +328,6 @@ class MSPDataTypes:
             15..16 : uint16  staytime   (commonly seconds)
             17     : (reserved/unused in this schema)
             18     : uint8   navflag
-
-        Returns:
-            {
-            'wp_no': int,
-            'latitude': float (deg),
-            'longitude': float (deg),
-            'altitude_m': float,
-            'heading_deg': float,
-            'staytime_s': int,
-            'navflag': int
-            }
         """
         if len(data) < 19:
             logger.warning(f"Insufficient data for MSP_WP: {len(data)} bytes (expected >=19)")
@@ -348,11 +341,11 @@ class MSPDataTypes:
         stay_u = struct.unpack_from('<H', data, 15)[0]
         navflag = data[18]
 
-        # Conversions consistent with common MSP conventions
+        # Conversions
         lat_deg = lat_i / 1e7
         lon_deg = lon_i / 1e7
-        altitude_m = float(alt_u) / 100.0      # altHold usually in cm → meters
-        heading_deg = float(head_u) / 10.0     # heading usually in deci-degrees → degrees
+        altitude_m = float(alt_u) / 100.0      # cm → m
+        heading_deg = float(head_u) / 10.0     # deci-deg → deg
         staytime_s = int(stay_u)               # seconds
 
         result = {
@@ -365,32 +358,6 @@ class MSPDataTypes:
             'navflag': int(navflag),
         }
         logger.debug(f"Unpacked WP: {result}")
-        return result
-
-    @staticmethod
-    def pack_motor_commands(motors: List[int]) -> bytes:
-        """Pack motor command data (1000-2000 range)"""
-        logger.debug(f"Packing {len(motors)} motor commands: {motors}")
-        return struct.pack('<' + 'H' * len(motors), *motors)
-
-    @staticmethod
-    def unpack_status(data: bytes) -> Dict[str, Any]:
-        """Unpack flight controller status"""
-        if len(data) < 11:
-            logger.warning(f"Insufficient data for status: {len(data)} bytes")
-            return {}
-
-        # INAV MSP_STATUS format: cycle_time(2), i2c_errors(2), sensor(2), flag(4), current_profile(1)
-        cycle_time, i2c_errors, sensor_flags, flight_mode_flags, profile = struct.unpack('<HHHIB', data[:11])
-
-        result = {
-            'cycle_time': cycle_time,
-            'i2c_errors': i2c_errors,
-            'sensor_flags': sensor_flags,
-            'flight_mode_flags': flight_mode_flags,
-            'profile': profile
-        }
-        logger.info(f"Status: cycle_time={cycle_time}µs, i2c_errors={i2c_errors}, flight_mode={flight_mode_flags:08x}")
         return result
 
 
