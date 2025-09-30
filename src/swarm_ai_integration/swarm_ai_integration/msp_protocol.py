@@ -319,34 +319,54 @@ class MSPDataTypes:
         """
         Unpack MSP_WP (code=118) payload.
 
-        Layout (19 bytes total):
-            0      : uint8   wp_no
-            1..4   : int32   lat        (deg * 1e7, signed)
-            5..8   : int32   lon        (deg * 1e7, signed)
-            9..12  : uint32  altHold    (commonly centimeters; converted to meters below)
-            13..14 : uint16  heading    (commonly deci-degrees; converted to degrees below)
-            15..16 : uint16  staytime   (commonly seconds)
-            17     : (reserved/unused in this schema)
-            18     : uint8   navflag
+        NOTE: INAV adds 1 byte after wp_no, so fields start one byte later than
+        some older docs. Verified on payload like:
+        00 04 04 4a 56 19 60 5d e8 00 23 91 01 00 00 00 00 00 00 00
+        |  \____lat____/ \____lon____/ \___altHold___/ \hd/ \st/  nav
+        wp
+
+        Layout we observe (len ~= 20):
+            0        : uint8   wp_no
+            2..5     : int32   lat        (deg * 1e7, signed)
+            6..9     : int32   lon        (deg * 1e7, signed)
+            10..13   : uint32  altHold    (centimeters)  → meters below
+            14..15   : uint16  heading    (deci-degrees) → degrees below
+            16..17   : uint16  staytime   (seconds)
+            19       : uint8   navflag    (if present; default 0)
+
+        Returns:
+            {
+            'wp_no': int,
+            'latitude': float (deg),
+            'longitude': float (deg),
+            'altitude_m': float,
+            'heading_deg': float,
+            'staytime_s': int,
+            'navflag': int
+            }
         """
-        if len(data) < 19:
-            logger.warning(f"Insufficient data for MSP_WP: {len(data)} bytes (expected >=19)")
+        if len(data) < 20:
+            logger.warning(f"Insufficient data for MSP_WP: {len(data)} bytes (expected >=20)")
             return {}
 
         wp_no = data[0]
-        lat_i  = struct.unpack_from('<i', data, 1)[0]
-        lon_i  = struct.unpack_from('<i', data, 5)[0]
-        alt_u  = struct.unpack_from('<I', data, 9)[0]
-        head_u = struct.unpack_from('<H', data, 13)[0]
-        stay_u = struct.unpack_from('<H', data, 15)[0]
-        navflag = data[18]
+
+        # Shifted offsets (+1 vs. older docs)
+        lat_i  = struct.unpack_from('<i', data, 2)[0]
+        lon_i  = struct.unpack_from('<i', data, 6)[0]
+        alt_u  = struct.unpack_from('<I', data, 10)[0]
+        head_u = struct.unpack_from('<H', data, 14)[0]
+        stay_u = struct.unpack_from('<H', data, 16)[0]
+
+        # navflag may be at byte 19 when len==20; guard for variable tails
+        navflag = int(data[19]) if len(data) > 19 else 0
 
         # Conversions
         lat_deg = lat_i / 1e7
         lon_deg = lon_i / 1e7
-        altitude_m = float(alt_u) / 100.0      # cm → m
+        altitude_m = float(alt_u) / 100.0      # cm → m (absolute alt)
         heading_deg = float(head_u) / 10.0     # deci-deg → deg
-        staytime_s = int(stay_u)               # seconds
+        staytime_s = int(stay_u)
 
         result = {
             'wp_no': int(wp_no),
@@ -355,10 +375,11 @@ class MSPDataTypes:
             'altitude_m': altitude_m,
             'heading_deg': heading_deg,
             'staytime_s': staytime_s,
-            'navflag': int(navflag),
+            'navflag': navflag,
         }
         logger.debug(f"Unpacked WP: {result}")
         return result
+
 
 
 class MSPVelocityController:
