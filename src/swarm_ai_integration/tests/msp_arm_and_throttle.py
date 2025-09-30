@@ -2,7 +2,9 @@
 """
 msp_arm_and_throttle.py
 Arms via AUX1 HIGH (Mode Ranges must map ARM to AUX1 high), then bumps THROTTLE.
-This version does NOT request or parse MSP_STATUS at all.
+This version assumes AERT ordering for RC channels:
+  CH1=Aileron (Roll), CH2=Elevator (Pitch), CH3=Rudder (Yaw), CH4=Throttle, CH5=AUX1, ...
+It does NOT request or parse MSP_STATUS.
 
 Usage:
   python3 msp_arm_and_throttle.py throttle --throttle 1600 --seconds 3 \
@@ -10,8 +12,8 @@ Usage:
 
 SAFETY:
 - Test with PROPS OFF first; restrain craft; use in a safe area.
-- Ensure Mode Ranges: ARM on AUX1 HIGH.
-- MSP RC Override mode must be ON and msp_override_channels mask must include AUX1 and the axes you drive.
+- Ensure Modes: ARM on AUX1 HIGH, and "MSP RC Override" mode is ON.
+- msp_override_channels must include bits for A,E,R,T (+ AUX1) e.g. 31.
 """
 
 import time
@@ -24,6 +26,16 @@ from swarm_ai_integration.msp_protocol import (
 )
 
 STREAM_HZ = 40  # steady stream rate for RC frames
+
+# AERT indices (0-based) for MSP frames
+IDX_ROLL = 0      # Aileron
+IDX_PITCH = 1     # Elevator
+IDX_YAW = 2       # Rudder
+IDX_THR = 3       # Throttle  <-- important one
+IDX_AUX1 = 4
+IDX_AUX2 = 5
+IDX_AUX3 = 6
+IDX_AUX4 = 7
 
 class MSPClient:
     def __init__(self, port: str, baudrate: int):
@@ -84,7 +96,7 @@ class MSPClient:
         return None
 
     def req(self, cmd: int, expect: Optional[int] = None, data: bytes = b'', timeout: float = 0.6) -> Optional[Dict[str, Any]]:
-        """Generic request/response helper (kept for MSP_RC reads if you want to inspect echo)."""
+        """Generic request/response helper (useful if you want to read MSP_RC echo; no STATUS used)."""
         if expect is None:
             expect = cmd
         try:
@@ -109,7 +121,7 @@ class MSPClient:
     def _parse(msg: MSPMessage) -> Dict[str, Any]:
         if msg.command == MSPCommand.MSP_RC:
             return {"channels": MSPDataTypes.unpack_rc_channels(msg.data)}
-        # We do NOT parse MSP_STATUS here
+        # Intentionally skip MSP_STATUS
         return {"raw_data": msg.data}
 
     # ------------ High-level helpers ------------
@@ -124,40 +136,45 @@ class MSPClient:
             time.sleep(period)
 
     def arm(self) -> bool:
-        """Send AUX1 HIGH with throttle low for 1s; no STATUS verification."""
-        print("=== ARM (AUX1 HIGH, no status check) ===")
-        # MSP order: [ROLL, PITCH, THROTTLE, YAW, AUX1, AUX2, AUX3, AUX4]
-        arm_frame = [1500, 1500, 1000, 1500, 1800, 1000, 1000, 1000]
-        self.stream_rc(arm_frame, seconds=1.0, hz=STREAM_HZ)
-        print("Sent arming pulse (AUX1 HIGH).")
+        """Send AUX1 HIGH with THROTTLE low for ~1s; no STATUS verification."""
+        print("=== ARM (AUX1 HIGH, THR LOW; no status check) ===")
+        # Start from centered frame
+        ch = [1500] * 8
+        ch[IDX_THR] = 1000         # throttle minimum
+        ch[IDX_AUX1] = 1800        # ARM via AUX1 high
+        self.stream_rc(ch, seconds=1.0, hz=STREAM_HZ)
+        print("Sent arming pulse.")
         return True
 
     def disarm(self):
         """Send AUX1 LOW for ~0.8s; no STATUS verification."""
-        print("=== DISARM (AUX1 LOW, no status check) ===")
-        disarm_frame = [1500, 1500, 1000, 1500, 1000, 1000, 1000, 1000]
-        self.stream_rc(disarm_frame, seconds=0.8, hz=STREAM_HZ)
-        print("Sent disarm pulse (AUX1 LOW).")
+        print("=== DISARM (AUX1 LOW; no status check) ===")
+        ch = [1500] * 8
+        ch[IDX_THR] = 1000
+        ch[IDX_AUX1] = 1000
+        self.stream_rc(ch, seconds=0.8, hz=STREAM_HZ)
+        print("Sent disarm pulse.")
 
     def throttle_bump(self, throttle: int, seconds: float, hz: int = STREAM_HZ, auto_arm: bool = True) -> bool:
         """
-        Hold AUX1 high and stream THROTTLE at `throttle` for `seconds`.
-        MSP order is [ROLL, PITCH, THROTTLE, YAW, AUX1,...], so throttle is index 2.
+        Hold AUX1 high and stream THROTTLE (AERT index 3) at `throttle` for `seconds`.
         """
-        print(f"=== THROTTLE BUMP: {throttle} for {seconds}s @ {hz}Hz (no status checks) ===")
+        print(f"=== THROTTLE BUMP: {throttle} for {seconds}s @ {hz}Hz (AERT order) ===")
 
         if auto_arm:
             self.arm()
 
         # Bump throttle while keeping AUX1 HIGH
-        frame = [1500, 1500, throttle, 1500, 1800, 1000, 1000, 1000]
+        ch = [1500] * 8
+        ch[IDX_THR] = throttle     # <-- throttle is channel 4 (index 3)
+        ch[IDX_AUX1] = 1800        # keep armed
         print("Streaming throttle bump...")
-        self.stream_rc(frame, seconds=seconds, hz=hz)
+        self.stream_rc(ch, seconds=seconds, hz=hz)
 
         # Idle throttle briefly (still armed)
         print("Dropping to idle throttle...")
-        idle = [1500, 1500, 1000, 1500, 1800, 1000, 1000, 1000]
-        self.stream_rc(idle, seconds=0.6, hz=hz)
+        ch[IDX_THR] = 1000
+        self.stream_rc(ch, seconds=0.6, hz=hz)
 
         # Disarm for safety
         self.disarm()
@@ -165,15 +182,14 @@ class MSPClient:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Arm and throttle via MSP override (no MSP_STATUS used)")
+    ap = argparse.ArgumentParser(description="Arm and throttle via MSP override (AERT order, no MSP_STATUS)")
     ap.add_argument("action", choices=["arm", "disarm", "throttle"])
     ap.add_argument("--port", default="/dev/ttyAMA0")
     ap.add_argument("--baudrate", type=int, default=115200)
     ap.add_argument("--throttle", type=int, default=1600, help="1000-2000")
     ap.add_argument("--seconds", type=float, default=3.0)
     ap.add_argument("--hz", type=int, default=STREAM_HZ)
-    # --force is ignored here (no status checks), but kept for CLI compatibility
-    ap.add_argument("--force", action="store_true")
+    ap.add_argument("--no-arm", action="store_true", help="do not auto-arm before throttle bump")
     args = ap.parse_args()
 
     cli = MSPClient(args.port, args.baudrate)
@@ -188,7 +204,7 @@ def main():
             cli.disarm()
             return 0
         elif args.action == "throttle":
-            ok = cli.throttle_bump(throttle=args.throttle, seconds=args.seconds, hz=args.hz, auto_arm=True)
+            ok = cli.throttle_bump(throttle=args.throttle, seconds=args.seconds, hz=args.hz, auto_arm=not args.no_arm)
             return 0 if ok else 3
     finally:
         cli.close()
