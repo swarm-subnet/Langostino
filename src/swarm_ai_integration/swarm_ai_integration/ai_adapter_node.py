@@ -3,11 +3,11 @@
 AI Adapter Node - Converts real sensor data to 131-D observation array for Swarm AI model
 This node subscribes to real sensor data (LiDAR, IMU, GPS, FC state) and constructs
 the 131-dimensional observation array that the Swarm AI model expects:
-- Base observation (112-D): Position, orientation, velocity, angular velocity, RPM, etc.
-- LiDAR distances (16-D): Obstacle detection rays
-- Goal vector (3-D): Relative position to target
+- Base observation (112-D): Position, orientation, velocity, angular velocity, last action, action buffer
+- LiDAR distances (16-D): Obstacle detection rays (normalized [0,1])
+- Goal vector (3-D): Relative position to target (normalized by max_ray_distance)
 
-Based on swarm/core/moving_drone.py:368-394 (_computeObs method)
+The action buffer stores the last 20 actions received from /ai/action topic.
 """
 
 import numpy as np
@@ -22,6 +22,7 @@ import tf2_ros
 import tf2_geometry_msgs
 from tf2_geometry_msgs import do_transform_pose
 import math
+from collections import deque
 
 
 class AIAdapterNode(Node):
@@ -29,12 +30,14 @@ class AIAdapterNode(Node):
     Converts real-world sensor data into 131-D observation array for Swarm AI model.
     
     Subscribers:
-        /lidar_scan (sensor_msgs/LaserScan): LiDAR point cloud data
-        /imu/data (sensor_msgs/Imu): IMU orientation and angular velocity
-        /gps/fix (sensor_msgs/NavSatFix): GPS position data
+        /lidar_distance (sensor_msgs/Range): LiDAR range data (down-facing)
+        /fc/imu_raw (sensor_msgs/Imu): IMU orientation and angular velocity
+        /fc/gps_fix (sensor_msgs/NavSatFix): GPS position data
         /fc/state (geometry_msgs/TwistStamped): Flight controller velocity data
-        /fc/rpm (std_msgs/Float32MultiArray): Motor RPM data
+        /fc/motor_rpm (std_msgs/Float32MultiArray): Motor RPM data (for monitoring)
         /goal_pose (geometry_msgs/PoseStamped): Target position
+        /set_goal (geometry_msgs/Point): Simple target position
+        /ai/action (std_msgs/Float32MultiArray): Actions from AI model (4-D)
         
     Publishers:
         /ai/observation (std_msgs/Float32MultiArray): 131-D observation array
@@ -49,24 +52,38 @@ class AIAdapterNode(Node):
         self.orientation = np.zeros(4, dtype=np.float32)  # [x, y, z, w] quaternion
         self.velocity = np.zeros(3, dtype=np.float32)  # [vx, vy, vz]
         self.angular_velocity = np.zeros(3, dtype=np.float32)  # [wx, wy, wz]
-        self.rpm = np.zeros(4, dtype=np.float32)  # [rpm1, rpm2, rpm3, rpm4]
-        self.lidar_distances = np.full(16, 20.0, dtype=np.float32)  # Max distance 20m
+        self.rpm = np.zeros(4, dtype=np.float32)  # [rpm1, rpm2, rpm3, rpm4] - for monitoring only
         self.goal_position = np.zeros(3, dtype=np.float32)  # [gx, gy, gz]
         
+        # LiDAR: solo 1 rayo hacia abajo, resto en 1.0 (sin objeto)
+        self.lidar_distances = np.ones(16, dtype=np.float32)  # All at 1.0 (normalized max)
+        
+        # Action tracking - último comando del modelo IA
+        self.last_action = np.zeros(4, dtype=np.float32)  # [motor1, motor2, motor3, motor4] normalized
+        
+        # Action buffer: últimas 20 acciones para contexto temporal
+        # Inicializado con ceros (deque automáticamente elimina el más antiguo cuando está lleno)
+        self.action_buffer = deque(maxlen=20)
+        for _ in range(20):
+            self.action_buffer.append(np.zeros(4, dtype=np.float32))
+        
         # State tracking
-        self.last_position = np.zeros(3, dtype=np.float32)
         self.data_received = {
             'imu': False,
             'gps': False,
             'lidar': False,
             'fc_state': False,
             'rpm': False,
-            'goal': False
+            'goal': False,
+            'action': False
         }
         
-        # Constants - Updated for 20m max range
-        self.LIDAR_MIN_RANGE = 0.05  # Minimum LiDAR range in meters
-        self.LIDAR_MAX_RANGE = 20.0  # Maximum LiDAR range in meters
+        # Statistics
+        self.action_count = 0
+        
+        # Constants - matching original code
+        self.MAX_RAY_DISTANCE = 10.0  # Max distance for normalization (from original code)
+        self.LIDAR_MIN_RANGE = 0.05   # Minimum LiDAR range in meters
         self.GRAVITY = 9.8
         
         # TF2 for coordinate transformations
@@ -92,7 +109,7 @@ class AIAdapterNode(Node):
             depth=1
         )
         
-        # Subscribers
+        # Subscribers - Sensores
         self.imu_sub = self.create_subscription(
             Imu, '/fc/imu_raw', self.imu_callback, sensor_qos)
         
@@ -108,11 +125,20 @@ class AIAdapterNode(Node):
         self.rpm_sub = self.create_subscription(
             Float32MultiArray, '/fc/motor_rpm', self.rpm_callback, motor_qos)
         
+        # Subscribers - Goals
         self.goal_sub = self.create_subscription(
             PoseStamped, '/goal_pose', self.goal_callback, reliable_qos)
         
         self.goal_point_sub = self.create_subscription(
             Point, '/set_goal', self.set_goal_callback, reliable_qos)
+        
+        # Subscriber - AI Actions (IMPORTANTE)
+        self.action_sub = self.create_subscription(
+            Float32MultiArray,
+            '/ai/action',
+            self.action_callback,
+            reliable_qos
+        )
         
         # Publishers
         self.obs_pub = self.create_publisher(
@@ -135,18 +161,22 @@ class AIAdapterNode(Node):
         print('   • /fc/motor_rpm (std_msgs/Float32MultiArray) [BEST_EFFORT]')
         print('   • /goal_pose (geometry_msgs/PoseStamped) [RELIABLE]')
         print('   • /set_goal (geometry_msgs/Point) [RELIABLE]')
+        print('   • /ai/action (std_msgs/Float32MultiArray) [RELIABLE] ⭐')
         print('📤 PUBLISHING TO:')
         print('   • /ai/observation (std_msgs/Float32MultiArray) [RELIABLE]')
         print('   • /ai/observation_debug (std_msgs/Float32MultiArray) [RELIABLE]')
-        print(f'🎯 LIDAR CONFIG: Range {self.LIDAR_MIN_RANGE}m - {self.LIDAR_MAX_RANGE}m')
+        print(f'🎯 OBSERVATION CONFIG:')
+        print(f'   • Max ray distance: {self.MAX_RAY_DISTANCE}m (for normalization)')
+        print(f'   • LiDAR range: {self.LIDAR_MIN_RANGE}m - ∞')
+        print(f'   • Action buffer size: 20 steps (initialized with zeros)')
         print('=' * 60)
-        self.get_logger().info('AI Adapter Node initialized with 20m LiDAR range')
+        self.get_logger().info('AI Adapter Node initialized - 131-D observation space')
+        self.get_logger().info('Waiting for AI model to publish actions on /ai/action...')
     
     def normalize_lidar_distance(self, distance):
         """
-        Normalize LiDAR distance to [0, 1] range.
-        - Clamps distance between 0.05m and 20m
-        - Maps 0.05m -> 0.0 and 20m -> 1.0
+        Normalize LiDAR distance to [0, 1] range by dividing by MAX_RAY_DISTANCE.
+        Matches original code: distances_scaled = distances_m / self.max_ray_distance
         
         Args:
             distance: Raw distance in meters
@@ -154,13 +184,53 @@ class AIAdapterNode(Node):
         Returns:
             Normalized distance in [0, 1]
         """
-        # Clamp distance to valid range
-        clamped = np.clip(distance, self.LIDAR_MIN_RANGE, self.LIDAR_MAX_RANGE)
+        # Clamp to positive values
+        distance = max(0.0, distance)
         
-        # Normalize to [0, 1]
-        normalized = (clamped - self.LIDAR_MIN_RANGE) / (self.LIDAR_MAX_RANGE - self.LIDAR_MIN_RANGE)
+        # Normalize by max_ray_distance (10m)
+        normalized = distance / self.MAX_RAY_DISTANCE
+        
+        # Clamp to [0, 1]
+        normalized = min(1.0, normalized)
         
         return normalized
+    
+    def action_callback(self, msg: Float32MultiArray):
+        """
+        Recibe las acciones generadas por el modelo IA y las guarda en el buffer.
+        El buffer es un deque con maxlen=20, por lo que automáticamente elimina
+        la acción más antigua cuando se agrega una nueva y el buffer está lleno.
+        
+        Args:
+            msg: Float32MultiArray con 4 valores [motor1, motor2, motor3, motor4]
+                 Ya deben estar normalizados en el rango apropiado
+        """
+        if len(msg.data) >= 4:
+            action = np.array(msg.data[:4], dtype=np.float32)
+            
+            # Guardar como última acción
+            self.last_action = action.copy()
+            
+            # Agregar al buffer circular
+            # deque con maxlen automáticamente elimina el elemento más antiguo (índice 0)
+            # cuando se hace append y el buffer está lleno
+            self.action_buffer.append(action.copy())
+            
+            self.action_count += 1
+            
+            if not self.data_received['action']:
+                self.get_logger().info('✓ AI action data received - action buffer active')
+                self.data_received['action'] = True
+                print(f'[ACTION] First action: [{action[0]:.3f}, {action[1]:.3f}, {action[2]:.3f}, {action[3]:.3f}]')
+                print(f'[ACTION] Buffer initialized with {len(self.action_buffer)} slots (20 max)')
+            
+            # Log periódico (cada 30 acciones)
+            if self.action_count % 30 == 0:
+                print(f'[ACTION] Received #{self.action_count}: [{action[0]:.3f}, {action[1]:.3f}, {action[2]:.3f}, {action[3]:.3f}]')
+                print(f'[ACTION] Buffer full: {len(self.action_buffer)}/20 slots used')
+        else:
+            self.get_logger().warn(f'Invalid action data: {len(msg.data)} values (expected 4)', 
+                                   throttle_duration_sec=2.0)
     
     def imu_callback(self, msg: Imu):
         """Process IMU data for orientation and angular velocity"""
@@ -178,11 +248,10 @@ class AIAdapterNode(Node):
         ], dtype=np.float32)
         
         if not self.data_received['imu']:
-            self.get_logger().info('IMU data received - orientation and angular velocity updated')
+            self.get_logger().info('✓ IMU data received')
             self.data_received['imu'] = True
             print(f'[IMU] Orientation (quat): [{self.orientation[0]:.3f}, {self.orientation[1]:.3f}, {self.orientation[2]:.3f}, {self.orientation[3]:.3f}]')
             print(f'[IMU] Angular Velocity: [{self.angular_velocity[0]:.3f}, {self.angular_velocity[1]:.3f}, {self.angular_velocity[2]:.3f}] rad/s')
-            print(f'[IMU] Linear Acceleration: [{msg.linear_acceleration.x:.3f}, {msg.linear_acceleration.y:.3f}, {msg.linear_acceleration.z:.3f}] m/s²')
     
     def gps_callback(self, msg: NavSatFix):
         """Process GPS data for position"""
@@ -191,48 +260,42 @@ class AIAdapterNode(Node):
         self.position[2] = msg.altitude
         
         if not self.data_received['gps']:
-            self.get_logger().info('GPS data received - position updated')
-            self.get_logger().warn('GPS coordinates are being used directly as local position - implement proper GPS->ENU conversion for production use')
+            self.get_logger().info('✓ GPS data received')
+            self.get_logger().warn('⚠️  GPS coordinates used as local position - implement GPS->ENU for production')
             self.data_received['gps'] = True
             print(f'[GPS] Position: [{self.position[0]:.6f}, {self.position[1]:.6f}, {self.position[2]:.3f}] (lat/lon/alt)')
-            print(f'[GPS] Status: {msg.status.status}, Service: {msg.status.service}')
     
     def lidar_callback(self, msg: Range):
         """
-        Process single LiDAR range data - using only Pure Down ray (index 1)
-        Maps distance to normalized [0,1] where:
-        - 0.05m (min) -> 0.0
-        - 20m (max) -> 1.0
+        Process single down-facing LiDAR range data.
+        Stores normalized distance at index 1 (Pure Down ray).
+        All other rays remain at 1.0 (no object detected).
         """
         distance = msg.range
         
         if not self.data_received['lidar']:
-            self.get_logger().info(f'LiDAR data received - frame: {msg.header.frame_id}, range: {distance:.3f}m')
-            self.get_logger().info(f'LiDAR - Will use Pure Down ray only (index 1)')
-            print(f'[LIDAR] Raw distance: {distance:.3f}m, Frame: {msg.header.frame_id}')
-            print(f'[LIDAR] Range limits: {msg.min_range:.3f}m - {msg.max_range:.3f}m')
-            print(f'[LIDAR] Normalization: {self.LIDAR_MIN_RANGE}m->0.0, {self.LIDAR_MAX_RANGE}m->1.0')
+            self.get_logger().info(f'✓ LiDAR data received - frame: {msg.header.frame_id}')
+            print(f'[LIDAR] Using Pure Down ray only (index 1)')
+            print(f'[LIDAR] Other 15 rays set to 1.0 (no object)')
+            print(f'[LIDAR] Normalization by MAX_RAY_DISTANCE = {self.MAX_RAY_DISTANCE}m')
         
-        if np.isfinite(distance):
-            # Store raw distance for Pure Down ray (index 1)
-            self.lidar_distances[1] = distance
-            
-            # Set other rays to max distance
-            self.lidar_distances[0] = self.LIDAR_MAX_RANGE  # Pure Up
-            self.lidar_distances[2:] = self.LIDAR_MAX_RANGE  # All horizontal and diagonal rays
-            
-            # Calculate normalized value for debugging
+        if np.isfinite(distance) and distance > 0:
+            # Normalize and store at index 1 (Pure Down)
             normalized = self.normalize_lidar_distance(distance)
+            self.lidar_distances[1] = normalized
             
-            print(f'[LIDAR] Pure Down - Raw: {distance:.3f}m, Normalized: {normalized:.3f}')
+            # Log cada 30 lecturas para no saturar la consola
+            if not hasattr(self, '_lidar_count'):
+                self._lidar_count = 0
+                print(f'[LIDAR] Down ray - Raw: {distance:.3f}m → Normalized: {normalized:.3f}')
             
-            if distance > self.LIDAR_MAX_RANGE:
-                print(f'[LIDAR] ⚠️  Distance capped from {distance:.3f}m to {self.LIDAR_MAX_RANGE}m')
-            elif distance < self.LIDAR_MIN_RANGE:
-                print(f'[LIDAR] ⚠️  Distance floored from {distance:.3f}m to {self.LIDAR_MIN_RANGE}m')
+            self._lidar_count += 1
+            if self._lidar_count % 30 == 0:
+                print(f'[LIDAR] Down ray - Raw: {distance:.3f}m → Normalized: {normalized:.3f}')
         else:
-            self.lidar_distances.fill(self.LIDAR_MAX_RANGE)
-            print(f'[LIDAR] INVALID reading: {distance:.3f}m - using max range')
+            # Invalid reading: set to max (1.0 = no object)
+            self.lidar_distances[1] = 1.0
+            print(f'[LIDAR] ⚠️  Invalid reading: {distance:.3f}m → Set to 1.0')
             self.get_logger().warn(f'Invalid LiDAR reading: {distance:.3f}m', throttle_duration_sec=2.0)
         
         self.data_received['lidar'] = True
@@ -246,24 +309,29 @@ class AIAdapterNode(Node):
         ], dtype=np.float32)
         
         if not self.data_received['fc_state']:
-            self.get_logger().info('FC state data received - velocity updated')
+            self.get_logger().info('✓ FC state data received')
             self.data_received['fc_state'] = True
-            print(f'[FC_STATE] Linear Velocity: [{self.velocity[0]:.3f}, {self.velocity[1]:.3f}, {self.velocity[2]:.3f}] m/s')
+            print(f'[FC_STATE] Velocity: [{self.velocity[0]:.3f}, {self.velocity[1]:.3f}, {self.velocity[2]:.3f}] m/s')
     
     def rpm_callback(self, msg: Float32MultiArray):
-        """Process motor RPM data"""
+        """
+        Process motor RPM data - SOLO PARA MONITOREO.
+        Los RPMs reales NO se usan para el action buffer.
+        El action buffer se llena únicamente con las acciones del modelo IA.
+        """
         if len(msg.data) >= 4:
             self.rpm = np.array(msg.data[:4], dtype=np.float32)
+            
             if not self.data_received['rpm']:
-                self.get_logger().info('Motor RPM data received - RPM values updated')
+                self.get_logger().info('✓ Motor RPM data received (monitoring only)')
                 self.data_received['rpm'] = True
                 print(f'[RPM] Motors: [{self.rpm[0]:.1f}, {self.rpm[1]:.1f}, {self.rpm[2]:.1f}, {self.rpm[3]:.1f}] RPM')
+                print(f'[RPM] Note: RPM values are for monitoring, NOT used in action buffer')
         else:
-            print(f'[RPM] INSUFFICIENT DATA: {len(msg.data)} values (expected 4)')
             self.get_logger().warn(f'Insufficient RPM data: {len(msg.data)} values', throttle_duration_sec=2.0)
     
     def goal_callback(self, msg: PoseStamped):
-        """Process goal position"""
+        """Process goal position from PoseStamped"""
         self.goal_position = np.array([
             msg.pose.position.x,
             msg.pose.position.y,
@@ -271,14 +339,14 @@ class AIAdapterNode(Node):
         ], dtype=np.float32)
         self.data_received['goal'] = True
         print(f'[GOAL] Position: [{msg.pose.position.x:.2f}, {msg.pose.position.y:.2f}, {msg.pose.position.z:.2f}] m')
-        self.get_logger().info(f'Goal position updated: [{msg.pose.position.x:.2f}, {msg.pose.position.y:.2f}, {msg.pose.position.z:.2f}]')
+        self.get_logger().info(f'✓ Goal updated: [{msg.pose.position.x:.2f}, {msg.pose.position.y:.2f}, {msg.pose.position.z:.2f}]')
     
     def set_goal_callback(self, msg: Point):
         """Process simple goal point"""
         self.goal_position = np.array([msg.x, msg.y, msg.z], dtype=np.float32)
         self.data_received['goal'] = True
         print(f'[SET_GOAL] Simple goal: [{msg.x:.2f}, {msg.y:.2f}, {msg.z:.2f}] m')
-        self.get_logger().info(f'Simple goal set to: [{msg.x:.2f}, {msg.y:.2f}, {msg.z:.2f}]')
+        self.get_logger().info(f'✓ Simple goal set: [{msg.x:.2f}, {msg.y:.2f}, {msg.z:.2f}]')
     
     def quaternion_to_euler(self, quat):
         """Convert quaternion to Euler angles (roll, pitch, yaw)"""
@@ -301,65 +369,109 @@ class AIAdapterNode(Node):
         return np.array([roll, pitch, yaw], dtype=np.float32)
     
     def compute_base_observation(self):
-        """Compute the 112-D base observation array"""
-        euler = self.quaternion_to_euler(self.orientation)
-        dt = 0.033
-        accel = (self.velocity - (self.velocity * 0.9)) / dt
+        """
+        Compute the 112-D base observation array matching _getDroneStateVector format:
+        - Position (3): [x, y, z]
+        - Orientation quaternion (4): [qx, qy, qz, qw]
+        - Orientation Euler (3): [roll, pitch, yaw]
+        - Velocity (3): [vx, vy, vz]
+        - Angular velocity (3): [wx, wy, wz]
+        - Last action (4): [motor1, motor2, motor3, motor4] normalized
+        - Action buffer (80): 20 previous actions × 4 values = 80
+        - Padding (12): zeros to reach 112
         
+        Total: 3 + 4 + 3 + 3 + 3 + 4 + 80 + 12 = 112
+        """
+        euler = self.quaternion_to_euler(self.orientation)
+        
+        # Flatten action buffer: 20 actions × 4 = 80 values
+        # deque mantiene el orden: [más_antigua, ..., más_reciente]
+        action_buffer_flat = np.concatenate(list(self.action_buffer)).astype(np.float32)
+        
+        # Construct base observation
         obs = np.concatenate([
-            self.position,
-            self.orientation,
-            euler,
-            self.velocity,
-            self.angular_velocity,
-            accel,
-            np.zeros(3),
-            self.rpm,
-            np.zeros(86)
+            self.position,              # 3
+            self.orientation,           # 4
+            euler,                      # 3
+            self.velocity,              # 3
+            self.angular_velocity,      # 3
+            self.last_action,           # 4
+            action_buffer_flat,         # 80
+            np.zeros(12)                # 12 padding
         ])
         
         return obs.astype(np.float32)
     
     def compute_observation(self):
         """
-        Compute the full 131-D observation array with normalized LiDAR distances
+        Compute the full 131-D observation array:
+        - Base observation (112-D)
+        - LiDAR distances normalized (16-D): divided by MAX_RAY_DISTANCE
+        - Goal vector normalized (3-D): (goal - pos) / MAX_RAY_DISTANCE
+        
+        Matches original code:
+        np.concatenate([base_obs, distances_scaled, rel], axis=1)
         """
         required_data = ['imu', 'gps', 'lidar']
         if not all(self.data_received[key] for key in required_data):
             missing = [key for key in required_data if not self.data_received[key]]
-            self.get_logger().warn(f'Missing sensor data: {missing}', throttle_duration_sec=1.0)
+            self.get_logger().warn(f'⚠️  Missing sensor data: {missing}', throttle_duration_sec=1.0)
             return
         
         if not self.data_received['goal']:
-            self.get_logger().warn('No goal position set - using default goal', throttle_duration_sec=5.0)
+            self.get_logger().warn('⚠️  No goal set - using default', throttle_duration_sec=5.0)
+        
+        if not self.data_received['action']:
+            self.get_logger().warn('⚠️  No AI actions received yet - using zero actions', throttle_duration_sec=3.0)
         
         try:
+            # 1. Base observation (112-D)
             base_obs = self.compute_base_observation()
             
-            # Normalize LiDAR distances to [0,1]
-            lidar_normalized = np.array([
-                self.normalize_lidar_distance(d) for d in self.lidar_distances
-            ], dtype=np.float32)
+            # 2. LiDAR distances (16-D) - ya están normalizados en [0,1]
+            lidar_obs = self.lidar_distances.copy()
             
-            # Compute goal vector
+            # 3. Goal vector (3-D) - normalizado por MAX_RAY_DISTANCE
             if self.data_received['goal']:
-                goal_vector = (self.goal_position - self.position) / self.LIDAR_MAX_RANGE
+                goal_vector = (self.goal_position - self.position) / self.MAX_RAY_DISTANCE
             else:
+                # Default goal: 5m adelante, 2m arriba
                 default_goal = self.position + np.array([5.0, 0.0, 2.0])
-                goal_vector = (default_goal - self.position) / self.LIDAR_MAX_RANGE
+                goal_vector = (default_goal - self.position) / self.MAX_RAY_DISTANCE
             
-            # Concatenate to form 131-D observation
+            # 4. Concatenate to form 131-D observation
+            # Matching: np.concatenate([base_obs, distances_scaled, rel], axis=1)
             full_obs = np.concatenate([
-                base_obs,
-                lidar_normalized,
-                goal_vector
+                base_obs,           # 112-D
+                lidar_obs,          # 16-D
+                goal_vector         # 3-D
             ]).astype(np.float32)
             
-            print(f'[OBSERVATION] Array shape: {full_obs.shape}, Min: {np.min(full_obs):.3f}, Max: {np.max(full_obs):.3f}')
-            print(f'[OBSERVATION] Position: [{self.position[0]:.3f}, {self.position[1]:.3f}, {self.position[2]:.3f}]')
-            print(f'[OBSERVATION] Pure Down LiDAR: Raw={self.lidar_distances[1]:.3f}m, Normalized={lidar_normalized[1]:.3f}')
-            print(f'[OBSERVATION] Goal vector: [{goal_vector[0]:.3f}, {goal_vector[1]:.3f}, {goal_vector[2]:.3f}]')
-            print('=' * 60)
+            # Verify shape
+            assert full_obs.shape == (131,), f"Observation shape mismatch: {full_obs.shape}"
+            
+            # Log periódico (cada 30 observations)
+            if not hasattr(self, '_obs_count'):
+                self._obs_count = 0
+                print('=' * 60)
+                print(f'[OBSERVATION] ✓ First complete observation generated!')
+                print(f'[OBSERVATION] Shape: {full_obs.shape}')
+                print(f'[OBSERVATION] Components:')
+                print(f'  • Base obs: 112-D (pos, quat, euler, vel, ang_vel, last_action, buffer)')
+                print(f'  • LiDAR: 16-D (down ray={lidar_obs[1]:.3f}, others=1.0)')
+                print(f'  • Goal vector: 3-D → [{goal_vector[0]:.3f}, {goal_vector[1]:.3f}, {goal_vector[2]:.3f}]')
+                print(f'[OBSERVATION] Stats: Min={np.min(full_obs):.3f}, Max={np.max(full_obs):.3f}')
+                print(f'[OBSERVATION] Action buffer status: {len(self.action_buffer)}/20 slots')
+                if self.data_received['action']:
+                    print(f'[OBSERVATION] ✓ Using real AI actions')
+                else:
+                    print(f'[OBSERVATION] ⚠️  Using zero actions (AI not connected)')
+                print('=' * 60)
+            
+            self._obs_count += 1
+            if self._obs_count % 30 == 0:
+                print(f'[OBSERVATION #{self._obs_count}] Pos: [{self.position[0]:.3f}, {self.position[1]:.3f}, {self.position[2]:.3f}], '
+                      f'LiDAR down: {lidar_obs[1]:.3f}, Actions received: {self.action_count}')
             
             # Publish observation
             obs_msg = Float32MultiArray()
@@ -372,15 +484,15 @@ class AIAdapterNode(Node):
                 self.position,
                 self.goal_position,
                 [np.linalg.norm(goal_vector)],
-                [self.lidar_distances[1]],  # Raw down distance
-                [lidar_normalized[1]],  # Normalized down distance
-                [float(all(self.data_received.values()))]
+                [lidar_obs[1]],  # Down ray normalized
+                [float(all(self.data_received.values()))],
+                [float(self.action_count)]
             ])
             debug_msg.data = debug_data.tolist()
             self.debug_pub.publish(debug_msg)
             
         except Exception as e:
-            self.get_logger().error(f'Error computing observation: {e}')
+            self.get_logger().error(f'❌ Error computing observation: {e}')
             import traceback
             self.get_logger().error(f'Traceback: {traceback.format_exc()}')
 
@@ -392,7 +504,13 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        pass
+        print('\n' + '=' * 60)
+        print('🛑 AI Adapter Node shutting down...')
+        print(f'📊 Statistics:')
+        print(f'   • Total actions received: {node.action_count}')
+        print(f'   • Action buffer size: {len(node.action_buffer)}/20')
+        print(f'   • Observations published: {getattr(node, "_obs_count", 0)}')
+        print('=' * 60)
     finally:
         node.destroy_node()
         rclpy.shutdown()
