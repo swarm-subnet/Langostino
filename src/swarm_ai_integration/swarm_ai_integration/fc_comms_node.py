@@ -130,6 +130,8 @@ class FCCommsNode(Node):
         self.battery_pub = self.create_publisher(BatteryState, '/fc/battery', sensor_qos)
         self.connected_pub = self.create_publisher(Bool, '/fc/connected', reliable_qos)
         self.motor_rpm_pub = self.create_publisher(Float32MultiArray, '/fc/motor_rpm', sensor_qos)
+        self.gps_speed_course_pub = self.create_publisher(Float32MultiArray, '/fc/gps_speed_course', sensor_qos)
+
 
         # Timers
         self.telemetry_timer = self.create_timer(1.0 / self.telemetry_rate, self.request_telemetry)
@@ -420,6 +422,20 @@ class FCCommsNode(Node):
             f'lat={gps_msg.latitude:.6f}° lon={gps_msg.longitude:.6f}° | '
             f'alt={gps_msg.altitude:.1f}m | '
             f'sats={gps_data["satellites"]} ({fix_type})'
+        )
+
+        speed_cms = int(gps_data.get('speed', 0))          # cm/s from MSP
+        speed_mps = float(speed_cms) / 100.0               # -> m/s
+        course_deg = float(gps_data.get('ground_course', 0.0))  # deg
+
+        speed_msg = Float32MultiArray()
+        speed_msg.data = [speed_mps, course_deg]           # [m/s, deg]
+        self.gps_speed_course_pub.publish(speed_msg)
+
+        # (optional) richer log:
+        self.get_logger().info(
+            f'   ➜ Published to /fc/gps_speed_course | '
+            f'speed={speed_mps:.2f} m/s | course={course_deg:.1f}°'
         )
 
     def handle_attitude_data(self, data: bytes):
