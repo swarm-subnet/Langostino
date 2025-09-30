@@ -7,7 +7,7 @@ the 131-dimensional observation array that the Swarm AI model expects:
 - LiDAR distances (16-D): Obstacle detection rays (normalized [0,1])
 - Goal vector (3-D): Relative position to target (normalized by max_ray_distance)
 
-The action buffer stores the last 20 actions received from /ai/action topic.
+DEBUG VERSION: Prints full 131-D array every time it's calculated
 """
 
 import numpy as np
@@ -80,6 +80,7 @@ class AIAdapterNode(Node):
         
         # Statistics
         self.action_count = 0
+        self.obs_count = 0
         
         # Constants - matching original code
         self.MAX_RAY_DISTANCE = 10.0  # Max distance for normalization (from original code)
@@ -150,9 +151,9 @@ class AIAdapterNode(Node):
         # Timer for periodic observation computation
         self.timer = self.create_timer(0.033, self.compute_observation)  # ~30 Hz
         
-        print('=' * 60)
-        print('🤖 AI ADAPTER NODE INITIALIZED')
-        print('=' * 60)
+        print('=' * 80)
+        print('🤖 AI ADAPTER NODE INITIALIZED - DEBUG MODE')
+        print('=' * 80)
         print('📡 SUBSCRIBING TO:')
         print('   • /fc/imu_raw (sensor_msgs/Imu) [BEST_EFFORT]')
         print('   • /fc/gps_fix (sensor_msgs/NavSatFix) [BEST_EFFORT]')
@@ -169,7 +170,8 @@ class AIAdapterNode(Node):
         print(f'   • Max ray distance: {self.MAX_RAY_DISTANCE}m (for normalization)')
         print(f'   • LiDAR range: {self.LIDAR_MIN_RANGE}m - ∞')
         print(f'   • Action buffer size: 20 steps (initialized with zeros)')
-        print('=' * 60)
+        print('🐛 DEBUG MODE: Full 131-D array will be printed on every computation')
+        print('=' * 80)
         self.get_logger().info('AI Adapter Node initialized - 131-D observation space')
         self.get_logger().info('Waiting for AI model to publish actions on /ai/action...')
     
@@ -224,10 +226,8 @@ class AIAdapterNode(Node):
                 print(f'[ACTION] First action: [{action[0]:.3f}, {action[1]:.3f}, {action[2]:.3f}, {action[3]:.3f}]')
                 print(f'[ACTION] Buffer initialized with {len(self.action_buffer)} slots (20 max)')
             
-            # Log periódico (cada 30 acciones)
-            if self.action_count % 30 == 0:
-                print(f'[ACTION] Received #{self.action_count}: [{action[0]:.3f}, {action[1]:.3f}, {action[2]:.3f}, {action[3]:.3f}]')
-                print(f'[ACTION] Buffer full: {len(self.action_buffer)}/20 slots used')
+            # Log cada acción recibida
+            print(f'[ACTION #{self.action_count}] Received: [{action[0]:.4f}, {action[1]:.4f}, {action[2]:.4f}, {action[3]:.4f}]')
         else:
             self.get_logger().warn(f'Invalid action data: {len(msg.data)} values (expected 4)', 
                                    throttle_duration_sec=2.0)
@@ -283,19 +283,9 @@ class AIAdapterNode(Node):
             # Normalize and store at index 1 (Pure Down)
             normalized = self.normalize_lidar_distance(distance)
             self.lidar_distances[1] = normalized
-            
-            # Log cada 30 lecturas para no saturar la consola
-            if not hasattr(self, '_lidar_count'):
-                self._lidar_count = 0
-                print(f'[LIDAR] Down ray - Raw: {distance:.3f}m → Normalized: {normalized:.3f}')
-            
-            self._lidar_count += 1
-            if self._lidar_count % 30 == 0:
-                print(f'[LIDAR] Down ray - Raw: {distance:.3f}m → Normalized: {normalized:.3f}')
         else:
             # Invalid reading: set to max (1.0 = no object)
             self.lidar_distances[1] = 1.0
-            print(f'[LIDAR] ⚠️  Invalid reading: {distance:.3f}m → Set to 1.0')
             self.get_logger().warn(f'Invalid LiDAR reading: {distance:.3f}m', throttle_duration_sec=2.0)
         
         self.data_received['lidar'] = True
@@ -402,6 +392,96 @@ class AIAdapterNode(Node):
         
         return obs.astype(np.float32)
     
+    def print_observation_detailed(self, full_obs, base_obs, lidar_obs, goal_vector):
+        """
+        Print detailed breakdown of the 131-D observation array
+        """
+        print('\n' + '=' * 80)
+        print(f'🐛 OBSERVATION #{self.obs_count} - DETAILED BREAKDOWN')
+        print('=' * 80)
+        
+        # Extract components from base_obs
+        pos = base_obs[0:3]
+        quat = base_obs[3:7]
+        euler = base_obs[7:10]
+        vel = base_obs[10:13]
+        ang_vel = base_obs[13:16]
+        last_act = base_obs[16:20]
+        action_buf = base_obs[20:100]
+        padding = base_obs[100:112]
+        
+        print(f'📍 POSITION [0:3] (3 values):')
+        print(f'   {pos}')
+        print(f'   x={pos[0]:.6f}, y={pos[1]:.6f}, z={pos[2]:.6f}')
+        
+        print(f'\n🔄 ORIENTATION QUATERNION [3:7] (4 values):')
+        print(f'   {quat}')
+        print(f'   qx={quat[0]:.4f}, qy={quat[1]:.4f}, qz={quat[2]:.4f}, qw={quat[3]:.4f}')
+        
+        print(f'\n📐 ORIENTATION EULER [7:10] (3 values):')
+        print(f'   {euler}')
+        print(f'   roll={np.rad2deg(euler[0]):.2f}°, pitch={np.rad2deg(euler[1]):.2f}°, yaw={np.rad2deg(euler[2]):.2f}°')
+        
+        print(f'\n⚡ VELOCITY [10:13] (3 values):')
+        print(f'   {vel}')
+        print(f'   vx={vel[0]:.4f}, vy={vel[1]:.4f}, vz={vel[2]:.4f} m/s')
+        
+        print(f'\n🌀 ANGULAR VELOCITY [13:16] (3 values):')
+        print(f'   {ang_vel}')
+        print(f'   wx={ang_vel[0]:.4f}, wy={ang_vel[1]:.4f}, wz={ang_vel[2]:.4f} rad/s')
+        
+        print(f'\n🎯 LAST ACTION [16:20] (4 values):')
+        print(f'   {last_act}')
+        print(f'   m1={last_act[0]:.4f}, m2={last_act[1]:.4f}, m3={last_act[2]:.4f}, m4={last_act[3]:.4f}')
+        
+        print(f'\n📚 ACTION BUFFER [20:100] (80 values = 20 actions × 4):')
+        # Mostrar las primeras 3 y últimas 3 acciones del buffer
+        action_buf_reshaped = action_buf.reshape(20, 4)
+        print(f'   Oldest actions (first 3):')
+        for i in range(min(3, 20)):
+            print(f'      [{i}] {action_buf_reshaped[i]}')
+        if len(action_buf_reshaped) > 6:
+            print(f'   ... ({len(action_buf_reshaped)-6} more actions) ...')
+        print(f'   Newest actions (last 3):')
+        for i in range(max(0, len(action_buf_reshaped)-3), len(action_buf_reshaped)):
+            print(f'      [{i}] {action_buf_reshaped[i]}')
+        
+        print(f'\n⬜ PADDING [100:112] (12 values):')
+        print(f'   {padding}')
+        
+        print(f'\n📡 LIDAR DISTANCES [112:128] (16 values, normalized):')
+        print(f'   {lidar_obs}')
+        print(f'   Ray 0 (Up):    {lidar_obs[0]:.4f}')
+        print(f'   Ray 1 (Down):  {lidar_obs[1]:.4f} ⭐ (active sensor)')
+        print(f'   Rays 2-15:     {lidar_obs[2:]} (all inactive = 1.0)')
+        
+        print(f'\n🎯 GOAL VECTOR [128:131] (3 values, normalized):')
+        print(f'   {goal_vector}')
+        print(f'   gx={goal_vector[0]:.4f}, gy={goal_vector[1]:.4f}, gz={goal_vector[2]:.4f}')
+        goal_distance_normalized = np.linalg.norm(goal_vector)
+        goal_distance_real = goal_distance_normalized * self.MAX_RAY_DISTANCE
+        print(f'   Distance to goal: {goal_distance_real:.2f}m (normalized: {goal_distance_normalized:.4f})')
+        
+        print(f'\n📊 FULL ARRAY STATISTICS:')
+        print(f'   Shape: {full_obs.shape}')
+        print(f'   Min:   {np.min(full_obs):.6f}')
+        print(f'   Max:   {np.max(full_obs):.6f}')
+        print(f'   Mean:  {np.mean(full_obs):.6f}')
+        print(f'   Std:   {np.std(full_obs):.6f}')
+        
+        print(f'\n🔢 COMPLETE 131-D ARRAY:')
+        # Print en grupos de 10 para mejor legibilidad
+        for i in range(0, len(full_obs), 10):
+            end_idx = min(i + 10, len(full_obs))
+            values = ', '.join([f'{v:.4f}' for v in full_obs[i:end_idx]])
+            print(f'   [{i:3d}:{end_idx:3d}] {values}')
+        
+        print(f'\n📈 OBSERVATION STATUS:')
+        print(f'   Actions received: {self.action_count}')
+        print(f'   Using AI actions: {"✓ YES" if self.data_received["action"] else "✗ NO (using zeros)"}')
+        print(f'   All sensors ready: {"✓ YES" if all(self.data_received[k] for k in ["imu", "gps", "lidar", "fc_state"]) else "✗ NO"}')
+        print('=' * 80 + '\n')
+    
     def compute_observation(self):
         """
         Compute the full 131-D observation array:
@@ -450,28 +530,10 @@ class AIAdapterNode(Node):
             # Verify shape
             assert full_obs.shape == (131,), f"Observation shape mismatch: {full_obs.shape}"
             
-            # Log periódico (cada 30 observations)
-            if not hasattr(self, '_obs_count'):
-                self._obs_count = 0
-                print('=' * 60)
-                print(f'[OBSERVATION] ✓ First complete observation generated!')
-                print(f'[OBSERVATION] Shape: {full_obs.shape}')
-                print(f'[OBSERVATION] Components:')
-                print(f'  • Base obs: 112-D (pos, quat, euler, vel, ang_vel, last_action, buffer)')
-                print(f'  • LiDAR: 16-D (down ray={lidar_obs[1]:.3f}, others=1.0)')
-                print(f'  • Goal vector: 3-D → [{goal_vector[0]:.3f}, {goal_vector[1]:.3f}, {goal_vector[2]:.3f}]')
-                print(f'[OBSERVATION] Stats: Min={np.min(full_obs):.3f}, Max={np.max(full_obs):.3f}')
-                print(f'[OBSERVATION] Action buffer status: {len(self.action_buffer)}/20 slots')
-                if self.data_received['action']:
-                    print(f'[OBSERVATION] ✓ Using real AI actions')
-                else:
-                    print(f'[OBSERVATION] ⚠️  Using zero actions (AI not connected)')
-                print('=' * 60)
+            self.obs_count += 1
             
-            self._obs_count += 1
-            if self._obs_count % 30 == 0:
-                print(f'[OBSERVATION #{self._obs_count}] Pos: [{self.position[0]:.3f}, {self.position[1]:.3f}, {self.position[2]:.3f}], '
-                      f'LiDAR down: {lidar_obs[1]:.3f}, Actions received: {self.action_count}')
+            # PRINT DETAILED BREAKDOWN EVERY TIME
+            self.print_observation_detailed(full_obs, base_obs, lidar_obs, goal_vector)
             
             # Publish observation
             obs_msg = Float32MultiArray()
@@ -504,13 +566,18 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        print('\n' + '=' * 60)
-        print('🛑 AI Adapter Node shutting down...')
-        print(f'📊 Statistics:')
+        print('\n' + '=' * 80)
+        print('🛑 AI ADAPTER NODE SHUTTING DOWN...')
+        print('=' * 80)
+        print(f'📊 FINAL STATISTICS:')
+        print(f'   • Total observations published: {node.obs_count}')
         print(f'   • Total actions received: {node.action_count}')
         print(f'   • Action buffer size: {len(node.action_buffer)}/20')
-        print(f'   • Observations published: {getattr(node, "_obs_count", 0)}')
-        print('=' * 60)
+        print(f'   • Sensors status:')
+        for sensor, status in node.data_received.items():
+            status_icon = '✓' if status else '✗'
+            print(f'      {status_icon} {sensor}: {"Connected" if status else "Not connected"}')
+        print('=' * 80)
     finally:
         node.destroy_node()
         rclpy.shutdown()
