@@ -2,15 +2,11 @@
 """
 AI Adapter Node - Converts real sensor data to 131-D observation array for Swarm AI model
 
-Changes in this version:
-- Uses /fc/gps_speed_course (Float32MultiArray: [speed_mps, course_deg]) to compute horizontal velocity.
-- vx, vy derived from speed & course-over-ground (COG), vz = 0 for now.
-- Stops integrating IMU linear acceleration. IMU is used only for angular velocity.
-- ENU convention: x = East, y = North, z = Up.
-  Given COG in degrees clockwise from True North:
-      course_rad = radians(COG)
-      vx_east  = speed_mps * sin(course_rad)
-      vy_north = speed_mps * cos(course_rad)
+Updates in this version:
+- Subscribes to /fc/waypoint (Float32MultiArray: [wp_no, lat, lon, alt_m, heading, stay, navflag]).
+- Treats that waypoint as the "goal": computes a local ENU vector from current GPS position to the goal.
+- Normalizes the goal vector by MAX_RAY_DISTANCE (±10 m cap) and places it at the end of the 131-D observation.
+- Uses /fc/gps_speed_course to compute horizontal velocity (ENU). IMU is only for angular velocity.
 """
 
 import math
@@ -48,6 +44,9 @@ class AIAdapterNode(Node):
         self.speed_mps = 0.0
         self.course_deg = 0.0
 
+        # Goal (geodetic) from /fc/waypoint: [lat, lon, alt]
+        self.goal_geodetic = np.zeros(3, dtype=np.float32)                # [lat_deg, lon_deg, alt_m]
+
         # LiDAR distances: 16 rays, only index 1 (down) is active, rest 1.0
         self.lidar_distances = np.ones(16, dtype=np.float32)
 
@@ -69,18 +68,18 @@ class AIAdapterNode(Node):
             'lidar': False,
             'action': False,     # ever received at least one
             'gps_speed': False,  # /fc/gps_speed_course
+            'waypoint': False,   # /fc/waypoint
         }
 
         # -------------------------
         # Constants / config
         # -------------------------
-        self.MAX_RAY_DISTANCE = 10.0       # meters, for normalization
-        self.STATIC_GOAL_VECTOR = np.array([0.5, 0.0, 0.2], dtype=np.float32)  # already normalized (10 m range)
+        self.MAX_RAY_DISTANCE = 10.0  # meters, used to normalize goal vector
+        # No more static goal: will be computed from /fc/waypoint
 
         # -------------------------
         # QoS setups
         # -------------------------
-        # Use BEST_EFFORT for all sensor feeds to avoid RELIABILITY mismatches with publishers.
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -105,8 +104,11 @@ class AIAdapterNode(Node):
         # IMU (angular velocity only)
         self.imu_sub = self.create_subscription(Imu, '/fc/imu_raw', self.imu_callback, sensor_qos)
 
-        # GPS speed & course (NEW)
+        # GPS speed & course
         self.gps_speed_sub = self.create_subscription(Float32MultiArray, '/fc/gps_speed_course', self.gps_speed_callback, sensor_qos)
+
+        # Waypoint (goal) — publisher uses RELIABLE; match it to avoid QoS mismatches
+        self.waypoint_sub = self.create_subscription(Float32MultiArray, '/fc/waypoint', self.waypoint_callback, reliable_qos)
 
         # LiDAR: down-facing range
         self.lidar_sub = self.create_subscription(Range, '/lidar_distance', self.lidar_callback, sensor_qos)
@@ -137,16 +139,14 @@ class AIAdapterNode(Node):
         print('   • /fc/attitude_euler     (geometry_msgs/Vector3Stamped)     → orientation Euler [rad] (BEST_EFFORT)')
         print('   • /fc/imu_raw            (sensor_msgs/Imu)                   → angular velocity (NO accel integration)')
         print('   • /fc/gps_speed_course   (std_msgs/Float32MultiArray[2])     → [speed_mps, course_deg] → vx, vy (ENU)')
+        print('   • /fc/waypoint           (std_msgs/Float32MultiArray[7])     → goal [lat,lon,alt] (RELIABLE)')
         print('   • /lidar_distance        (sensor_msgs/Range)                 → LiDAR down ray (normalized)')
         print('   • /ai/action             (std_msgs/Float32MultiArray[4])     → last action + action buffer')
         print('📤 PUBLISHING TO:')
         print('   • /ai/observation        (std_msgs/Float32MultiArray)        → 131-D observation')
         print('   • /ai/observation_debug  (std_msgs/Float32MultiArray)        → debug vector')
-        print('🎯 CONFIG:')
-        print(f'   • Max ray distance: {self.MAX_RAY_DISTANCE} m (normalization)')
-        print(f'   • Goal vector (hardcoded, normalized): {self.STATIC_GOAL_VECTOR.tolist()}')
-        print(f'   • Action buffer size: {self.action_buffer.maxlen} steps (zeros when no action this tick)')
-        print('🐛 DEBUG MODE: Full 131-D array printed every cycle')
+        print('🎯 GOAL:')
+        print('   • Derived from /fc/waypoint, converted to ENU and normalized by ±10 m')
         print('=' * 80)
         self.get_logger().info('AI Adapter Node initialized (131-D observation)')
 
@@ -160,6 +160,46 @@ class AIAdapterNode(Node):
         d = max(0.0, float(distance_m))
         return float(min(1.0, d / self.MAX_RAY_DISTANCE))
 
+    def _enu_offset_from_latlonalt(self, goal_lat, goal_lon, goal_alt, ref_lat, ref_lon, ref_alt):
+        """
+        Convert (goal_lat, goal_lon, goal_alt) into ENU offset [east, north, up] (meters)
+        relative to (ref_lat, ref_lon, ref_alt). Uses small-angle local tangent approximation.
+        """
+        lat_rad = math.radians(ref_lat)
+        dlat = float(goal_lat) - float(ref_lat)   # degrees
+        dlon = float(goal_lon) - float(ref_lon)   # degrees
+
+        # Rough meters-per-degree (good enough for local goals)
+        m_per_deg_lat = 111320.0
+        m_per_deg_lon = 111320.0 * math.cos(lat_rad)
+
+        east  = dlon * m_per_deg_lon
+        north = dlat * m_per_deg_lat
+        up    = float(goal_alt) - float(ref_alt)
+
+        return np.array([east, north, up], dtype=np.float32)
+
+    def _goal_vector_normalized(self):
+        """
+        Build normalized goal vector (ENU) in range roughly [-1, 1] by dividing by MAX_RAY_DISTANCE,
+        and clipping to ±1.
+        """
+        # Need both current position and waypoint goal
+        lat, lon, alt = self.position.tolist()
+        g_lat, g_lon, g_alt = self.goal_geodetic.tolist()
+
+        # If goal not received yet, return zeros
+        if not self.data_received['waypoint']:
+            return np.zeros(3, dtype=np.float32)
+
+        enu = self._enu_offset_from_latlonalt(
+            goal_lat=g_lat, goal_lon=g_lon, goal_alt=g_alt,
+            ref_lat=lat,     ref_lon=lon,     ref_alt=alt
+        )
+        # Normalize by ±MAX_RAY_DISTANCE
+        goal_norm = np.clip(enu / float(self.MAX_RAY_DISTANCE), -1.0, 1.0).astype(np.float32)
+        return goal_norm
+
     def _prepare_action_for_tick(self) -> np.ndarray:
         """
         Implements: "IF no message is there, set the observation in that instance to 0".
@@ -172,7 +212,6 @@ class AIAdapterNode(Node):
             last_action_for_obs = zero_act
         else:
             last_action_for_obs = self.last_action_received.copy()
-            # do NOT append here — the callback already appended the received action
         self._last_action_count_seen = self.action_count
         return last_action_for_obs
 
@@ -187,6 +226,24 @@ class AIAdapterNode(Node):
             self.data_received['gps'] = True
             self.get_logger().info('✓ GPS fix received (using lat, lon, alt as position)')
             print(f'[GPS] lat={self.position[0]:.7f}, lon={self.position[1]:.7f}, alt={self.position[2]:.3f} m')
+
+    def waypoint_callback(self, msg: Float32MultiArray):
+        # Expect [wp_no, lat, lon, alt_m, heading, stay, navflag]
+        if len(msg.data) < 4:
+            self.get_logger().warn(f'Invalid /fc/waypoint payload (expected ≥4, got {len(msg.data)})',
+                                   throttle_duration_sec=2.0)
+            return
+        wp_no = int(msg.data[0])
+        lat = float(msg.data[1])
+        lon = float(msg.data[2])
+        alt = float(msg.data[3])
+        self.goal_geodetic[:] = [lat, lon, alt]
+        if not self.data_received['waypoint']:
+            self.data_received['waypoint'] = True
+            self.get_logger().info(f'✓ Waypoint received → goal set to wp#{wp_no} (lat={lat:.7f}, lon={lon:.7f}, alt={alt:.2f} m)')
+        else:
+            # Throttle noisy logs
+            self.get_logger().debug(f'[WAYPOINT] wp#{wp_no} lat={lat:.7f}, lon={lon:.7f}, alt={alt:.2f} m')
 
     def att_quat_callback(self, msg: QuaternionStamped):
         self.quat_att = np.array(
@@ -336,9 +393,12 @@ class AIAdapterNode(Node):
         print(f'   {ang_vel}')
         print(f'   wx={ang_vel[0]:.4f}, wy={ang_vel[1]:.4f}, wz={ang_vel[2]:.4f} rad/s')
 
-        print('\n🎯 LAST ACTION [16:20] (4 values) — /ai/action (zeros if no new msg this tick):')
-        print(f'   {last_act}')
-        print(f'   m1={last_act[0]:.4f}, m2={last_act[1]:.4f}, m3={last_act[2]:.4f}, m4={last_act[3]:.4f}')
+        print('\n🎯 GOAL VECTOR [128:131] (3 values, normalized) — from /fc/waypoint → ENU (±10 m cap):')
+        print(f'   {goal_vector}')
+        print(f'   gx={goal_vector[0]:.4f}, gy={goal_vector[1]:.4f}, gz={goal_vector[2]:.4f}')
+        goal_distance_normalized = np.linalg.norm(goal_vector)
+        goal_distance_real = goal_distance_normalized * self.MAX_RAY_DISTANCE
+        print(f'   Distance to goal (approx): {goal_distance_real:.2f} m (normalized: {goal_distance_normalized:.4f})')
 
         print('\n📚 ACTION BUFFER [20:100] (80 values = 20 actions × 4):')
         action_buf_reshaped = action_buf.reshape(20, 4)
@@ -360,13 +420,6 @@ class AIAdapterNode(Node):
         print(f'   Ray 1 (Down):  {lidar_obs[1]:.4f} ⭐ (active sensor)')
         print(f'   Rays 2-15:     {lidar_obs[2:]} (all inactive = 1.0)')
 
-        print('\n🎯 GOAL VECTOR [128:131] (3 values, normalized) — hardcoded:')
-        print(f'   {goal_vector}')
-        print(f'   gx={goal_vector[0]:.4f}, gy={goal_vector[1]:.4f}, gz={goal_vector[2]:.4f}')
-        goal_distance_normalized = np.linalg.norm(goal_vector)
-        goal_distance_real = goal_distance_normalized * self.MAX_RAY_DISTANCE
-        print(f'   Distance to goal: {goal_distance_real:.2f} m (normalized: {goal_distance_normalized:.4f})')
-
         print('\n📊 FULL ARRAY STATISTICS:')
         print(f'   Shape: {full_obs.shape}')
         print(f'   Min:   {np.min(full_obs):.6f}')
@@ -384,13 +437,13 @@ class AIAdapterNode(Node):
         print(f'   Actions received (total): {self.action_count}')
         using_action = '✓ YES' if (self.action_count > 0 and not np.allclose(last_action_for_obs, 0.0)) else '✗ NO (zeros this tick)'
         print(f'   Using AI action this tick: {using_action}')
-        all_ready = all(self.data_received[k] for k in ['gps', 'att_quat', 'att_euler', 'imu', 'lidar', 'gps_speed'])
+        all_ready = all(self.data_received[k] for k in ['gps', 'att_quat', 'att_euler', 'imu', 'lidar', 'gps_speed', 'waypoint'])
         print(f'   All sensors ready: {"✓ YES" if all_ready else "✗ NO"}')
         print('=' * 80 + '\n')
 
     def compute_observation(self):
-        # Require the exact sources you asked for
-        required = ['gps', 'att_quat', 'att_euler', 'imu', 'lidar', 'gps_speed']
+        # Require the exact sources we now depend on
+        required = ['gps', 'att_quat', 'att_euler', 'imu', 'lidar', 'gps_speed', 'waypoint']
         if not all(self.data_received[k] for k in required):
             missing = [k for k in required if not self.data_received[k]]
             self.get_logger().warn(f'⚠️  Waiting for required data: {missing}', throttle_duration_sec=1.0)
@@ -406,8 +459,8 @@ class AIAdapterNode(Node):
             # 2) LiDAR (16-D)
             lidar_obs = self.lidar_distances.copy()
 
-            # 3) Goal (3-D) — hardcoded normalized vector
-            goal_vector = self.STATIC_GOAL_VECTOR.copy()
+            # 3) Goal (3-D) — from /fc/waypoint → ENU normalized
+            goal_vector = self._goal_vector_normalized()
 
             # Concatenate -> 131-D
             full_obs = np.concatenate([base_obs, lidar_obs, goal_vector]).astype(np.float32)
