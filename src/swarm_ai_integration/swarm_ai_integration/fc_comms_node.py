@@ -136,7 +136,23 @@ class FCCommsNode(Node):
         self.heartbeat_timer = self.create_timer(1.0 / self.heartbeat_rate, self.send_heartbeat)
         self.status_timer = self.create_timer(1.0, self.publish_connection_status)
         # Poll waypoint #0 every 0.1s
-        self.wp_poll_timer = self.create_timer(0.1, self.poll_waypoint_zero)
+        # --- Waypoint polling configuration ---
+        # Mode can be 'first' (poll only WP #1) or 'all' (cycle 0..wp_max_index)
+        self.declare_parameter('wp_poll_mode', 'first')  # 'first' or 'all'
+        self.declare_parameter('wp_max_index', 10)       # highest WP index to cycle when mode='all'
+
+        self.wp_poll_mode = self.get_parameter('wp_poll_mode').get_parameter_value().string_value or 'first'
+        self.wp_max_index = int(self.get_parameter('wp_max_index').get_parameter_value().integer_value)
+        self.wp_poll_idx = 0
+
+        if self.wp_poll_mode == 'all':
+            # cycle 0..wp_max_index (includes 0 = home/current)
+            self.wp_poll_timer = self.create_timer(0.1, self.poll_waypoint_cycle)
+            self.get_logger().info(f'🗺️  Waypoint poll mode: ALL (0..{self.wp_max_index}) @ 10 Hz')
+        else:
+            # just the first mission waypoint (index 1)
+            self.wp_poll_timer = self.create_timer(0.1, self.poll_first_mission_waypoint)
+            self.get_logger().info('🗺️  Waypoint poll mode: FIRST (index 1) @ 10 Hz')
 
         # Start communication thread
         self.start_communication()
@@ -585,6 +601,24 @@ class FCCommsNode(Node):
         payload = MSPDataTypes.pack_waypoint_request(0)
         self.command_queue.put(MSPMessage(MSPCommand.MSP_WP, payload))
         self.get_logger().debug('🗺️  Polled MSP_WP for index #0')
+    
+    def poll_first_mission_waypoint(self):
+        """Poll first mission waypoint (index 1)."""
+        if not self.connected:
+            return
+        payload = MSPDataTypes.pack_waypoint_request(1)  # ← WP #1 is first mission WP
+        self.command_queue.put(MSPMessage(MSPCommand.MSP_WP, payload))
+        self.get_logger().debug('🗺️  Polled MSP_WP for index #1')
+
+    def poll_waypoint_cycle(self):
+        """Poll waypoints in a cycle 0..self.wp_max_index (one index per tick)."""
+        if not self.connected:
+            return
+        payload = MSPDataTypes.pack_waypoint_request(self.wp_poll_idx)
+        self.command_queue.put(MSPMessage(MSPCommand.MSP_WP, payload))
+        self.get_logger().debug(f'🗺️  Polled MSP_WP for index #{self.wp_poll_idx}')
+        self.wp_poll_idx = (self.wp_poll_idx + 1) % (self.wp_max_index + 1)
+
 
     # --------------- Command subscribers ---------------
 
