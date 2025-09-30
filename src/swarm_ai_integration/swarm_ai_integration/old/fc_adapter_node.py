@@ -28,7 +28,7 @@ from std_msgs.msg import Bool, String, Float32MultiArray, Header
 from geometry_msgs.msg import Twist, Vector3Stamped
 from sensor_msgs.msg import Joy
 
-from .msp_protocol import MSPVelocityController, MSPMessage, MSPCommand, MSPDataTypes
+from ..msp_protocol import MSPVelocityController, MSPMessage, MSPCommand, MSPDataTypes
 
 
 class FCAdapterNode(Node):
