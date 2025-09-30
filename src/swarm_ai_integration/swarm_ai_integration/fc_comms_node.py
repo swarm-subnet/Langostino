@@ -138,7 +138,7 @@ class FCCommsNode(Node):
         # Poll waypoint #0 every 0.1s
         # --- Waypoint polling configuration ---
         # Mode can be 'first' (poll only WP #1) or 'all' (cycle 0..wp_max_index)
-        self.declare_parameter('wp_poll_mode', 'first')  # 'first' or 'all'
+        self.declare_parameter('wp_poll_mode', 'all')  # 'first' or 'all'
         self.declare_parameter('wp_max_index', 10)       # highest WP index to cycle when mode='all'
 
         self.wp_poll_mode = self.get_parameter('wp_poll_mode').get_parameter_value().string_value or 'first'
