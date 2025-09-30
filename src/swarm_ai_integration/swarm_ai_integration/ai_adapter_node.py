@@ -4,8 +4,8 @@ AI Adapter Node - Converts real sensor data to 131-D observation array for Swarm
 
 Field mapping per your instructions:
 - Position (3):           /fc/gps_fix (NavSatFix.latitude, longitude, altitude)
-- Orientation quaternion: /fc/attitude (QuaternionStamped.quaternion)
-- Orientation Euler (3):  /fc/attitude_euler (Vector3Stamped.vector) [radians]
+- Orientation quaternion: /fc/attitude (geometry_msgs/QuaternionStamped.quaternion)
+- Orientation Euler (3):  /fc/attitude_euler (geometry_msgs/Vector3Stamped.vector) [radians]
 - Angular velocity (3):   /fc/imu_raw (Imu.angular_velocity)
 - Velocity (3):           Derived from /fc/imu_raw (Imu.linear_acceleration) with gravity compensation and discrete integration
 - Last action (4):        /ai/action (Float32MultiArray[4]); if no new action this tick => zeros for this tick
@@ -84,6 +84,7 @@ class AIAdapterNode(Node):
         # -------------------------
         # QoS setups
         # -------------------------
+        # Use BEST_EFFORT for all sensor feeds to avoid RELIABILITY mismatches with publishers.
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -101,9 +102,9 @@ class AIAdapterNode(Node):
         # Position
         self.gps_sub = self.create_subscription(NavSatFix, '/fc/gps_fix', self.gps_callback, sensor_qos)
 
-        # Attitude: quaternion & Euler
-        self.att_quat_sub = self.create_subscription(QuaternionStamped, '/fc/attitude', self.att_quat_callback, reliable_qos)
-        self.att_euler_sub = self.create_subscription(Vector3Stamped, '/fc/attitude_euler', self.att_euler_callback, reliable_qos)
+        # Attitude: quaternion & Euler (use BEST_EFFORT to match publishers and fix QoS incompatibility)
+        self.att_quat_sub = self.create_subscription(QuaternionStamped, '/fc/attitude', self.att_quat_callback, sensor_qos)
+        self.att_euler_sub = self.create_subscription(Vector3Stamped, '/fc/attitude_euler', self.att_euler_callback, sensor_qos)
 
         # IMU (angular vel + linear accel for velocity integration)
         self.imu_sub = self.create_subscription(Imu, '/fc/imu_raw', self.imu_callback, sensor_qos)
@@ -133,8 +134,8 @@ class AIAdapterNode(Node):
         print('=' * 80)
         print('📡 SUBSCRIBING TO:')
         print('   • /fc/gps_fix            (sensor_msgs/NavSatFix)            → position [lat,lon,alt]')
-        print('   • /fc/attitude           (geometry_msgs/QuaternionStamped)  → orientation quaternion')
-        print('   • /fc/attitude_euler     (geometry_msgs/Vector3Stamped)     → orientation Euler [rad]')
+        print('   • /fc/attitude           (geometry_msgs/QuaternionStamped)  → orientation quaternion (BEST_EFFORT)')
+        print('   • /fc/attitude_euler     (geometry_msgs/Vector3Stamped)     → orientation Euler [rad] (BEST_EFFORT)')
         print('   • /fc/imu_raw            (sensor_msgs/Imu)                   → ang. vel + accel (for velocity)')
         print('   • /lidar_distance        (sensor_msgs/Range)                 → LiDAR down ray (normalized)')
         print('   • /ai/action             (std_msgs/Float32MultiArray[4])     → last action + action buffer')
@@ -216,7 +217,7 @@ class AIAdapterNode(Node):
             print(f'[ATT-QUAT] q=[{self.quat_att[0]:.6f}, {self.quat_att[1]:.6f}, {self.quat_att[2]:.6f}, {self.quat_att[3]:.6f}]')
 
     def att_euler_callback(self, msg: Vector3Stamped):
-        # Incoming angles assumed radians: vector.x=roll, vector.y=pitch, vector.z=yaw
+        # Incoming angles are radians: vector.x=roll, vector.y=pitch, vector.z=yaw
         self.euler_att = np.array([msg.vector.x, msg.vector.y, msg.vector.z], dtype=np.float32)
         if not self.data_received['att_euler']:
             self.data_received['att_euler'] = True
