@@ -105,10 +105,7 @@ class MSPClient:
     @staticmethod
     def _parse(msg: MSPMessage) -> Dict[str, Any]:
         if msg.command == MSPCommand.MSP_STATUS:
-            import struct
-            if len(msg.data) >= 11:
-                cycle_time, i2c_errors, sensor, flag, _ = struct.unpack('<HHIBB', msg.data[:11])
-                return {"armed": bool(flag & 1), "cycle_time": cycle_time, "i2c_errors": i2c_errors, "sensor": sensor, "flag": flag}
+            pass
         if msg.command == MSPCommand.MSP_RC:
             return {"channels": MSPDataTypes.unpack_rc_channels(msg.data)}
         return {"raw_data": msg.data}
