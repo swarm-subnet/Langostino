@@ -2,19 +2,15 @@
 """
 AI Adapter Node - Converts real sensor data to 131-D observation array for Swarm AI model
 
-Field mapping per your instructions:
-- Position (3):           /fc/gps_fix (NavSatFix.latitude, longitude, altitude)
-- Orientation quaternion: /fc/attitude (geometry_msgs/QuaternionStamped.quaternion)
-- Orientation Euler (3):  /fc/attitude_euler (geometry_msgs/Vector3Stamped.vector) [radians]
-- Angular velocity (3):   /fc/imu_raw (Imu.angular_velocity)
-- Velocity (3):           Derived from /fc/imu_raw (Imu.linear_acceleration) with gravity compensation and discrete integration
-- Last action (4):        /ai/action (Float32MultiArray[4]); if no new action this tick => zeros for this tick
-- Action buffer (80):     Last 20 actions × 4. If no new action this tick => pushes zeros to buffer
-- Padding (12):           Zeros to reach 112-D base
-- LiDAR (16):             Down-facing range on index 1 normalized; others fixed at 1.0
-- Goal (3):               Hardcoded normalized vector [0.5, 0.0, 0.2]
-
-DEBUG VERSION: Prints full 131-D array every time it's calculated.
+Changes in this version:
+- Uses /fc/gps_speed_course (Float32MultiArray: [speed_mps, course_deg]) to compute horizontal velocity.
+- vx, vy derived from speed & course-over-ground (COG), vz = 0 for now.
+- Stops integrating IMU linear acceleration. IMU is used only for angular velocity.
+- ENU convention: x = East, y = North, z = Up.
+  Given COG in degrees clockwise from True North:
+      course_rad = radians(COG)
+      vx_east  = speed_mps * sin(course_rad)
+      vy_north = speed_mps * cos(course_rad)
 """
 
 import math
@@ -44,11 +40,13 @@ class AIAdapterNode(Node):
         self.quat_att = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)  # /fc/attitude
         self.euler_att = np.zeros(3, dtype=np.float32)                    # /fc/attitude_euler (roll, pitch, yaw) [rad]
 
-        # IMU-derived states
+        # IMU angular velocity only (no accel integration here)
         self.angular_velocity = np.zeros(3, dtype=np.float32)             # /fc/imu_raw
-        self.velocity = np.zeros(3, dtype=np.float32)                     # integrated from /fc/imu_raw
-        self._prev_imu_time = None                                        # for Δt integration
-        self._last_world_accel = np.zeros(3, dtype=np.float32)            # last gravity-compensated accel [debug]
+
+        # Velocity from GPS speed & COG (ENU)
+        self.velocity = np.zeros(3, dtype=np.float32)                     # [vx_east, vy_north, vz(=0)]
+        self.speed_mps = 0.0
+        self.course_deg = 0.0
 
         # LiDAR distances: 16 rays, only index 1 (down) is active, rest 1.0
         self.lidar_distances = np.ones(16, dtype=np.float32)
@@ -69,16 +67,14 @@ class AIAdapterNode(Node):
             'att_euler': False,
             'imu': False,
             'lidar': False,
-            'action': False,  # ever received at least one
+            'action': False,     # ever received at least one
+            'gps_speed': False,  # /fc/gps_speed_course
         }
 
         # -------------------------
         # Constants / config
         # -------------------------
         self.MAX_RAY_DISTANCE = 10.0       # meters, for normalization
-        self.GRAVITY = 9.80665             # m/s^2
-        self.MAX_DT = 0.5                  # s, integration guard
-        self.MIN_DT = 1e-5                 # s, avoid division by ~0
         self.STATIC_GOAL_VECTOR = np.array([0.5, 0.0, 0.2], dtype=np.float32)  # already normalized (10 m range)
 
         # -------------------------
@@ -102,12 +98,15 @@ class AIAdapterNode(Node):
         # Position
         self.gps_sub = self.create_subscription(NavSatFix, '/fc/gps_fix', self.gps_callback, sensor_qos)
 
-        # Attitude: quaternion & Euler (use BEST_EFFORT to match publishers and fix QoS incompatibility)
+        # Attitude: quaternion & Euler
         self.att_quat_sub = self.create_subscription(QuaternionStamped, '/fc/attitude', self.att_quat_callback, sensor_qos)
         self.att_euler_sub = self.create_subscription(Vector3Stamped, '/fc/attitude_euler', self.att_euler_callback, sensor_qos)
 
-        # IMU (angular vel + linear accel for velocity integration)
+        # IMU (angular velocity only)
         self.imu_sub = self.create_subscription(Imu, '/fc/imu_raw', self.imu_callback, sensor_qos)
+
+        # GPS speed & course (NEW)
+        self.gps_speed_sub = self.create_subscription(Float32MultiArray, '/fc/gps_speed_course', self.gps_speed_callback, sensor_qos)
 
         # LiDAR: down-facing range
         self.lidar_sub = self.create_subscription(Range, '/lidar_distance', self.lidar_callback, sensor_qos)
@@ -136,7 +135,8 @@ class AIAdapterNode(Node):
         print('   • /fc/gps_fix            (sensor_msgs/NavSatFix)            → position [lat,lon,alt]')
         print('   • /fc/attitude           (geometry_msgs/QuaternionStamped)  → orientation quaternion (BEST_EFFORT)')
         print('   • /fc/attitude_euler     (geometry_msgs/Vector3Stamped)     → orientation Euler [rad] (BEST_EFFORT)')
-        print('   • /fc/imu_raw            (sensor_msgs/Imu)                   → ang. vel + accel (for velocity)')
+        print('   • /fc/imu_raw            (sensor_msgs/Imu)                   → angular velocity (NO accel integration)')
+        print('   • /fc/gps_speed_course   (std_msgs/Float32MultiArray[2])     → [speed_mps, course_deg] → vx, vy (ENU)')
         print('   • /lidar_distance        (sensor_msgs/Range)                 → LiDAR down ray (normalized)')
         print('   • /ai/action             (std_msgs/Float32MultiArray[4])     → last action + action buffer')
         print('📤 PUBLISHING TO:')
@@ -159,24 +159,6 @@ class AIAdapterNode(Node):
     def _normalize_lidar_distance(self, distance_m: float) -> float:
         d = max(0.0, float(distance_m))
         return float(min(1.0, d / self.MAX_RAY_DISTANCE))
-
-    def _quat_to_rotmat(self, q: np.ndarray) -> np.ndarray:
-        """Return 3x3 rotation matrix (world_from_body) from quaternion [x,y,z,w]."""
-        x, y, z, w = [float(v) for v in q]
-        # normalize to be safe
-        n = math.sqrt(x*x + y*y + z*z + w*w)
-        if n == 0.0:
-            return np.eye(3, dtype=np.float32)
-        x, y, z, w = x/n, y/n, z/n, w/n
-        xx, yy, zz = x*x, y*y, z*z
-        xy, xz, yz = x*y, x*z, y*z
-        wx, wy, wz = w*x, w*y, w*z
-        R = np.array([
-            [1 - 2*(yy + zz),     2*(xy - wz),         2*(xz + wy)],
-            [    2*(xy + wz),  1 - 2*(xx + zz),        2*(yz - wx)],
-            [    2*(xz - wy),      2*(yz + wx),     1 - 2*(xx + yy)]
-        ], dtype=np.float32)
-        return R
 
     def _prepare_action_for_tick(self) -> np.ndarray:
         """
@@ -225,40 +207,40 @@ class AIAdapterNode(Node):
             print(f'[ATT-EULER] rpy=[{self.euler_att[0]:.6f}, {self.euler_att[1]:.6f}, {self.euler_att[2]:.6f}] rad')
 
     def imu_callback(self, msg: Imu):
-        # Angular velocity directly
+        # Angular velocity only
         self.angular_velocity = np.array(
             [msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z],
             dtype=np.float32
         )
-
-        # Linear acceleration (body), likely includes gravity per your example
-        accel_body = np.array(
-            [msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z],
-            dtype=np.float32
-        )
-
-        # Δt for integration from message header time
-        t = self._stamp_to_sec(msg.header.stamp)
-        if self._prev_imu_time is not None:
-            dt = t - self._prev_imu_time
-            if dt >= self.MIN_DT and dt <= self.MAX_DT:
-                # Use latest attitude quaternion to rotate body accel to world frame
-                R_wb = self._quat_to_rotmat(self.quat_att)  # world_from_body
-                accel_world = R_wb @ accel_body
-                # Gravity compensation: subtract [0, 0, +g] in world frame
-                accel_world[2] -= self.GRAVITY
-                # Integrate
-                self.velocity += accel_world * dt
-                self._last_world_accel = accel_world.astype(np.float32)
-            else:
-                # Skip integration on invalid dt (sensor stall or jump)
-                pass
-        self._prev_imu_time = t
-
         if not self.data_received['imu']:
             self.data_received['imu'] = True
-            self.get_logger().info('✓ IMU data received (angular vel + accel for velocity integration)')
+            self.get_logger().info('✓ IMU data received (angular velocity only)')
             print(f'[IMU] ω=[{self.angular_velocity[0]:.5f}, {self.angular_velocity[1]:.5f}, {self.angular_velocity[2]:.5f}] rad/s')
+
+    def gps_speed_callback(self, msg: Float32MultiArray):
+        # Expect [speed_mps, course_deg]
+        if len(msg.data) < 2:
+            self.get_logger().warn(f'Invalid /fc/gps_speed_course payload (expected 2, got {len(msg.data)})',
+                                   throttle_duration_sec=2.0)
+            return
+        self.speed_mps = float(msg.data[0])
+        self.course_deg = float(msg.data[1])
+
+        # COG is degrees clockwise from True North
+        # ENU conversion: x=East, y=North
+        course_rad = math.radians(self.course_deg)
+        vx_east = self.speed_mps * math.sin(course_rad)
+        vy_north = self.speed_mps * math.cos(course_rad)
+
+        self.velocity[0] = float(vx_east)
+        self.velocity[1] = float(vy_north)
+        self.velocity[2] = 0.0  # vz left at 0 as requested
+
+        if not self.data_received['gps_speed']:
+            self.data_received['gps_speed'] = True
+            self.get_logger().info('✓ GPS speed/course received → vx, vy computed (ENU)')
+            print(f'[GPS-SPEED] speed={self.speed_mps:.3f} m/s, course={self.course_deg:.1f}°, '
+                  f'vx_east={self.velocity[0]:.3f} m/s, vy_north={self.velocity[1]:.3f} m/s')
 
     def lidar_callback(self, msg: Range):
         if np.isfinite(msg.range) and msg.range > 0.0:
@@ -293,12 +275,12 @@ class AIAdapterNode(Node):
     # -------------------------------------------------------------------------
     def _compute_base_observation(self, last_action_for_obs: np.ndarray) -> np.ndarray:
         """
-        Base 112-D vector layout (matches your original indexing):
+        Base 112-D vector layout:
           [0:  3] position (lat, lon, alt)
           [3:  7] orientation quaternion (from /fc/attitude)
           [7: 10] orientation Euler rpy (from /fc/attitude_euler) [rad]
-          [10:13] velocity (integrated from IMU)
-          [13:16] angular velocity (from IMU)
+          [10:13] velocity (from /fc/gps_speed_course → ENU)
+          [13:16] angular velocity (from /fc/imu_raw)
           [16:20] last action (this tick; zeros if no new action)
           [20:100] action buffer (20 × 4)
           [100:112] padding (12 zeros)
@@ -310,7 +292,7 @@ class AIAdapterNode(Node):
             self.position.astype(np.float32),         # 3
             self.quat_att.astype(np.float32),         # 4
             self.euler_att.astype(np.float32),        # 3
-            self.velocity.astype(np.float32),         # 3
+            self.velocity.astype(np.float32),         # 3 (vx_east, vy_north, vz=0)
             self.angular_velocity.astype(np.float32), # 3
             last_action_for_obs.astype(np.float32),   # 4
             action_buffer_flat,                       # 80
@@ -345,10 +327,10 @@ class AIAdapterNode(Node):
         print(f'   {euler}')
         print(f'   roll={euler[0]:.6f} rad, pitch={euler[1]:.6f} rad, yaw={euler[2]:.6f} rad')
 
-        print('\n⚡ VELOCITY [10:13] (3 values) — integrated from /fc/imu_raw:')
+        print('\n⚡ VELOCITY [10:13] (3 values) — from /fc/gps_speed_course (ENU):')
         print(f'   {vel}')
-        print(f'   vx={vel[0]:.4f}, vy={vel[1]:.4f}, vz={vel[2]:.4f} m/s')
-        print(f'   last a_world (gravity-comp.): [{self._last_world_accel[0]:.3f}, {self._last_world_accel[1]:.3f}, {self._last_world_accel[2]:.3f}] m/s²')
+        print(f'   speed={self.speed_mps:.4f} m/s, course={self.course_deg:.1f}° → '
+              f'vx_east={vel[0]:.4f}, vy_north={vel[1]:.4f}, vz={vel[2]:.4f}')
 
         print('\n🌀 ANGULAR VELOCITY [13:16] (3 values) — /fc/imu_raw:')
         print(f'   {ang_vel}')
@@ -402,13 +384,13 @@ class AIAdapterNode(Node):
         print(f'   Actions received (total): {self.action_count}')
         using_action = '✓ YES' if (self.action_count > 0 and not np.allclose(last_action_for_obs, 0.0)) else '✗ NO (zeros this tick)'
         print(f'   Using AI action this tick: {using_action}')
-        all_ready = all(self.data_received[k] for k in ['gps', 'att_quat', 'att_euler', 'imu', 'lidar'])
+        all_ready = all(self.data_received[k] for k in ['gps', 'att_quat', 'att_euler', 'imu', 'lidar', 'gps_speed'])
         print(f'   All sensors ready: {"✓ YES" if all_ready else "✗ NO"}')
         print('=' * 80 + '\n')
 
     def compute_observation(self):
         # Require the exact sources you asked for
-        required = ['gps', 'att_quat', 'att_euler', 'imu', 'lidar']
+        required = ['gps', 'att_quat', 'att_euler', 'imu', 'lidar', 'gps_speed']
         if not all(self.data_received[k] for k in required):
             missing = [k for k in required if not self.data_received[k]]
             self.get_logger().warn(f'⚠️  Waiting for required data: {missing}', throttle_duration_sec=1.0)
