@@ -271,17 +271,17 @@ class MSPDataTypes:
                 pass
             return {}
 
-    # Convenience booleans per spec bits:
-    # bit0=Accelerometer, bit1=Barometer, bit2=Magnetometer, bit3=GPS, bit4=Sonar
-    s = res['sensor_mask']
-    res['accelerometer'] = bool(s & (1 << 0))
-    res['barometer']     = bool(s & (1 << 1))
-    res['magnetometer']  = bool(s & (1 << 2))
-    res['gps']           = bool(s & (1 << 3))
-    res['sonar']         = bool(s & (1 << 4))
+        # Convenience booleans per spec bits:
+        # bit0=Accelerometer, bit1=Barometer, bit2=Magnetometer, bit3=GPS, bit4=Sonar
+        s = res['sensor_mask']
+        res['accelerometer'] = bool(s & (1 << 0))
+        res['barometer']     = bool(s & (1 << 1))
+        res['magnetometer']  = bool(s & (1 << 2))
+        res['gps']           = bool(s & (1 << 3))
+        res['sonar']         = bool(s & (1 << 4))
 
-    # Do NOT infer "armed" here — MSP_STATUS does not carry an armed bit.
-    return res
+        # Do NOT infer "armed" here — MSP_STATUS does not carry an armed bit.
+        return res
 
     @staticmethod
     def pack_rc_channels(channels: List[int]) -> bytes:
