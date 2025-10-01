@@ -264,8 +264,6 @@ class FlightController:
             return True
         print("❌ Could not confirm ARM (MSP_RC echo did not latch).")
         return False
-        print("❌ FC did not report ARMED")
-        return False
 
     def _hold_stream(self, channels: List[int], seconds: float, hz: int, echo_print: bool):
         payload = MSPDataTypes.pack_rc_channels(channels)
@@ -289,8 +287,8 @@ def main():
     ap.add_argument("--port", default="/dev/ttyAMA0", help="Serial port (default: /dev/ttyAMA0)")
     ap.add_argument("--baudrate", type=int, default=115200, help="Baudrate (default: 115200)")
     ap.add_argument("--hz", type=int, default=STREAM_HZ_DEFAULT, help=f"Streaming rate (default: {STREAM_HZ_DEFAULT} Hz)")
-    ap.add_argument("--warmup", type=float, default=1.0, help="Warm-up seconds streaming neutral frame (default: 1.0)")
-    ap.add_argument("--hold", type=float, default=1.0, help="Seconds to hold ARM frame (default: 1.0)")
+    ap.add_argument("--warmup", type=float, default=3.0, help="Warm-up seconds streaming neutral frame (default: 1.0)")
+    ap.add_argument("--hold", type=float, default=5.0, help="Seconds to hold ARM frame (default: 1.0)")
     ap.add_argument("--margin", type=int, default=ECHO_MARGIN_DEFAULT, help=f"Echo tolerance per channel (default: {ECHO_MARGIN_DEFAULT})")
     ap.add_argument("--consecutive", type=int, default=CONSEC_MATCH_DEFAULT, help=f"Consecutive matching frames to accept echo (default: {CONSEC_MATCH_DEFAULT})")
     ap.add_argument("--echo", action="store_true", help="Print Tx/Rx each frame")
