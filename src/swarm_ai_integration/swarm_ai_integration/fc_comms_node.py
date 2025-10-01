@@ -62,6 +62,7 @@ class FCCommsNode(Node):
         self.declare_parameter('reconnect_interval', 5.0)
         self.declare_parameter('telemetry_rate', 10.0)  # Hz
         self.declare_parameter('heartbeat_rate', 1.0)   # Hz
+        self.declare_parameter('rc_echo', True)
 
         # Get parameters
         self.serial_port = self.get_parameter('serial_port').get_parameter_value().string_value
@@ -70,6 +71,7 @@ class FCCommsNode(Node):
         self.reconnect_interval = self.get_parameter('reconnect_interval').get_parameter_value().double_value
         self.telemetry_rate = self.get_parameter('telemetry_rate').get_parameter_value().double_value
         self.heartbeat_rate = self.get_parameter('heartbeat_rate').get_parameter_value().double_value
+        self.rc_echo = self.get_parameter('rc_echo').get_parameter_value().bool_value
 
         # Serial connection
         self.serial_conn: Optional[serial.Serial] = None
@@ -345,6 +347,8 @@ class FCCommsNode(Node):
                 self.handle_motor_data(message.data)
             elif message.command == MSPCommand.MSP_WP:
                 self.handle_waypoint_data(message.data)
+            elif message.command == MSPCommand.MSP_RC:
+                self.handle_rc_data(message.data)
             else:
                 self.get_logger().debug(f'   ℹ️  Unhandled message type: {cmd_name}')
 
@@ -561,6 +565,20 @@ class FCCommsNode(Node):
             self.get_logger().info(f'   ➜ Published to /fc/motor_rpm | {motors_str}')
         else:
             self.get_logger().warn(f'   ⚠️  Insufficient motor data: {len(data)} bytes')
+    
+    def handle_rc_data(self, data: bytes):
+        """Handle MSP_RC echo: print the first 8 channels the FC reports."""
+        channels = MSPDataTypes.unpack_rc_channels(data)
+        if not channels:
+            self.get_logger().warn('   ⚠️  Empty MSP_RC echo received')
+            return
+
+        # Show up to 8 channels (AETR + AUX1..4)
+        n = min(8, len(channels))
+        ch = channels[:n]
+        ch_str = ", ".join(str(v) for v in ch)
+        self.get_logger().info(f"   📥 RX RC echo (first {n}): [{ch_str}]")
+
 
     def handle_waypoint_data(self, data: bytes):
         """Handle waypoint data (MSP_WP) from flight controller"""
@@ -618,7 +636,33 @@ class FCCommsNode(Node):
         self.command_queue.put(MSPMessage(MSPCommand.MSP_WP, payload))
         self.get_logger().debug(f'🗺️  Polled MSP_WP for index #{self.wp_poll_idx}')
         self.wp_poll_idx = (self.wp_poll_idx + 1) % (self.wp_max_index + 1)
+    
+    def send_rc(self, channels: List[int], request_echo: Optional[bool] = None) -> None:
+        """
+        Queue one MSP_SET_RAW_RC with the given channel list.
+        Also (optionally) queue a MSP_RC request so we can print the echo (what FC sees).
+        Prints the TX channels every time it sends.
+        """
+        if request_echo is None:
+            request_echo = bool(self.rc_echo)
 
+        # Pad to 8 channels (AETR + AUX1..AUX4) if needed
+        ch = [int(x) for x in channels]
+        while len(ch) < 8:
+            ch.append(1500)
+
+        # Print TX values (first 8)
+        ch_str = f"[{ch[0]}, {ch[1]}, {ch[2]}, {ch[3]}, {ch[4]}, {ch[5]}, {ch[6]}, {ch[7]}]"
+        self.get_logger().info(f"🎮 TX RC (AETR + AUX1..4): {ch_str}")
+
+        # Build and queue MSP_SET_RAW_RC
+        payload = MSPDataTypes.pack_rc_channels(ch)
+        set_rc_msg = MSPMessage(MSPCommand.MSP_SET_RAW_RC, payload)
+        self.command_queue.put(set_rc_msg)
+
+        # Optionally ask the FC for MSP_RC so we can print the RX
+        if request_echo:
+            self.command_queue.put(MSPMessage(MSPCommand.MSP_RC))
 
     # --------------- Command subscribers ---------------
 
@@ -638,21 +682,14 @@ class FCCommsNode(Node):
         self.get_logger().info(f'🎮 Queued MSP command from /fc/msp_command: {cmd_name} (code={command}, payload={len(payload)} bytes)')
 
     def rc_override_callback(self, msg: Float32MultiArray):
-        """Handle RC channel override commands"""
-        if len(msg.data) >= 4:
-            channels = [int(x) for x in msg.data]
-            # Pad to 8 channels if needed
-            while len(channels) < 8:
-                channels.append(1500)
-
-            payload = MSPDataTypes.pack_rc_channels(channels)
-            msp_msg = MSPMessage(MSPCommand.MSP_SET_RAW_RC, payload)
-            self.command_queue.put(msp_msg)
-            
-            ch_str = f'[{channels[0]}, {channels[1]}, {channels[2]}, {channels[3]}]'
-            self.get_logger().info(f'🎮 Queued RC override from /fc/rc_override: RPYT={ch_str}')
-        else:
+        """Handle RC channel override commands (AETR + AUX...)."""
+        if len(msg.data) < 4:
             self.get_logger().warn(f'⚠️  Invalid RC override data: {len(msg.data)} values (need at least 4)')
+            return
+
+        channels = [int(x) for x in msg.data]
+        # This will print TX values and queue MSP_SET_RAW_RC + MSP_RC for echo
+        self.send_rc(channels, request_echo=True)
 
     def request_telemetry(self):
         """Request telemetry data from flight controller"""
