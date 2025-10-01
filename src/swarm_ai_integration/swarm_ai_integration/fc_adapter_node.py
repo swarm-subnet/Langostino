@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-FC Adapter Velocity Node (Closed-Loop)
+FC Adapter Velocity Node (Closed-Loop, DIRECT MSP)
 - Subscribes to /ai/action (Float32MultiArray: [vx, vy, vz, speed])
 - Uses GPS speed/course + yaw to estimate actual velocity in body frame
-- PID (vx, vy, vz) -> RC deviations -> MSP_SET_RAW_RC (code 200) on /fc/msp_command
+- PID (vx, vy, vz) -> RC deviations -> MSP_SET_RAW_RC sent over MSP serial (no fc_comms_node)
 - Logs every action it sends to the FC
+
+Safety:
+- Test with props OFF first.
 """
 
 import math
@@ -20,14 +23,12 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from std_msgs.msg import Float32MultiArray, Bool, String
 from geometry_msgs.msg import Vector3Stamped
 
-from swarm_ai_integration.pid_controller import VelocityPIDController
+import serial
 
-# MSP command code (fallback to literal 200 if enum isn't available)
-try:
-    from .msp_protocol import MSPCommand
-    MSP_SET_RAW_RC_CODE = float(MSPCommand.MSP_SET_RAW_RC)
-except Exception:
-    MSP_SET_RAW_RC_CODE = 200.0
+from swarm_ai_integration.pid_controller import VelocityPIDController
+from swarm_ai_integration.msp_protocol import (
+    MSPMessage, MSPCommand, MSPDirection, MSPDataTypes
+)
 
 
 class FCAdapterVelocityNode(Node):
@@ -37,11 +38,9 @@ class FCAdapterVelocityNode(Node):
       /fc/gps_speed_course       (std_msgs/Float32MultiArray) : [speed_mps, course_deg]
       /fc/attitude_euler         (geometry_msgs/Vector3Stamped): roll,pitch,yaw (rad)
       /fc/altitude               (std_msgs/Float32MultiArray) : [baro_alt_m, vz_mps]
-      /fc/msp_status             (std_msgs/Float32MultiArray) : [cycle_time, i2c_errors, sensor_mask, box_flags, current_setting]
       /safety/override           (std_msgs/Bool)
 
     Publications:
-      /fc/msp_command            (std_msgs/Float32MultiArray) : [200, ch1..ch8] (1000..2000)
       /fc_adapter/status         (std_msgs/String)
       /fc_adapter/velocity_error (geometry_msgs/Vector3Stamped)
     """
@@ -49,11 +48,10 @@ class FCAdapterVelocityNode(Node):
     def __init__(self):
         super().__init__('fc_adapter_velocity_node')
 
-        # Parameters
+        # ------------ Parameters ------------
         self.declare_parameter('control_rate_hz', 40.0)
         self.declare_parameter('max_velocity', 3.0)
         self.declare_parameter('command_timeout_sec', 1.0)
-        self.declare_parameter('fc_status_timeout_sec', 2.0)
         self.declare_parameter('warmup_frames', 40)
         self.declare_parameter('rc_min', 1300)
         self.declare_parameter('rc_max', 1700)
@@ -69,11 +67,15 @@ class FCAdapterVelocityNode(Node):
         self.declare_parameter('ki_z', 5.0)
         self.declare_parameter('kd_z', 15.0)
 
-        # Param values
+        # MSP serial (DIRECT) like arm_only_simple.py
+        self.declare_parameter('msp_port', '/dev/ttyAMA0')
+        self.declare_parameter('msp_baudrate', 115200)
+        self.declare_parameter('msp_write_timeout_sec', 0.05)
+
+        # ------------ Param values ------------
         self.control_rate = float(self.get_parameter('control_rate_hz').value)
         self.max_velocity = float(self.get_parameter('max_velocity').value)
         self.cmd_timeout = float(self.get_parameter('command_timeout_sec').value)
-        self.fc_status_timeout = float(self.get_parameter('fc_status_timeout_sec').value)
         self.warmup_frames_total = int(self.get_parameter('warmup_frames').value)
         self.rc_min = int(self.get_parameter('rc_min').value)
         self.rc_max = int(self.get_parameter('rc_max').value)
@@ -89,7 +91,11 @@ class FCAdapterVelocityNode(Node):
         self.ki_z = float(self.get_parameter('ki_z').value)
         self.kd_z = float(self.get_parameter('kd_z').value)
 
-        # State
+        self.msp_port = str(self.get_parameter('msp_port').value)
+        self.msp_baudrate = int(self.get_parameter('msp_baudrate').value)
+        self.msp_write_timeout = float(self.get_parameter('msp_write_timeout_sec').value)
+
+        # ------------ State ------------
         self.velocity_cmd_body = np.zeros(3, dtype=float)      # [vx, vy, vz]
         self.velocity_actual_earth = np.zeros(3, dtype=float)  # [east, north, up]
         self.velocity_actual_body = np.zeros(3, dtype=float)   # [vx, vy, vz]
@@ -101,17 +107,11 @@ class FCAdapterVelocityNode(Node):
         self.safety_override = False
         self.ai_enabled = False
 
-        # FC health monitoring
-        self.fc_connected = False
-        self.fc_armed = False
-        self.fc_box_flags = 0
-        self.fc_sensor_mask = 0
-        self.last_fc_status_time = 0.0
-
         # Warm-up state
         self.warmup_complete = False
         self.warmup_frames_sent = 0
 
+        # PID
         rc_dev_limit = 400.0
         self.velocity_controller = VelocityPIDController(
             kp_xy=self.kp_xy, ki_xy=self.ki_xy, kd_xy=self.kd_xy,
@@ -121,7 +121,11 @@ class FCAdapterVelocityNode(Node):
 
         self.stats = {'loops': 0, 'msp_cmds': 0, 'failsafes': 0}
 
-        # QoS
+        # ------------ MSP Serial (direct) ------------
+        self.ser: Optional[serial.Serial] = None
+        self._open_serial()
+
+        # ------------ QoS & ROS I/O ------------
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -138,11 +142,9 @@ class FCAdapterVelocityNode(Node):
         self.create_subscription(Float32MultiArray, '/fc/gps_speed_course', self.cb_gps_speed_course, sensor_qos)
         self.create_subscription(Vector3Stamped, '/fc/attitude_euler', self.cb_attitude, sensor_qos)
         self.create_subscription(Float32MultiArray, '/fc/altitude', self.cb_altitude, sensor_qos)
-        self.create_subscription(Float32MultiArray, '/fc/msp_status', self.cb_fc_status, sensor_qos)
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
 
         # Pubs
-        self.msp_cmd_pub = self.create_publisher(Float32MultiArray, '/fc/msp_command', control_qos)
         self.status_pub = self.create_publisher(String, '/fc_adapter/status', control_qos)
         self.vel_error_pub = self.create_publisher(Vector3Stamped, '/fc_adapter/velocity_error', control_qos)
 
@@ -151,10 +153,27 @@ class FCAdapterVelocityNode(Node):
         self.create_timer(self.control_period, self.control_loop)
         self.create_timer(1.0, self.publish_status)
 
-        self.get_logger().info(f'FC Adapter Velocity Node ready @ {self.control_rate}Hz (listening to /ai/action Float32MultiArray)')
+        self.get_logger().info(f'FC Adapter Velocity Node (DIRECT MSP) ready @ {self.control_rate}Hz; MSP on {self.msp_port}@{self.msp_baudrate}')
+
+    # ------------ Serial ------------
+    def _open_serial(self):
+        try:
+            self.ser = serial.Serial(self.msp_port, self.msp_baudrate, timeout=0.02, write_timeout=self.msp_write_timeout)
+            time.sleep(2.0)  # let FC UART settle
+            self.get_logger().info('MSP serial opened.')
+        except Exception as e:
+            self.ser = None
+            self.get_logger().error(f'MSP serial open failed: {e}')
+
+    def _close_serial(self):
+        try:
+            if self.ser and self.ser.is_open:
+                self.ser.close()
+                self.get_logger().info('MSP serial closed.')
+        except Exception:
+            pass
 
     # -------------------- Callbacks --------------------
-
     def cb_ai_action_array(self, msg: Float32MultiArray):
         data = list(msg.data)
         if len(data) < 3:
@@ -188,23 +207,6 @@ class FCAdapterVelocityNode(Node):
         if len(msg.data) >= 2:
             self.velocity_actual_earth[2] = float(msg.data[1])  # vertical velocity (up)
 
-    def cb_fc_status(self, msg: Float32MultiArray):
-        """
-        MSP_STATUS callback: [cycle_time, i2c_errors, sensor_mask, box_flags, current_setting]
-        box_flags contains mode bits (exact mapping depends on INAV configuration)
-        """
-        if len(msg.data) >= 4:
-            self.fc_box_flags = int(msg.data[3])
-            self.fc_sensor_mask = int(msg.data[2]) if len(msg.data) >= 3 else 0
-            self.fc_connected = True
-            self.last_fc_status_time = time.time()
-
-            # Note: INAV doesn't have a direct "armed" bit in MSP_STATUS box_flags.
-            # The ARM state is typically inferred from mode flags or separate status.
-            # For now, we assume FC is "armed" if we're receiving status.
-            # You may need to adjust this based on your specific INAV box mode configuration.
-            self.fc_armed = True  # Conservative: assume armed if connected
-
     def cb_safety(self, msg: Bool):
         self.safety_override = bool(msg.data)
         if self.safety_override:
@@ -212,11 +214,14 @@ class FCAdapterVelocityNode(Node):
             self.velocity_controller.reset()
 
     # -------------------- Control Loop --------------------
-
     def control_loop(self):
         now = time.time()
         dt = max(1e-3, now - self.last_control_time)
         self.last_control_time = now
+
+        # Ensure serial is open; attempt reopen once if lost
+        if not (self.ser and self.ser.is_open):
+            self._open_serial()
 
         # Warm-up sequence: send neutral frames before accepting AI commands
         if not self.warmup_complete:
@@ -227,20 +232,6 @@ class FCAdapterVelocityNode(Node):
             else:
                 self.warmup_complete = True
                 self.get_logger().info(f'✓ Warm-up complete ({self.warmup_frames_sent} frames @ {self.control_rate}Hz)')
-
-        # FC health check: verify connection
-        if now - self.last_fc_status_time > self.fc_status_timeout:
-            if self.fc_connected:
-                self.get_logger().error('FC STATUS TIMEOUT - no MSP_STATUS received')
-                # self.fc_connected = False
-                # self.fc_armed = False
-            # self.send_hover_command(reason='fc_disconnected')
-            # return
-
-        # Pre-flight validation: ensure FC is ready
-        if not self.validate_fc_ready():
-            self.send_hover_command(reason='fc_not_ready')
-            return
 
         # Command timeout or safety → hover
         if (now - self.last_cmd_time > self.cmd_timeout) or self.safety_override or (not self.ai_enabled):
@@ -268,24 +259,24 @@ class FCAdapterVelocityNode(Node):
         throttle_rc = int(1500 + throttle_dev) # ch3
         yaw_rc = 1500                          # ch4 (hold)
 
-        # Clamp
+        # Clamp (gentle authority)
         roll_rc = max(self.rc_min, min(self.rc_max, roll_rc))
         pitch_rc = max(self.rc_min, min(self.rc_max, pitch_rc))
         throttle_rc = max(self.rc_min, min(self.rc_max, throttle_rc))
 
-        # Compose 8 channels
+        # Compose 8 channels (AETR + AUX)
         channels = [1500] * 8
         channels[0] = roll_rc
         channels[1] = pitch_rc
         channels[2] = throttle_rc
         channels[3] = yaw_rc
         channels[4] = 1800 if self.arm_aux_high else 1000       # CH5: ARM (AUX1)
-        channels[5] = 1800 if self.angle_mode_enabled else 1000  # CH6: ANGLE mode (AUX2)
-        channels[6] = 1800 if self.althold_enabled else 1000     # CH7: ALT HOLD (AUX3)
-        channels[7] = 1800                                       # CH8: MSP RC OVERRIDE (AUX4) - MUST be >1700
+        channels[5] = 1800 if self.angle_mode_enabled else 1000 # CH6: ANGLE mode (AUX2)
+        channels[6] = 1800 if self.althold_enabled else 1000    # CH7: ALT HOLD (AUX3)
+        channels[7] = 1800                                      # CH8: MSP RC OVERRIDE (AUX4)
 
-        # Publish MSP_SET_RAW_RC
-        self._publish_msp_set_raw_rc(channels)
+        # Direct MSP send
+        self._send_msp_set_raw_rc(channels)
 
         # Log every action
         vx, vy, vz = self.velocity_cmd_body
@@ -314,27 +305,6 @@ class FCAdapterVelocityNode(Node):
         self.vel_error_pub.publish(err_msg)
 
     # -------------------- Helpers --------------------
-
-    def validate_fc_ready(self) -> bool:
-        """Verify FC is connected and ready for velocity commands"""
-        if not self.fc_connected:
-            # Only log once when state changes
-            if not hasattr(self, '_last_fc_ready_warn') or self._last_fc_ready_warn != 'disconnected':
-                self.get_logger().warn('FC not connected - waiting for MSP_STATUS')
-                self._last_fc_ready_warn = 'disconnected'
-            return False
-
-        # Note: fc_armed check is conservative. Adjust based on your operational needs.
-        # Some users may want to send commands even before arming for testing.
-        # if not self.fc_armed:
-        #     if not hasattr(self, '_last_fc_ready_warn') or self._last_fc_ready_warn != 'unarmed':
-        #         self.get_logger().warn('FC not armed - refusing velocity control')
-        #         self._last_fc_ready_warn = 'unarmed'
-        #     return False
-
-        self._last_fc_ready_warn = None  # Clear warning state
-        return True
-
     def _earth_to_body_velocity(self):
         vx_e, vy_n, vz_u = self.velocity_actual_earth
         cy = math.cos(self.attitude_yaw)
@@ -343,12 +313,23 @@ class FCAdapterVelocityNode(Node):
         self.velocity_actual_body[1] = -vx_e * sy + vy_n * cy    # right
         self.velocity_actual_body[2] = vz_u                      # up
 
-    def _publish_msp_set_raw_rc(self, channels: list):
+    def _send_msp_set_raw_rc(self, channels: list):
+        # Clamp 8 channels to [1000,2000], pack and send via MSP (like arm_only_simple)
         ch = [int(max(1000, min(2000, c))) for c in (channels + [1500]*8)[:8]]
-        msg = Float32MultiArray()
-        msg.data = [MSP_SET_RAW_RC_CODE] + [float(v) for v in ch]
-        self.msp_cmd_pub.publish(msg)
-        self.stats['msp_cmds'] += 1
+        if not (self.ser and self.ser.is_open):
+            # If serial isn't open, log once and skip
+            if not hasattr(self, '_msp_warned') or not self._msp_warned:
+                self.get_logger().error('MSP serial not open; cannot send RC.')
+                self._msp_warned = True
+            return
+        try:
+            payload = MSPDataTypes.pack_rc_channels(ch)
+            msg = MSPMessage(MSPCommand.MSP_SET_RAW_RC, payload, MSPDirection.REQUEST)
+            self.ser.write(msg.encode())
+            self.ser.flush()
+            self.stats['msp_cmds'] += 1
+        except Exception as e:
+            self.get_logger().error(f"MSP_SET_RAW_RC send failed: {e}")
 
     def send_hover_command(self, reason: str):
         channels = [
@@ -358,21 +339,20 @@ class FCAdapterVelocityNode(Node):
             1800 if self.althold_enabled else 1000,              # CH7: ALT HOLD (AUX3)
             1800                                                 # CH8: MSP RC OVERRIDE (AUX4)
         ]
-        self._publish_msp_set_raw_rc(channels)
+        self._send_msp_set_raw_rc(channels)
         self.get_logger().warn(f"Hover command sent ({reason}); RC[R,P,T,Y]=[{channels[0]},{channels[1]},{channels[2]},{channels[3]}]")
         self.stats['failsafes'] += 1
 
     # -------------------- Status --------------------
-
     def publish_status(self):
         flags = []
         now = time.time()
 
-        # FC health status
-        if self.fc_connected:
-            flags.append('FC_CONNECTED')
+        # Serial status
+        if self.ser and self.ser.is_open:
+            flags.append('MSP_SERIAL_OK')
         else:
-            flags.append('FC_DISCONNECTED')
+            flags.append('MSP_SERIAL_FAIL')
 
         # Operational status
         if not self.warmup_complete:
@@ -382,16 +362,19 @@ class FCAdapterVelocityNode(Node):
         if self.safety_override:
             flags.append('SAFETY_OVERRIDE')
 
-        flags.append('CLOSED_LOOP')
+        flags.append('CLOSED_LOOP_DIRECT_MSP')
 
         if now - self.last_cmd_time > self.cmd_timeout:
             flags.append('CMD_TIMEOUT')
-        if now - self.last_fc_status_time > self.fc_status_timeout:
-            flags.append('FC_STATUS_TIMEOUT')
 
         s = String()
         s.data = ' | '.join(flags) if flags else 'STANDBY'
         self.status_pub.publish(s)
+
+    # -------------------- Shutdown --------------------
+    def destroy_node(self):
+        self._close_serial()
+        super().destroy_node()
 
 
 def main(args=None):
