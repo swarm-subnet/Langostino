@@ -31,9 +31,23 @@ import argparse
 import serial
 from typing import Optional, Dict, Any, List
 
-from swarm_ai_integration.msp_protocol import (
-    MSPMessage, MSPCommand, MSPDirection, MSPDataTypes
-)
+import importlib
+import swarm_ai_integration.msp_protocol as msp
+
+# Force-reload to avoid picking up an older installed copy or stale bytecode
+msp = importlib.reload(msp)
+
+# Bind the names AFTER reload so they point at the reloaded module's definitions
+MSPMessage   = msp.MSPMessage
+MSPCommand   = msp.MSPCommand
+MSPDirection = msp.MSPDirection
+MSPDataTypes = msp.MSPDataTypes
+
+# (Optional but very useful once) show which file is being used and what the class contains
+print(f"[msp_arm_drone] using msp_protocol from: {msp.__file__}")
+print(f"[msp_arm_drone] MSPDataTypes has unpack_status? {hasattr(MSPDataTypes, 'unpack_status')}")
+# Hard fail early if it's still the wrong module
+assert hasattr(MSPDataTypes, 'unpack_status'), f"MSPDataTypes missing unpack_status in {msp.__file__}"
 
 STREAM_HZ_DEFAULT = 40
 ECHO_MARGIN_DEFAULT = 12
