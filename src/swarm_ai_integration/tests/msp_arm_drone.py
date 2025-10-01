@@ -254,9 +254,18 @@ class FlightController:
 
         # Final check
         status = self.get_status()
-        if status and status.get("armed"):
-            print("✅ FC reports ARMED")
+        status = self.get_status()
+        if status:
+            print(f"MSP_STATUS: time_us={status['cycle_time']}, errors={status['i2c_errors']}, "
+                f"sensors=0x{status['sensor_mask']:04x}, box_flags=0x{status['box_flags']:08x}, "
+                f"current_setting={status['current_setting']}")
+
+        # Consider success when the ARM frame has latched in MSP_RC echo
+        if arm_locked:
+            print("✅ ARM frame latched (MSP_RC echo matched).")
             return True
+        print("❌ Could not confirm ARM (MSP_RC echo did not latch).")
+        return False
         print("❌ FC did not report ARMED")
         return False
 
