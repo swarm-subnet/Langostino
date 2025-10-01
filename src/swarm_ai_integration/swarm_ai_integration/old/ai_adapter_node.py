@@ -5,10 +5,8 @@ AI Adapter Node - Converts real sensor data to 131-D observation array for Swarm
 Updates in this version:
 - Subscribes to /fc/waypoint (Float32MultiArray: [wp_no, lat, lon, alt_m, heading, stay, navflag]).
 - Treats that waypoint as the "goal": computes a local ENU vector from current GPS position to the goal.
-- Normalizes the goal vector by MAX_RAY_DISTANCE (±10 m cap text; implementation scales without clipping) and places it at the end of the 131-D observation.
+- Normalizes the goal vector by MAX_RAY_DISTANCE (±10 m cap) and places it at the end of the 131-D observation.
 - Uses /fc/gps_speed_course to compute horizontal velocity (ENU). IMU is only for angular velocity.
-- NEW: The first 3 entries of the observation are now **relative position ENU in meters**, not geodetic.
-  The relative origin is chosen on the first GPS fix so that the initial reported position equals RELATIVE_START_ENU (default [0, 0, 3] m).
 """
 
 import math
@@ -31,11 +29,8 @@ class AIAdapterNode(Node):
         # -------------------------
         # Internal state (data)
         # -------------------------
-        # Position (geodetic): [lat, lon, alt]
+        # Position: [lat, lon, alt]
         self.position = np.zeros(3, dtype=np.float32)
-
-        # Relative origin (geodetic). Set on first GPS fix so initial rel pos = RELATIVE_START_ENU
-        self.origin_geodetic = None  # np.array([lat, lon, alt], dtype=np.float32)
 
         # Orientation sources
         self.quat_att = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)  # /fc/attitude
@@ -79,9 +74,8 @@ class AIAdapterNode(Node):
         # -------------------------
         # Constants / config
         # -------------------------
-        self.MAX_RAY_DISTANCE = 10.0  # meters, used to scale goal vector
-        # Desired initial relative position (E, N, U) at first GPS fix.
-        self.RELATIVE_START_ENU = np.array([0.0, 0.0, 3.0], dtype=np.float32)  # meters
+        self.MAX_RAY_DISTANCE = 10.0  # meters, used to normalize goal vector
+        # No more static goal: will be computed from /fc/waypoint
 
         # -------------------------
         # QoS setups
@@ -152,9 +146,7 @@ class AIAdapterNode(Node):
         print('   • /ai/observation        (std_msgs/Float32MultiArray)        → 131-D observation')
         print('   • /ai/observation_debug  (std_msgs/Float32MultiArray)        → debug vector')
         print('🎯 GOAL:')
-        print('   • Derived from /fc/waypoint, converted to ENU and scaled by 10 m (no clip)')
-        print('📍 POSITION:')
-        print('   • Now RELATIVE ENU (meters). Initial value forced to RELATIVE_START_ENU = [0, 0, 3] m.')
+        print('   • Derived from /fc/waypoint, converted to ENU and normalized by ±10 m')
         print('=' * 80)
         self.get_logger().info('AI Adapter Node initialized (131-D observation)')
 
@@ -179,7 +171,7 @@ class AIAdapterNode(Node):
 
         # Rough meters-per-degree (good enough for local goals)
         m_per_deg_lat = 111320.0
-        m_per_deg_lon = 111320.0 * math.cos(lat_rad if not np.isnan(lat_rad) else 0.0)
+        m_per_deg_lon = 111320.0 * math.cos(lat_rad)
 
         east  = dlon * m_per_deg_lon
         north = dlat * m_per_deg_lat
@@ -208,42 +200,6 @@ class AIAdapterNode(Node):
         # Scale by max ray distance (no clip)
         return (enu / float(self.MAX_RAY_DISTANCE)).astype(np.float32)
 
-    def _relative_position_enu(self) -> np.ndarray:
-        """
-        Returns current position as ENU (meters) relative to self.origin_geodetic.
-        If origin not set or GPS not ready, returns zeros.
-        """
-        if (self.origin_geodetic is None) or (not self.data_received['gps']):
-            return np.zeros(3, dtype=np.float32)
-
-        lat, lon, alt = self.position.tolist()
-        o_lat, o_lon, o_alt = self.origin_geodetic.tolist()
-        enu = self._enu_offset_from_latlonalt(
-            goal_lat=lat, goal_lon=lon, goal_alt=alt,
-            ref_lat=o_lat, ref_lon=o_lon, ref_alt=o_alt
-        )
-        return enu.astype(np.float32)
-
-    def _compute_origin_for_initial_relative(self, lat0, lon0, alt0, start_enu):
-        """
-        Compute a geodetic origin (lat, lon, alt) such that ENU(current - origin) = start_enu.
-        start_enu is [E, N, U] in meters.
-        """
-        e0, n0, u0 = [float(x) for x in start_enu]
-        lat_rad = math.radians(lat0)
-        m_per_deg_lat = 111320.0
-        m_per_deg_lon = 111320.0 * math.cos(lat_rad if not np.isnan(lat_rad) else 0.0)
-
-        # Invert the small-angle mapping:
-        # E = (lon - lon_ref) * m_per_deg_lon  => lon_ref = lon - E / m_per_deg_lon
-        # N = (lat - lat_ref) * m_per_deg_lat  => lat_ref = lat - N / m_per_deg_lat
-        # U = alt - alt_ref                    => alt_ref = alt - U
-        o_lat = lat0 - (n0 / m_per_deg_lat)
-        # Avoid division by zero at poles; if so, don't offset longitude
-        o_lon = lon0 - (e0 / m_per_deg_lon) if abs(m_per_deg_lon) > 1e-6 else lon0
-        o_alt = alt0 - u0
-        return np.array([o_lat, o_lon, o_alt], dtype=np.float32)
-
     def _prepare_action_for_tick(self) -> np.ndarray:
         """
         Implements: "IF no message is there, set the observation in that instance to 0".
@@ -266,28 +222,9 @@ class AIAdapterNode(Node):
         self.position[0] = float(msg.latitude)
         self.position[1] = float(msg.longitude)
         self.position[2] = float(msg.altitude)
-
-        # Set the relative origin at first GPS fix so initial rel pos == RELATIVE_START_ENU
-        if self.origin_geodetic is None:
-            lat0, lon0, alt0 = self.position.tolist()
-            self.origin_geodetic = self._compute_origin_for_initial_relative(
-                lat0, lon0, alt0, self.RELATIVE_START_ENU
-            )
-            # Optional sanity check:
-            init_rel = self._enu_offset_from_latlonalt(
-                goal_lat=lat0, goal_lon=lon0, goal_alt=alt0,
-                ref_lat=self.origin_geodetic[0], ref_lon=self.origin_geodetic[1], ref_alt=self.origin_geodetic[2]
-            )
-            self.get_logger().info(
-                f'✓ Relative origin set so initial rel pos ≈ '
-                f'[{init_rel[0]:.3f}, {init_rel[1]:.3f}, {init_rel[2]:.3f}] m (target {self.RELATIVE_START_ENU.tolist()})'
-            )
-            print(f'[REL-ORIGIN] origin_lat={self.origin_geodetic[0]:.7f}, '
-                  f'origin_lon={self.origin_geodetic[1]:.7f}, origin_alt={self.origin_geodetic[2]:.3f} m')
-
         if not self.data_received['gps']:
             self.data_received['gps'] = True
-            self.get_logger().info('✓ GPS fix received (tracking geodetic pos; observation uses RELATIVE ENU)')
+            self.get_logger().info('✓ GPS fix received (using lat, lon, alt as position)')
             print(f'[GPS] lat={self.position[0]:.7f}, lon={self.position[1]:.7f}, alt={self.position[2]:.3f} m')
 
     def waypoint_callback(self, msg: Float32MultiArray):
@@ -395,8 +332,8 @@ class AIAdapterNode(Node):
     # -------------------------------------------------------------------------
     def _compute_base_observation(self, last_action_for_obs: np.ndarray) -> np.ndarray:
         """
-        Base 112-D vector layout (UPDATED):
-          [0:  3] RELATIVE POSITION ENU (meters)  ← was absolute lat,lon,alt
+        Base 112-D vector layout:
+          [0:  3] position (lat, lon, alt)
           [3:  7] orientation quaternion (from /fc/attitude)
           [7: 10] orientation Euler rpy (from /fc/attitude_euler) [rad]
           [10:13] velocity (from /fc/gps_speed_course → ENU)
@@ -408,10 +345,8 @@ class AIAdapterNode(Node):
         # Flatten action buffer
         action_buffer_flat = np.concatenate(list(self.action_buffer)).astype(np.float32)
 
-        rel_pos_enu = self._relative_position_enu()
-
         obs = np.concatenate([
-            rel_pos_enu.astype(np.float32),           # 3 (E, N, U) in meters
+            self.position.astype(np.float32),         # 3
             self.quat_att.astype(np.float32),         # 4
             self.euler_att.astype(np.float32),        # 3
             self.velocity.astype(np.float32),         # 3 (vx_east, vy_north, vz=0)
@@ -437,9 +372,9 @@ class AIAdapterNode(Node):
         action_buf = base_obs[20:100]
         padding = base_obs[100:112]
 
-        print('📍 RELATIVE POSITION ENU [0:3] (meters):')
+        print('📍 POSITION [0:3] (3 values):')
         print(f'   {pos}')
-        print(f'   E={pos[0]:.3f} m, N={pos[1]:.3f} m, U={pos[2]:.3f} m')
+        print(f'   lat={pos[0]:.6f}, lon={pos[1]:.6f}, alt={pos[2]:.3f} m')
 
         print('\n🔄 ORIENTATION QUATERNION [3:7] (4 values) — /fc/attitude:')
         print(f'   {quat}')
@@ -541,12 +476,11 @@ class AIAdapterNode(Node):
             obs_msg.data = full_obs.tolist()
             self.obs_pub.publish(obs_msg)
 
-            # Publish compact debug vector (E,N,U, yaw, down_lidar, used_action_flag)
+            # Publish compact debug vector (lat,lon,alt, yaw, down_lidar, used_action_flag)
             debug_msg = Float32MultiArray()
             used_action_flag = 0.0 if np.allclose(last_action_for_obs, 0.0) else 1.0
-            rel_pos_enu = base_obs[0:3]
             debug_msg.data = [
-                float(rel_pos_enu[0]), float(rel_pos_enu[1]), float(rel_pos_enu[2]),
+                float(self.position[0]), float(self.position[1]), float(self.position[2]),
                 float(self.euler_att[2]),                    # yaw [rad]
                 float(lidar_obs[1]),                         # down lidar normalized
                 used_action_flag
