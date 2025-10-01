@@ -20,7 +20,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from std_msgs.msg import Float32MultiArray, Bool, String
 from geometry_msgs.msg import Vector3Stamped
 
-from pid_controller import VelocityPIDController
+from swarm_ai_integration.pid_controller import VelocityPIDController
 
 # MSP command code (fallback to literal 200 if enum isn't available)
 try:
