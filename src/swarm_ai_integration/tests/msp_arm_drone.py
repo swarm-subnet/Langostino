@@ -128,7 +128,6 @@ class FlightController:
         return None
 
     @staticmethod
-    @staticmethod
     def _parse(msg: MSPMessage) -> Dict[str, Any]:
         if msg.command == MSPCommand.MSP_STATUS:
             # Use the canonical unpacker from msp_protocol.py
@@ -253,7 +252,6 @@ class FlightController:
                 self._hold_stream(channels=arm, seconds=remaining, hz=hz, echo_print=echo_print)
 
         # Final check
-        status = self.get_status()
         status = self.get_status()
         if status:
             print(f"MSP_STATUS: time_us={status['cycle_time']}, errors={status['i2c_errors']}, "
