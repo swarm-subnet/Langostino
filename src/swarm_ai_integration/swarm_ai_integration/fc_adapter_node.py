@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-FC Adapter Velocity Node (Closed-Loop, DIRECT MSP)
-- Subscribes to /ai/action (Float32MultiArray: [vx, vy, vz, speed])
-- Uses GPS speed/course + yaw to estimate actual velocity in body frame
-- PID (vx, vy, vz) -> RC deviations -> MSP_SET_RAW_RC sent over MSP serial (no fc_comms_node)
-- Logs every action it sends to the FC
+FC Adapter Velocity Node (Closed-Loop, DIRECT MSP with pre-arm)
+- Arms the FC for N seconds by streaming an ARM frame over MSP (like arm_only_simple.py).
+- Then subscribes to /ai/action (Float32MultiArray: [vx, vy, vz, speed]) and flies closed-loop.
+- Uses GPS speed/course + yaw to estimate actual velocity in body frame.
+- PID (vx, vy, vz) -> RC deviations -> MSP_SET_RAW_RC sent over MSP serial (no fc_comms_node).
+- Logs every action it sends to the FC.
 
 Safety:
-- Test with props OFF first.
+- TEST WITH PROPS OFF FIRST.
 """
 
 import math
@@ -72,6 +73,11 @@ class FCAdapterVelocityNode(Node):
         self.declare_parameter('msp_baudrate', 115200)
         self.declare_parameter('msp_write_timeout_sec', 0.05)
 
+        # Pre-arm streaming (like your working script)
+        self.declare_parameter('prearm_enabled', True)
+        self.declare_parameter('prearm_seconds', 5.0)   # stream ARM frame for 5 seconds
+        self.declare_parameter('prearm_hz', 40)         # at 40 Hz
+
         # ------------ Param values ------------
         self.control_rate = float(self.get_parameter('control_rate_hz').value)
         self.max_velocity = float(self.get_parameter('max_velocity').value)
@@ -94,6 +100,10 @@ class FCAdapterVelocityNode(Node):
         self.msp_port = str(self.get_parameter('msp_port').value)
         self.msp_baudrate = int(self.get_parameter('msp_baudrate').value)
         self.msp_write_timeout = float(self.get_parameter('msp_write_timeout_sec').value)
+
+        self.prearm_enabled = bool(self.get_parameter('prearm_enabled').value)
+        self.prearm_seconds = float(self.get_parameter('prearm_seconds').value)
+        self.prearm_hz = int(self.get_parameter('prearm_hz').value)
 
         # ------------ State ------------
         self.velocity_cmd_body = np.zeros(3, dtype=float)      # [vx, vy, vz]
@@ -125,6 +135,15 @@ class FCAdapterVelocityNode(Node):
         self.ser: Optional[serial.Serial] = None
         self._open_serial()
 
+        # ----------- PRE-ARM: stream ARM frame like arm_only_simple.py -----------
+        if self.prearm_enabled and (self.ser and self.ser.is_open):
+            self._prearm_stream(seconds=self.prearm_seconds, hz=self.prearm_hz)
+        else:
+            if not self.prearm_enabled:
+                self.get_logger().info('Pre-arm disabled by parameter.')
+            else:
+                self.get_logger().error('Pre-arm requested but MSP serial is not open.')
+
         # ------------ QoS & ROS I/O ------------
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
@@ -148,12 +167,12 @@ class FCAdapterVelocityNode(Node):
         self.status_pub = self.create_publisher(String, '/fc_adapter/status', control_qos)
         self.vel_error_pub = self.create_publisher(Vector3Stamped, '/fc_adapter/velocity_error', control_qos)
 
-        # Timers
+        # Timers (start AFTER pre-arm so nothing else transmits during arming)
         self.control_period = 1.0 / max(1.0, self.control_rate)
         self.create_timer(self.control_period, self.control_loop)
         self.create_timer(1.0, self.publish_status)
 
-        self.get_logger().info(f'FC Adapter Velocity Node (DIRECT MSP) ready @ {self.control_rate}Hz; MSP on {self.msp_port}@{self.msp_baudrate}')
+        self.get_logger().info(f'FC Adapter Velocity Node (DIRECT MSP + pre-arm) ready @ {self.control_rate}Hz; MSP on {self.msp_port}@{self.msp_baudrate}')
 
     # ------------ Serial ------------
     def _open_serial(self):
@@ -172,6 +191,26 @@ class FCAdapterVelocityNode(Node):
                 self.get_logger().info('MSP serial closed.')
         except Exception:
             pass
+
+    # ------------ Pre-ARM like arm_only_simple.py ------------
+    def _prearm_stream(self, seconds: float, hz: int):
+        """
+        Stream the ARM frame for N seconds at hz:
+          AETR + AUX = [ROLL, PITCH, THROTTLE, YAW, AUX1(ARM), AUX2, AUX3, AUX4(OVERRIDE)]
+          -> [1500, 1500, 1000, 1500, 1800, 1500, 1500, 1800]
+        """
+        self.get_logger().warn(f'=== PRE-ARM: streaming ARM for {seconds:.1f}s at {hz}Hz ===')
+        channels = [1500, 1500, 1000, 1500, 1800, 1500, 1500, 1800]
+        period = 1.0 / float(max(1, hz))
+        t_end = time.time() + max(0.0, seconds)
+        while time.time() < t_end:
+            t0 = time.time()
+            self._send_msp_set_raw_rc(channels)
+            dt = time.time() - t0
+            sleep_left = period - dt
+            if sleep_left > 0:
+                time.sleep(sleep_left)
+        self.get_logger().info('✅ PRE-ARM finished; proceeding to closed-loop.')
 
     # -------------------- Callbacks --------------------
     def cb_ai_action_array(self, msg: Float32MultiArray):
@@ -314,10 +353,9 @@ class FCAdapterVelocityNode(Node):
         self.velocity_actual_body[2] = vz_u                      # up
 
     def _send_msp_set_raw_rc(self, channels: list):
-        # Clamp 8 channels to [1000,2000], pack and send via MSP (like arm_only_simple)
+        # Clamp 8 channels to [1000,2000], pack and send via MSP
         ch = [int(max(1000, min(2000, c))) for c in (channels + [1500]*8)[:8]]
         if not (self.ser and self.ser.is_open):
-            # If serial isn't open, log once and skip
             if not hasattr(self, '_msp_warned') or not self._msp_warned:
                 self.get_logger().error('MSP serial not open; cannot send RC.')
                 self._msp_warned = True
