@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
 """
-Arm-Only Tool for INAV via MSP
+arm_only_sticky.py — INAV MSP "arm-only" with sticky streaming
 
-What it does:
-- Connects to the FC over MSP
-- Checks that MSP RC override is taking effect (so the FC will accept our RC frames)
-- Arms by setting AUX1 (CH5) HIGH while keeping throttle LOW
-- Verifies the armed state and exits
+What this does
+--------------
+- Connects to your FC over MSP (serial).
+- "Warms up" MSP RC override by streaming the SAME RC frame repeatedly at a steady rate,
+  and checking MSP_RC echoes until input≈output (within a small margin).
+  (Some FCs ignore the first frames until override latches.)
+- Then sends an ARM frame (AUX1/CH5 HIGH, throttle LOW) the same way (sticky streaming)
+  for a short hold period and verifies ARMED via MSP_STATUS.
+- Exits without disarming or bumping throttle.
 
-IMPORTANT (matches your INAV configurator info):
-- Channel map is AETR: [ROLL, PITCH, THROTTLE, YAW] = CH1..CH4
-- ARM switch is CH5 (AUX1) -> arm when >1700
-- MSP RC OVERRIDE is CH8 (AUX4) -> must be >1700 for MSP control to work
-  You must flip your radio's CH8 override switch HIGH before running this.
-- CH6 around 1500 keeps ANGLE mode ON (fine for arming)
+Matches your INAV config
+------------------------
+- Channel map AETR: [ROLL, PITCH, THROTTLE, YAW] = CH1..CH4
+- ARM is CH5 (AUX1) -> >1700 arms
+- MSP RC OVERRIDE is CH8 (AUX4) -> you normally need your RADIO to hold this >1700
+  so that MSP RC frames are accepted. This script *also* sends CH8=1800 in its frames
+  (once override is active, it helps keep it on), but the initial enabling typically
+  still depends on your radio's CH8 switch.
 
-Safety:
-- Test with props OFF first.
+Safety
+------
+- TEST WITH PROPS OFF FIRST.
 """
 
 import time
@@ -28,50 +35,52 @@ from swarm_ai_integration.msp_protocol import (
     MSPMessage, MSPCommand, MSPDirection, MSPDataTypes
 )
 
-STREAM_HZ = 40  # steady RC stream cadence expected by FC
+STREAM_HZ_DEFAULT = 40
+ECHO_MARGIN_DEFAULT = 12
+CONSEC_MATCH_DEFAULT = 3
 
 
 class FlightController:
     def __init__(self, port: str, baudrate: int):
         self.port = port
         self.baudrate = baudrate
-        self.serial: Optional[serial.Serial] = None
+        self.ser: Optional[serial.Serial] = None
         self.rx_buffer = bytearray()
 
     # -------------------- Connection --------------------
 
     def connect(self) -> bool:
         try:
-            self.serial = serial.Serial(self.port, self.baudrate, timeout=0.02)
-            time.sleep(2.0)  # give MSP UART time to settle
+            self.ser = serial.Serial(self.port, self.baudrate, timeout=0.02)
+            time.sleep(2.0)  # allow MSP UART to settle
             print(f"Connected to {self.port} @ {self.baudrate} baud")
             return True
         except Exception as e:
-            print(f"❌ Connection error: {e}")
+            print(f"❌ Serial open failed: {e}")
             return False
 
-    def disconnect(self):
-        if self.serial and self.serial.is_open:
-            self.serial.close()
+    def close(self):
+        if self.ser and self.ser.is_open:
+            self.ser.close()
             print("Disconnected")
 
     # -------------------- MSP I/O --------------------
 
-    def send_message(self, command: int, data: bytes = b'') -> bool:
-        msg = MSPMessage(command, data, MSPDirection.REQUEST)
+    def send(self, cmd: int, data: bytes = b'') -> bool:
         try:
-            self.serial.write(msg.encode())
-            self.serial.flush()
+            msg = MSPMessage(cmd, data, MSPDirection.REQUEST)
+            self.ser.write(msg.encode())
+            self.ser.flush()
             return True
         except Exception as e:
-            print(f"❌ Error sending MSP message: {e}")
+            print(f"❌ Send error: {e}")
             return False
 
-    def _read_next_frame(self, timeout: float = 0.5) -> Optional[MSPMessage]:
+    def _read_frame(self, timeout: float) -> Optional[MSPMessage]:
         end = time.time() + timeout
         while time.time() < end:
-            if self.serial.in_waiting:
-                self.rx_buffer.extend(self.serial.read(self.serial.in_waiting))
+            if self.ser.in_waiting:
+                self.rx_buffer.extend(self.ser.read(self.ser.in_waiting))
 
             start = self.rx_buffer.find(b"$M")
             if start == -1:
@@ -80,7 +89,7 @@ class FlightController:
                 time.sleep(0.003)
                 continue
 
-            # minimum: $ M dir size cmd ... checksum  (6 bytes + payload)
+            # minimum: $ M dir size cmd ... checksum
             if len(self.rx_buffer) - start < 6:
                 time.sleep(0.002)
                 continue
@@ -99,40 +108,27 @@ class FlightController:
                 return msg
         return None
 
-    def send_and_receive(
-        self,
-        command: int,
-        data: bytes = b'',
-        expect_command: Optional[int] = None,
-        timeout: float = 0.5
-    ) -> Optional[Dict[str, Any]]:
-        if expect_command is None:
-            expect_command = command
-
-        # drop any stale input
+    def req(self, cmd: int, expect: Optional[int] = None, data: bytes = b'', timeout: float = 0.6) -> Optional[Dict[str, Any]]:
+        if expect is None:
+            expect = cmd
         try:
-            self.serial.reset_input_buffer()
+            self.ser.reset_input_buffer()
         except Exception:
             pass
 
-        if not self.send_message(command, data):
+        if not self.send(cmd, data):
             return None
 
         end = time.time() + timeout
         while time.time() < end:
-            msg = self._read_next_frame(timeout=end - time.time())
-            if not msg:
+            msg = self._read_frame(timeout=end - time.time())
+            if not msg or msg.direction != MSPDirection.RESPONSE or msg.command != expect:
                 continue
-            if msg.direction != MSPDirection.RESPONSE:
-                continue
-            if msg.command != expect_command:
-                continue
-            return self._parse_response(msg)
+            return self._parse(msg)
         return None
 
-    # -------------------- Response parsing --------------------
-
-    def _parse_response(self, msg: MSPMessage) -> Dict[str, Any]:
+    @staticmethod
+    def _parse(msg: MSPMessage) -> Dict[str, Any]:
         if msg.command == MSPCommand.MSP_STATUS:
             if len(msg.data) >= 11:
                 import struct
@@ -144,115 +140,183 @@ class FlightController:
                     "flag": flag,
                     "armed": bool(flag & 1),
                 }
-
         elif msg.command == MSPCommand.MSP_RC:
             return {"channels": MSPDataTypes.unpack_rc_channels(msg.data)}
-
         return {"raw_data": msg.data}
 
-    # -------------------- Helpers --------------------
+    # -------------------- Utilities --------------------
+
+    @staticmethod
+    def _fmt(prefix: str, vals: List[int]) -> str:
+        return f"{prefix}: " + " ".join(str(v) for v in vals)
+
+    def read_rc_once(self) -> Optional[List[int]]:
+        rc = self.req(MSPCommand.MSP_RC, expect=MSPCommand.MSP_RC, timeout=0.25)
+        if rc and "channels" in rc:
+            return rc["channels"]
+        return None
+
+    def stream_until_echo(
+        self,
+        channels: List[int],
+        max_seconds: float,
+        hz: int,
+        margin: int,
+        consecutive: int,
+        echo_print: bool = False,
+    ) -> bool:
+        """
+        Stream the same RC frame repeatedly and check MSP_RC until `consecutive` frames match (first 4 AETR).
+        Returns True once echo is 'locked', or False if timeout.
+        """
+        payload = MSPDataTypes.pack_rc_channels(channels)
+        period = 1.0 / float(hz)
+        t_end = time.time() + max_seconds
+        matches = 0
+
+        while time.time() < t_end:
+            t0 = time.time()
+            self.send(MSPCommand.MSP_SET_RAW_RC, payload)
+            rx = self.read_rc_once()
+
+            if echo_print:
+                print(self._fmt("Tx", channels))
+                if rx:
+                    print(self._fmt("Rx", rx[:len(channels)]))
+                else:
+                    print("Rx: <no MSP_RC>")
+
+            if rx:
+                ok = all(abs((rx[i] if i < len(rx) else 0) - channels[i]) <= margin for i in range(4))
+                if ok:
+                    matches += 1
+                    if matches >= consecutive:
+                        return True
+                else:
+                    matches = 0  # reset streak on mismatch
+
+            # keep cadence tight
+            dt = time.time() - t0
+            sleep_left = period - dt
+            if sleep_left > 0:
+                time.sleep(sleep_left)
+
+        return False
+
+    # -------------------- High-level --------------------
 
     def get_status(self) -> Optional[Dict[str, Any]]:
-        resp = self.send_and_receive(MSPCommand.MSP_STATUS, expect_command=MSPCommand.MSP_STATUS)
-        if not resp:
-            return None
-        return {
-            "armed": resp.get("armed", False),
-            "cycle_time": resp.get("cycle_time", 0),
-            "i2c_errors": resp.get("i2c_errors", 0),
-            "sensor": resp.get("sensor", 0),
-            "flag": resp.get("flag", 0),
-        }
+        return self.req(MSPCommand.MSP_STATUS, expect=MSPCommand.MSP_STATUS)
 
-    def set_raw_rc(self, channels: List[int]) -> bool:
-        payload = MSPDataTypes.pack_rc_channels(channels)
-        return self.send_message(MSPCommand.MSP_SET_RAW_RC, payload)
-
-    def stream_raw_rc(self, channels: List[int], seconds: float, hz: int = STREAM_HZ):
-        period = 1.0 / float(hz)
-        t_end = time.time() + seconds
-        while time.time() < t_end:
-            self.set_raw_rc(channels)
-            time.sleep(period)
-
-    # -------------------- Checks --------------------
-
-    def verify_msp_rc_effective(self, margin: int = 12) -> bool:
+    def arm_only(
+        self,
+        warmup_seconds: float,
+        hold_seconds: float,
+        hz: int,
+        margin: int,
+        consecutive: int,
+        echo_print: bool = False,
+    ) -> bool:
         """
-        Confirm that MSP RC frames actually affect the FC (requires CH8 override ON via radio).
-        Sends a known set and reads back MSP_RC to compare first four channels (AETR).
+        1) Warm up MSP RC override by streaming a neutral frame until echo locks (or timeout).
+        2) Stream the ARM frame (AUX1 high, throttle low) until echo locks (or timeout).
+        3) Keep sending the ARM frame for the remainder of hold_seconds.
+        4) Verify ARMED via MSP_STATUS.
         """
-        print("\n=== Checking MSP RC override ===")
-        test = [1600, 1400, 1000, 1500, 1000, 1500, 1500, 1500]  # R=1600, P=1400, THR=1000, YAW=1500
-        self.set_raw_rc(test)
-        time.sleep(0.06)
-        rc = self.send_and_receive(MSPCommand.MSP_RC, expect_command=MSPCommand.MSP_RC, timeout=0.5)
-        if not rc or "channels" not in rc:
-            print("❌ No MSP_RC response. Cannot verify RC override.")
-            return False
-        got = rc["channels"]
-        print(f"   Sent (first 4): {test[:4]}")
-        print(f"   Read (first 4): {got[:4]}")
-        ok = all(abs(got[i] - test[i]) <= margin for i in range(4))
-        if ok:
-            print("   ✅ MSP RC override appears active")
-        else:
-            print("   ❌ RC values not following MSP input")
-        return ok
+        # AETR + AUX: [ROLL, PITCH, THROTTLE, YAW, AUX1, AUX2, AUX3, AUX4]
+        neutral = [1500, 1500, 1000, 1500, 1000, 1500, 1500, 1800]  # AUX4=1800 helps keep override on once active
+        print("\n=== WARM-UP: streaming neutral RC until echo matches ===")
+        warm_ok = self.stream_until_echo(
+            channels=neutral,
+            max_seconds=warmup_seconds,
+            hz=hz,
+            margin=margin,
+            consecutive=consecutive,
+            echo_print=echo_print,
+        )
+        if not warm_ok:
+            print("⚠️  MSP RC echo did not lock during warm-up. Continuing anyway (may still work).")
 
-    # -------------------- Arm only --------------------
+        # ARM frame: AUX1 high (CH5≈1800), throttle low (CH3=1000), keep AUX4 high
+        arm = [1500, 1500, 1000, 1500, 1800, 1500, 1500, 1800]
+        print("\n=== ARM: streaming AUX1 HIGH with throttle LOW until echo matches ===")
+        arm_locked = self.stream_until_echo(
+            channels=arm,
+            max_seconds=max(0.8, min(hold_seconds, 3.0)),  # try to lock quickly within the hold window
+            hz=hz,
+            margin=margin,
+            consecutive=consecutive,
+            echo_print=echo_print,
+        )
 
-    def arm_only(self, hold_seconds: float = 1.0, hz: int = STREAM_HZ) -> bool:
-        """
-        Arms by setting AUX1 (CH5) HIGH with throttle LOW.
-        Assumes CH8 (MSP RC OVERRIDE) is already HIGH on your radio so MSP RC frames take effect.
-        """
-        print("\n=== ARMING (AUX1 HIGH, throttle LOW) ===")
-        # Keep sticks centered, throttle LOW, ARM switch HIGH (AUX1), others neutral.
-        # AETR order -> [ROLL, PITCH, THROTTLE, YAW, AUX1, AUX2, AUX3, AUX4]
-        channels_arm = [1500, 1500, 1000, 1500, 1800, 1500, 1500, 1500]
-        self.stream_raw_rc(channels_arm, seconds=hold_seconds, hz=hz)
+        # If we locked early but still have hold time left, continue streaming the same arm frame
+        if hold_seconds > 0:
+            remaining = hold_seconds
+            if arm_locked:
+                # we already spent some time in stream_until_echo; just top up to total hold_seconds
+                remaining = max(0.0, hold_seconds)
+            if remaining > 0:
+                print(f"=== HOLD: keep sending ARM frame for {remaining:.2f}s ===")
+                self._hold_stream(channels=arm, seconds=remaining, hz=hz, echo_print=echo_print)
 
+        # Final check
         status = self.get_status()
         if status and status.get("armed"):
-            print("✅ Drone is ARMED")
+            print("✅ FC reports ARMED")
             return True
         print("❌ FC did not report ARMED")
         return False
 
+    def _hold_stream(self, channels: List[int], seconds: float, hz: int, echo_print: bool):
+        payload = MSPDataTypes.pack_rc_channels(channels)
+        period = 1.0 / float(hz)
+        t_end = time.time() + seconds
+        while time.time() < t_end:
+            t0 = time.time()
+            self.send(MSPCommand.MSP_SET_RAW_RC, payload)
+            if echo_print:
+                rx = self.read_rc_once()
+                if rx:
+                    print(self._fmt("Rx", rx[:len(channels)]))
+            dt = time.time() - t0
+            sleep_left = period - dt
+            if sleep_left > 0:
+                time.sleep(sleep_left)
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Arm-Only Tool (INAV MSP)")
-    parser.add_argument("--port", default="/dev/ttyAMA0", help="Serial port (default: /dev/ttyAMA0)")
-    parser.add_argument("--baudrate", type=int, default=115200, help="Baudrate (default: 115200)")
-    parser.add_argument("--skip-check", action="store_true",
-                        help="Skip MSP RC override verification (NOT recommended)")
-    parser.add_argument("--hold", type=float, default=1.0,
-                        help="Seconds to hold AUX1 HIGH while arming (default: 1.0)")
-    parser.add_argument("--hz", type=int, default=STREAM_HZ, help=f"RC stream rate (default: {STREAM_HZ}Hz)")
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser(description="INAV MSP Arm-Only (sticky streaming until echo matches)")
+    ap.add_argument("--port", default="/dev/ttyAMA0", help="Serial port (default: /dev/ttyAMA0)")
+    ap.add_argument("--baudrate", type=int, default=115200, help="Baudrate (default: 115200)")
+    ap.add_argument("--hz", type=int, default=STREAM_HZ_DEFAULT, help=f"Streaming rate (default: {STREAM_HZ_DEFAULT} Hz)")
+    ap.add_argument("--warmup", type=float, default=1.0, help="Warm-up seconds streaming neutral frame (default: 1.0)")
+    ap.add_argument("--hold", type=float, default=1.0, help="Seconds to hold ARM frame (default: 1.0)")
+    ap.add_argument("--margin", type=int, default=ECHO_MARGIN_DEFAULT, help=f"Echo tolerance per channel (default: {ECHO_MARGIN_DEFAULT})")
+    ap.add_argument("--consecutive", type=int, default=CONSEC_MATCH_DEFAULT, help=f"Consecutive matching frames to accept echo (default: {CONSEC_MATCH_DEFAULT})")
+    ap.add_argument("--echo", action="store_true", help="Print Tx/Rx each frame")
+    args = ap.parse_args()
 
-    print("SAFETY: Test with props OFF. Ensure CH8 (MSP RC OVERRIDE) is HIGH on your radio.\n")
+    print("SAFETY: Test with props OFF. For reliable operation, ensure your RADIO holds CH8 (MSP RC OVERRIDE) > 1700.\n")
 
-    fc = FlightController(port=args.port, baudrate=args.baudrate)
+    fc = FlightController(args.port, args.baudrate)
     if not fc.connect():
         return 1
 
     try:
-        if not args.skip_check:
-            if not fc.verify_msp_rc_effective():
-                print("\n➡️  Make sure your radio sets **CH8 > 1700** (MSP RC OVERRIDE ON),")
-                print("    then run this again. Aborting to be safe.")
-                return 1
-
-        ok = fc.arm_only(hold_seconds=args.hold, hz=args.hz)
+        ok = fc.arm_only(
+            warmup_seconds=args.warmup,
+            hold_seconds=args.hold,
+            hz=args.hz,
+            margin=args.margin,
+            consecutive=args.consecutive,
+            echo_print=args.echo,
+        )
         return 0 if ok else 1
-
     except KeyboardInterrupt:
         print("\nInterrupted.")
         return 1
     finally:
-        fc.disconnect()
+        fc.close()
 
 
 if __name__ == "__main__":
