@@ -232,8 +232,8 @@ class FCAdapterVelocityNode(Node):
         if now - self.last_fc_status_time > self.fc_status_timeout:
             if self.fc_connected:
                 self.get_logger().error('FC STATUS TIMEOUT - no MSP_STATUS received')
-                self.fc_connected = False
-                self.fc_armed = False
+                # self.fc_connected = False
+                # self.fc_armed = False
             # self.send_hover_command(reason='fc_disconnected')
             # return
 
