@@ -136,6 +136,7 @@ class FCAdapterVelocityNode(Node):
         # ------------ MSP Serial (direct) ------------
         self.ser: Optional[serial.Serial] = None
         self._open_serial()
+        
 
         # ----------- OPTIONAL STARTUP DELAY (operator setup window) -----------
         if self.startup_delay_sec > 0:
