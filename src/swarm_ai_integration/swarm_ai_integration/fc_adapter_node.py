@@ -234,8 +234,8 @@ class FCAdapterVelocityNode(Node):
                 self.get_logger().error('FC STATUS TIMEOUT - no MSP_STATUS received')
                 self.fc_connected = False
                 self.fc_armed = False
-            self.send_hover_command(reason='fc_disconnected')
-            return
+            # self.send_hover_command(reason='fc_disconnected')
+            # return
 
         # Pre-flight validation: ensure FC is ready
         if not self.validate_fc_ready():
