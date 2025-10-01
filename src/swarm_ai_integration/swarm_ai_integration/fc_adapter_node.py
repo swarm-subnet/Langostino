@@ -37,6 +37,7 @@ class FCAdapterVelocityNode(Node):
       /fc/gps_speed_course       (std_msgs/Float32MultiArray) : [speed_mps, course_deg]
       /fc/attitude_euler         (geometry_msgs/Vector3Stamped): roll,pitch,yaw (rad)
       /fc/altitude               (std_msgs/Float32MultiArray) : [baro_alt_m, vz_mps]
+      /fc/msp_status             (std_msgs/Float32MultiArray) : [cycle_time, i2c_errors, sensor_mask, box_flags, current_setting]
       /safety/override           (std_msgs/Bool)
 
     Publications:
@@ -49,9 +50,11 @@ class FCAdapterVelocityNode(Node):
         super().__init__('fc_adapter_velocity_node')
 
         # Parameters
-        self.declare_parameter('control_rate_hz', 30.0)
+        self.declare_parameter('control_rate_hz', 40.0)
         self.declare_parameter('max_velocity', 3.0)
         self.declare_parameter('command_timeout_sec', 1.0)
+        self.declare_parameter('fc_status_timeout_sec', 2.0)
+        self.declare_parameter('warmup_frames', 40)
         self.declare_parameter('rc_min', 1300)
         self.declare_parameter('rc_max', 1700)
 
@@ -70,6 +73,8 @@ class FCAdapterVelocityNode(Node):
         self.control_rate = float(self.get_parameter('control_rate_hz').value)
         self.max_velocity = float(self.get_parameter('max_velocity').value)
         self.cmd_timeout = float(self.get_parameter('command_timeout_sec').value)
+        self.fc_status_timeout = float(self.get_parameter('fc_status_timeout_sec').value)
+        self.warmup_frames_total = int(self.get_parameter('warmup_frames').value)
         self.rc_min = int(self.get_parameter('rc_min').value)
         self.rc_max = int(self.get_parameter('rc_max').value)
 
@@ -95,6 +100,17 @@ class FCAdapterVelocityNode(Node):
         self.last_control_time = time.time()
         self.safety_override = False
         self.ai_enabled = False
+
+        # FC health monitoring
+        self.fc_connected = False
+        self.fc_armed = False
+        self.fc_box_flags = 0
+        self.fc_sensor_mask = 0
+        self.last_fc_status_time = 0.0
+
+        # Warm-up state
+        self.warmup_complete = False
+        self.warmup_frames_sent = 0
 
         rc_dev_limit = 400.0
         self.velocity_controller = VelocityPIDController(
@@ -122,6 +138,7 @@ class FCAdapterVelocityNode(Node):
         self.create_subscription(Float32MultiArray, '/fc/gps_speed_course', self.cb_gps_speed_course, sensor_qos)
         self.create_subscription(Vector3Stamped, '/fc/attitude_euler', self.cb_attitude, sensor_qos)
         self.create_subscription(Float32MultiArray, '/fc/altitude', self.cb_altitude, sensor_qos)
+        self.create_subscription(Float32MultiArray, '/fc/msp_status', self.cb_fc_status, sensor_qos)
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
 
         # Pubs
@@ -134,7 +151,7 @@ class FCAdapterVelocityNode(Node):
         self.create_timer(self.control_period, self.control_loop)
         self.create_timer(1.0, self.publish_status)
 
-        self.get_logger().info('FC Adapter Velocity Node ready (listening to /ai/action Float32MultiArray)')
+        self.get_logger().info(f'FC Adapter Velocity Node ready @ {self.control_rate}Hz (listening to /ai/action Float32MultiArray)')
 
     # -------------------- Callbacks --------------------
 
@@ -171,6 +188,23 @@ class FCAdapterVelocityNode(Node):
         if len(msg.data) >= 2:
             self.velocity_actual_earth[2] = float(msg.data[1])  # vertical velocity (up)
 
+    def cb_fc_status(self, msg: Float32MultiArray):
+        """
+        MSP_STATUS callback: [cycle_time, i2c_errors, sensor_mask, box_flags, current_setting]
+        box_flags contains mode bits (exact mapping depends on INAV configuration)
+        """
+        if len(msg.data) >= 4:
+            self.fc_box_flags = int(msg.data[3])
+            self.fc_sensor_mask = int(msg.data[2]) if len(msg.data) >= 3 else 0
+            self.fc_connected = True
+            self.last_fc_status_time = time.time()
+
+            # Note: INAV doesn't have a direct "armed" bit in MSP_STATUS box_flags.
+            # The ARM state is typically inferred from mode flags or separate status.
+            # For now, we assume FC is "armed" if we're receiving status.
+            # You may need to adjust this based on your specific INAV box mode configuration.
+            self.fc_armed = True  # Conservative: assume armed if connected
+
     def cb_safety(self, msg: Bool):
         self.safety_override = bool(msg.data)
         if self.safety_override:
@@ -183,6 +217,30 @@ class FCAdapterVelocityNode(Node):
         now = time.time()
         dt = max(1e-3, now - self.last_control_time)
         self.last_control_time = now
+
+        # Warm-up sequence: send neutral frames before accepting AI commands
+        if not self.warmup_complete:
+            if self.warmup_frames_sent < self.warmup_frames_total:
+                self.send_hover_command(reason='warmup')
+                self.warmup_frames_sent += 1
+                return
+            else:
+                self.warmup_complete = True
+                self.get_logger().info(f'✓ Warm-up complete ({self.warmup_frames_sent} frames @ {self.control_rate}Hz)')
+
+        # FC health check: verify connection
+        if now - self.last_fc_status_time > self.fc_status_timeout:
+            if self.fc_connected:
+                self.get_logger().error('FC STATUS TIMEOUT - no MSP_STATUS received')
+                self.fc_connected = False
+                self.fc_armed = False
+            self.send_hover_command(reason='fc_disconnected')
+            return
+
+        # Pre-flight validation: ensure FC is ready
+        if not self.validate_fc_ready():
+            self.send_hover_command(reason='fc_not_ready')
+            return
 
         # Command timeout or safety → hover
         if (now - self.last_cmd_time > self.cmd_timeout) or self.safety_override or (not self.ai_enabled):
@@ -221,10 +279,10 @@ class FCAdapterVelocityNode(Node):
         channels[1] = pitch_rc
         channels[2] = throttle_rc
         channels[3] = yaw_rc
-        channels[4] = 1800 if self.arm_aux_high else 1000
-        channels[5] = 1800 if self.angle_mode_enabled else 1000
-        channels[6] = 1800 if self.althold_enabled else 1000
-        channels[7] = 1500
+        channels[4] = 1800 if self.arm_aux_high else 1000       # CH5: ARM (AUX1)
+        channels[5] = 1800 if self.angle_mode_enabled else 1000  # CH6: ANGLE mode (AUX2)
+        channels[6] = 1800 if self.althold_enabled else 1000     # CH7: ALT HOLD (AUX3)
+        channels[7] = 1800                                       # CH8: MSP RC OVERRIDE (AUX4) - MUST be >1700
 
         # Publish MSP_SET_RAW_RC
         self._publish_msp_set_raw_rc(channels)
@@ -257,6 +315,26 @@ class FCAdapterVelocityNode(Node):
 
     # -------------------- Helpers --------------------
 
+    def validate_fc_ready(self) -> bool:
+        """Verify FC is connected and ready for velocity commands"""
+        if not self.fc_connected:
+            # Only log once when state changes
+            if not hasattr(self, '_last_fc_ready_warn') or self._last_fc_ready_warn != 'disconnected':
+                self.get_logger().warn('FC not connected - waiting for MSP_STATUS')
+                self._last_fc_ready_warn = 'disconnected'
+            return False
+
+        # Note: fc_armed check is conservative. Adjust based on your operational needs.
+        # Some users may want to send commands even before arming for testing.
+        # if not self.fc_armed:
+        #     if not hasattr(self, '_last_fc_ready_warn') or self._last_fc_ready_warn != 'unarmed':
+        #         self.get_logger().warn('FC not armed - refusing velocity control')
+        #         self._last_fc_ready_warn = 'unarmed'
+        #     return False
+
+        self._last_fc_ready_warn = None  # Clear warning state
+        return True
+
     def _earth_to_body_velocity(self):
         vx_e, vy_n, vz_u = self.velocity_actual_earth
         cy = math.cos(self.attitude_yaw)
@@ -274,11 +352,11 @@ class FCAdapterVelocityNode(Node):
 
     def send_hover_command(self, reason: str):
         channels = [
-            1500, 1500, 1500, 1500,
-            1800 if self.arm_aux_high else 1000,
-            1800 if self.angle_mode_enabled else 1000,
-            1800 if self.althold_enabled else 1000,
-            1500
+            1500, 1500, 1500, 1500,                              # Roll, Pitch, Throttle, Yaw (neutral)
+            1800 if self.arm_aux_high else 1000,                 # CH5: ARM (AUX1)
+            1800 if self.angle_mode_enabled else 1000,           # CH6: ANGLE mode (AUX2)
+            1800 if self.althold_enabled else 1000,              # CH7: ALT HOLD (AUX3)
+            1800                                                 # CH8: MSP RC OVERRIDE (AUX4)
         ]
         self._publish_msp_set_raw_rc(channels)
         self.get_logger().warn(f"Hover command sent ({reason}); RC[R,P,T,Y]=[{channels[0]},{channels[1]},{channels[2]},{channels[3]}]")
@@ -288,11 +366,29 @@ class FCAdapterVelocityNode(Node):
 
     def publish_status(self):
         flags = []
-        if self.ai_enabled: flags.append('AI_ENABLED')
-        if self.safety_override: flags.append('SAFETY_OVERRIDE')
+        now = time.time()
+
+        # FC health status
+        if self.fc_connected:
+            flags.append('FC_CONNECTED')
+        else:
+            flags.append('FC_DISCONNECTED')
+
+        # Operational status
+        if not self.warmup_complete:
+            flags.append('WARMUP')
+        if self.ai_enabled:
+            flags.append('AI_ENABLED')
+        if self.safety_override:
+            flags.append('SAFETY_OVERRIDE')
+
         flags.append('CLOSED_LOOP')
-        if time.time() - self.last_cmd_time > self.cmd_timeout:
+
+        if now - self.last_cmd_time > self.cmd_timeout:
             flags.append('CMD_TIMEOUT')
+        if now - self.last_fc_status_time > self.fc_status_timeout:
+            flags.append('FC_STATUS_TIMEOUT')
+
         s = String()
         s.data = ' | '.join(flags) if flags else 'STANDBY'
         self.status_pub.publish(s)

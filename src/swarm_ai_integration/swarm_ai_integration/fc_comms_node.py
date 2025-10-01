@@ -50,6 +50,7 @@ class FCCommsNode(Node):
         /fc/motor_rpm (std_msgs/Float32MultiArray): Motors
         /fc/gps_speed_course (std_msgs/Float32MultiArray): [speed_mps, course_deg]
         /fc/waypoint (std_msgs/Float32MultiArray): [wp_no, lat, lon, alt_m, heading_deg, stay_s, navflag]
+        /fc/msp_status (std_msgs/Float32MultiArray): [cycle_time, i2c_errors, sensor_mask, box_flags, current_setting]
     """
 
     def __init__(self):
@@ -132,6 +133,7 @@ class FCCommsNode(Node):
         self.motor_rpm_pub = self.create_publisher(Float32MultiArray, '/fc/motor_rpm', sensor_qos)
         self.gps_speed_course_pub = self.create_publisher(Float32MultiArray, '/fc/gps_speed_course', sensor_qos)
         self.waypoint_pub = self.create_publisher(Float32MultiArray, '/fc/waypoint', reliable_qos)
+        self.msp_status_pub = self.create_publisher(Float32MultiArray, '/fc/msp_status', sensor_qos)
 
         # Timers
         self.telemetry_timer = self.create_timer(1.0 / self.telemetry_rate, self.request_telemetry)
@@ -502,23 +504,35 @@ class FCCommsNode(Node):
         status_data = MSPDataTypes.unpack_status(data)
 
         if status_data:
+            # Publish human-readable status string
             status_msg = String()
             status_msg.data = (
                 f"Cycle: {status_data['cycle_time']}us, "
                 f"I2C Errors: {status_data['i2c_errors']}, "
-                f"Sensors: 0x{status_data['sensor_flags']:04x}, "
-                f"Mode: 0x{status_data['flight_mode_flags']:04x}"
+                f"Sensors: 0x{status_data['sensor_mask']:04x}, "
+                f"Box Flags: 0x{status_data['box_flags']:08x}"
             )
-
             self.status_pub.publish(status_msg)
             self.last_telemetry['status'] = status_msg
-            
+
+            # Publish raw MSP_STATUS data for fc_adapter_node
+            # Format: [cycle_time, i2c_errors, sensor_mask, box_flags, current_setting]
+            msp_status_msg = Float32MultiArray()
+            msp_status_msg.data = [
+                float(status_data['cycle_time']),
+                float(status_data['i2c_errors']),
+                float(status_data['sensor_mask']),
+                float(status_data['box_flags']),
+                float(status_data.get('current_setting', 0))
+            ]
+            self.msp_status_pub.publish(msp_status_msg)
+
             self.get_logger().info(
-                f'   ➜ Published to /fc/status | '
+                f'   ➜ Published to /fc/status & /fc/msp_status | '
                 f'cycle={status_data["cycle_time"]}µs | '
                 f'i2c_err={status_data["i2c_errors"]} | '
-                f'sensors=0x{status_data["sensor_flags"]:04x} | '
-                f'mode=0x{status_data["flight_mode_flags"]:04x}'
+                f'sensors=0x{status_data["sensor_mask"]:04x} | '
+                f'box_flags=0x{status_data["box_flags"]:08x}'
             )
 
     def handle_battery_data(self, data: bytes):
