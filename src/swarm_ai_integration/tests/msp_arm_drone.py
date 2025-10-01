@@ -128,18 +128,11 @@ class FlightController:
         return None
 
     @staticmethod
+    @staticmethod
     def _parse(msg: MSPMessage) -> Dict[str, Any]:
         if msg.command == MSPCommand.MSP_STATUS:
-            if len(msg.data) >= 11:
-                import struct
-                cycle_time, i2c_errors, sensor, flag, _ = struct.unpack('<HHIBB', msg.data[:11])
-                return {
-                    "cycle_time": cycle_time,
-                    "i2c_errors": i2c_errors,
-                    "sensor": sensor,
-                    "flag": flag,
-                    "armed": bool(flag & 1),
-                }
+            # Use the canonical unpacker from msp_protocol.py
+            return MSPDataTypes.unpack_status(msg.data)
         elif msg.command == MSPCommand.MSP_RC:
             return {"channels": MSPDataTypes.unpack_rc_channels(msg.data)}
         return {"raw_data": msg.data}

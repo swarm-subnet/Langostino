@@ -227,28 +227,29 @@ class MSPDataTypes:
     def unpack_status(data: bytes) -> Dict[str, Any]:
         """
         Unpack MSP_STATUS (code=101).
-        INAV layout:
-          0..1  : uint16 time_us
-          2..3  : uint16 errors
-          4..5  : uint16 sensors_mask
-          6..9  : uint32 box_flags
-          10    : uint8  current_setting
-        Total 11 bytes. Some older targets may omit current_setting (10 bytes).
+
+        Layout:
+        0..1  : uint16 time_us
+        2..3  : uint16 errors
+        4..5  : uint16 sensors_mask
+        6..9  : uint32 box_flags
+        10    : uint8  current_setting (optional on some targets)
+
+        Total 11 bytes when current_setting is present; some targets send 10 bytes.
         """
+        import struct
         res: Dict[str, Any] = {}
         try:
             if len(data) >= 11:
-                # time_us, errors, sensors_mask, box_flags, current_setting
                 time_us, errors, sensors_u16, flags_u32, current_setting = struct.unpack_from('<HHHIB', data, 0)
                 res.update({
-                    'cycle_time': time_us,
+                    'cycle_time': time_us,      # keep legacy keys used by callers
                     'i2c_errors': errors,
                     'sensor_mask': sensors_u16,
                     'box_flags': flags_u32,
                     'current_setting': current_setting,
                 })
             elif len(data) >= 10:
-                # Older variant without current_setting
                 time_us, errors, sensors_u16, flags_u32 = struct.unpack_from('<HHHI', data, 0)
                 res.update({
                     'cycle_time': time_us,
@@ -258,21 +259,29 @@ class MSPDataTypes:
                     'current_setting': None,
                 })
             else:
-                logger.warning(f"MSP_STATUS: insufficient length {len(data)}")
+                try:
+                    logger.warning(f"MSP_STATUS: insufficient length {len(data)}")
+                except Exception:
+                    pass
                 return {}
         except struct.error as e:
-            logger.error(f"MSP_STATUS unpack error: {e}; data={data.hex()}")
+            try:
+                logger.error(f"MSP_STATUS unpack error: {e}; data={data.hex()}")
+            except Exception:
+                pass
             return {}
 
-        # convenience booleans for common sensors
-        s = res['sensor_mask']
-        res['accelerometer'] = bool(s & (1 << 0))
-        res['barometer']     = bool(s & (1 << 1))
-        res['magnetometer']  = bool(s & (1 << 2))
-        res['gps']           = bool(s & (1 << 3))
-        res['sonar']         = bool(s & (1 << 4))
-        # NOTE: We do NOT infer "armed" from box_flags here (box IDs vary). Use box_flags directly.
-        return res
+    # Convenience booleans per spec bits:
+    # bit0=Accelerometer, bit1=Barometer, bit2=Magnetometer, bit3=GPS, bit4=Sonar
+    s = res['sensor_mask']
+    res['accelerometer'] = bool(s & (1 << 0))
+    res['barometer']     = bool(s & (1 << 1))
+    res['magnetometer']  = bool(s & (1 << 2))
+    res['gps']           = bool(s & (1 << 3))
+    res['sonar']         = bool(s & (1 << 4))
+
+    # Do NOT infer "armed" here — MSP_STATUS does not carry an armed bit.
+    return res
 
     @staticmethod
     def pack_rc_channels(channels: List[int]) -> bytes:
