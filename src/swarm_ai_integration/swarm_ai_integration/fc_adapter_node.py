@@ -75,8 +75,9 @@ class FCAdapterVelocityNode(Node):
 
         # Pre-arm streaming (like your working script)
         self.declare_parameter('prearm_enabled', True)
-        self.declare_parameter('prearm_seconds', 5.0)   # stream ARM frame for 5 seconds
+        self.declare_parameter('prearm_seconds', 30.0)   # stream ARM frame for 5 seconds
         self.declare_parameter('prearm_hz', 40)         # at 40 Hz
+        self.declare_parameter('startup_delay_sec', 20.0)
 
         # ------------ Param values ------------
         self.control_rate = float(self.get_parameter('control_rate_hz').value)
@@ -104,6 +105,7 @@ class FCAdapterVelocityNode(Node):
         self.prearm_enabled = bool(self.get_parameter('prearm_enabled').value)
         self.prearm_seconds = float(self.get_parameter('prearm_seconds').value)
         self.prearm_hz = int(self.get_parameter('prearm_hz').value)
+        self.startup_delay_sec = float(self.get_parameter('startup_delay_sec').value)
 
         # ------------ State ------------
         self.velocity_cmd_body = np.zeros(3, dtype=float)      # [vx, vy, vz]
@@ -134,6 +136,11 @@ class FCAdapterVelocityNode(Node):
         # ------------ MSP Serial (direct) ------------
         self.ser: Optional[serial.Serial] = None
         self._open_serial()
+
+        # ----------- OPTIONAL STARTUP DELAY (operator setup window) -----------
+        if self.startup_delay_sec > 0:
+            self.get_logger().warn(f'Waiting {self.startup_delay_sec:.1f}s before arming (operator setup).')
+            time.sleep(self.startup_delay_sec)
 
         # ----------- PRE-ARM: stream ARM frame like arm_only_simple.py -----------
         if self.prearm_enabled and (self.ser and self.ser.is_open):
