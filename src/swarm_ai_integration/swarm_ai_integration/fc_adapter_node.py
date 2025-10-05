@@ -60,6 +60,7 @@ class FCAdapterVelocityNode(Node):
         self.declare_parameter('arm_aux_high', True)
         self.declare_parameter('enable_angle_mode', True)
         self.declare_parameter('enable_althold_mode', True)
+        self.declare_parameter('enable_nav_rth', False)  # NAV RTH on CH9
 
         self.declare_parameter('kp_xy', 150.0)
         self.declare_parameter('ki_xy', 10.0)
@@ -90,6 +91,7 @@ class FCAdapterVelocityNode(Node):
         self.arm_aux_high = bool(self.get_parameter('arm_aux_high').value)
         self.angle_mode_enabled = bool(self.get_parameter('enable_angle_mode').value)
         self.althold_enabled = bool(self.get_parameter('enable_althold_mode').value)
+        self.nav_rth_enabled = bool(self.get_parameter('enable_nav_rth').value)
 
         self.kp_xy = float(self.get_parameter('kp_xy').value)
         self.ki_xy = float(self.get_parameter('ki_xy').value)
@@ -122,6 +124,12 @@ class FCAdapterVelocityNode(Node):
         # Warm-up state
         self.warmup_complete = False
         self.warmup_frames_sent = 0
+
+        # Safety RTH override
+        self.safety_rth_requested = False
+
+        # Safety RTH override
+        self.safety_rth_requested = False
 
         # PID
         rc_dev_limit = 400.0
@@ -170,6 +178,7 @@ class FCAdapterVelocityNode(Node):
         self.create_subscription(Vector3Stamped, '/fc/attitude_euler', self.cb_attitude, sensor_qos)
         self.create_subscription(Float32MultiArray, '/fc/altitude', self.cb_altitude, sensor_qos)
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
+        self.create_subscription(Bool, '/safety/rth_command', self.cb_rth_command, control_qos)
 
         # Pubs
         self.status_pub = self.create_publisher(String, '/fc_adapter/status', control_qos)
@@ -260,6 +269,14 @@ class FCAdapterVelocityNode(Node):
             self.get_logger().warn('Safety override ON → hover')
             self.velocity_controller.reset()
 
+    def cb_rth_command(self, msg: Bool):
+        """Handle RTH (Return to Home) command from safety monitor"""
+        self.safety_rth_requested = bool(msg.data)
+        if self.safety_rth_requested:
+            self.get_logger().error('🚨 RTH ACTIVATED - Return to Home mode engaged')
+        else:
+            self.get_logger().info('✓ RTH deactivated')
+
     # -------------------- Control Loop --------------------
     def control_loop(self):
         now = time.time()
@@ -311,16 +328,17 @@ class FCAdapterVelocityNode(Node):
         pitch_rc = max(self.rc_min, min(self.rc_max, pitch_rc))
         throttle_rc = max(self.rc_min, min(self.rc_max, throttle_rc))
 
-        # Compose 8 channels (AETR + AUX)
-        channels = [1500] * 8
+        # Compose 16 channels (INAV supports up to 18, we use 9 for RTH)
+        channels = [1500] * 16
         channels[0] = roll_rc
         channels[1] = pitch_rc
         channels[2] = throttle_rc
         channels[3] = yaw_rc
         channels[4] = 1800 if self.arm_aux_high else 1000       # CH5: ARM (AUX1)
-        channels[5] = 1800 if self.angle_mode_enabled else 1000 # CH6: ANGLE mode (AUX2)
-        channels[6] = 1800 if self.althold_enabled else 1000    # CH7: ALT HOLD (AUX3)
-        channels[7] = 1800                                      # CH8: MSP RC OVERRIDE (AUX4)
+        channels[5] = 1800 if self.angle_mode_enabled else 1000  # CH6: ANGLE mode (AUX2)
+        channels[6] = 1800 if self.althold_enabled else 1000     # CH7: ALT HOLD (AUX3)
+        channels[7] = 1800                                       # CH8: MSP RC OVERRIDE (AUX4) - MUST be >1700
+        channels[8] = 1800 if (self.nav_rth_enabled or self.safety_rth_requested) else 1000  # CH9: NAV RTH (AUX5)
 
         # Direct MSP send
         self._send_msp_set_raw_rc(channels)
@@ -360,32 +378,26 @@ class FCAdapterVelocityNode(Node):
         self.velocity_actual_body[1] = -vx_e * sy + vy_n * cy    # right
         self.velocity_actual_body[2] = vz_u                      # up
 
-    def _send_msp_set_raw_rc(self, channels: list):
-        # Clamp 8 channels to [1000,2000], pack and send via MSP
-        ch = [int(max(1000, min(2000, c))) for c in (channels + [1500]*8)[:8]]
-        if not (self.ser and self.ser.is_open):
-            if not hasattr(self, '_msp_warned') or not self._msp_warned:
-                self.get_logger().error('MSP serial not open; cannot send RC.')
-                self._msp_warned = True
-            return
-        try:
-            payload = MSPDataTypes.pack_rc_channels(ch)
-            msg = MSPMessage(MSPCommand.MSP_SET_RAW_RC, payload, MSPDirection.REQUEST)
-            self.ser.write(msg.encode())
-            self.ser.flush()
-            self.stats['msp_cmds'] += 1
-        except Exception as e:
-            self.get_logger().error(f"MSP_SET_RAW_RC send failed: {e}")
+    def _publish_msp_set_raw_rc(self, channels: list):
+        # Clamp and pad to 16 channels (INAV supports up to 18)
+        ch = [int(max(1000, min(2000, c))) for c in (channels + [1500]*16)[:16]]
+        msg = Float32MultiArray()
+        msg.data = [MSP_SET_RAW_RC_CODE] + [float(v) for v in ch]
+        self.msp_cmd_pub.publish(msg)
+        self.stats['msp_cmds'] += 1
 
     def send_hover_command(self, reason: str):
-        channels = [
-            1500, 1500, 1500, 1500,                              # Roll, Pitch, Throttle, Yaw (neutral)
-            1800 if self.arm_aux_high else 1000,                 # CH5: ARM (AUX1)
-            1800 if self.angle_mode_enabled else 1000,           # CH6: ANGLE mode (AUX2)
-            1800 if self.althold_enabled else 1000,              # CH7: ALT HOLD (AUX3)
-            1800                                                 # CH8: MSP RC OVERRIDE (AUX4)
-        ]
-        self._send_msp_set_raw_rc(channels)
+        channels = [1500] * 16
+        channels[0] = 1500  # Roll (neutral)
+        channels[1] = 1500  # Pitch (neutral)
+        channels[2] = 1500  # Throttle (hold altitude in AltHold)
+        channels[3] = 1500  # Yaw (neutral)
+        channels[4] = 1800 if self.arm_aux_high else 1000        # CH5: ARM (AUX1)
+        channels[5] = 1800 if self.angle_mode_enabled else 1000  # CH6: ANGLE mode (AUX2)
+        channels[6] = 1800 if self.althold_enabled else 1000     # CH7: ALT HOLD (AUX3)
+        channels[7] = 1800                                       # CH8: MSP RC OVERRIDE (AUX4)
+        channels[8] = 1800 if (self.nav_rth_enabled or self.safety_rth_requested) else 1000  # CH9: NAV RTH (AUX5)
+        self._publish_msp_set_raw_rc(channels)
         self.get_logger().warn(f"Hover command sent ({reason}); RC[R,P,T,Y]=[{channels[0]},{channels[1]},{channels[2]},{channels[3]}]")
         self.stats['failsafes'] += 1
 

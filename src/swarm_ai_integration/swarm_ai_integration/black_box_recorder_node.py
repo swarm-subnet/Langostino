@@ -31,7 +31,6 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from std_msgs.msg import Bool, String, Float32MultiArray, Header
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState, Range
 from geometry_msgs.msg import Twist, PoseStamped, Vector3Stamped, PointStamped
-from nav_msgs.msg import Odometry
 
 
 class BlackBoxRecorderNode(Node):
@@ -230,7 +229,7 @@ class BlackBoxRecorderNode(Node):
             lambda msg: self.log_message('AI_OBSERVATION', msg, 'ai_observation'), reliable_qos)
 
         self.ai_action_sub = self.create_subscription(
-            Twist, '/ai/action',
+            Float32MultiArray, '/ai/action',
             lambda msg: self.log_message('AI_ACTION', msg, 'ai_action'), reliable_qos)
 
         self.ai_status_sub = self.create_subscription(
@@ -251,12 +250,20 @@ class BlackBoxRecorderNode(Node):
             lambda msg: self.log_message('FC_GPS', msg), sensor_qos)
 
         self.fc_attitude_sub = self.create_subscription(
-            Vector3Stamped, '/fc/attitude',
-            lambda msg: self.log_message('FC_ATTITUDE', msg, 'fc_attitude'), sensor_qos)
+            Vector3Stamped, '/fc/attitude_euler',
+            lambda msg: self.log_message('FC_ATTITUDE_EULER', msg, 'fc_attitude'), sensor_qos)
 
         self.fc_battery_sub = self.create_subscription(
             BatteryState, '/fc/battery',
             lambda msg: self.log_message('FC_BATTERY', msg), sensor_qos)
+
+        self.fc_status_sub = self.create_subscription(
+            String, '/fc/status',
+            lambda msg: self.log_message('FC_STATUS', msg), reliable_qos)
+
+        self.fc_msp_status_sub = self.create_subscription(
+            Float32MultiArray, '/fc/msp_status',
+            lambda msg: self.log_message('FC_MSP_STATUS', msg), sensor_qos)
 
         self.fc_connected_sub = self.create_subscription(
             Bool, '/fc/connected',
@@ -266,6 +273,14 @@ class BlackBoxRecorderNode(Node):
             Float32MultiArray, '/fc/motor_rpm',
             lambda msg: self.log_message('FC_MOTOR_RPM', msg), sensor_qos)
 
+        self.fc_gps_speed_course_sub = self.create_subscription(
+            Float32MultiArray, '/fc/gps_speed_course',
+            lambda msg: self.log_message('FC_GPS_SPEED_COURSE', msg), sensor_qos)
+
+        self.fc_waypoint_sub = self.create_subscription(
+            Float32MultiArray, '/fc/waypoint',
+            lambda msg: self.log_message('FC_WAYPOINT', msg), reliable_qos)
+
         # FC Command Topics
         self.fc_rc_override_sub = self.create_subscription(
             Float32MultiArray, '/fc/rc_override',
@@ -274,6 +289,15 @@ class BlackBoxRecorderNode(Node):
         self.fc_msp_command_sub = self.create_subscription(
             Float32MultiArray, '/fc/msp_command',
             lambda msg: self.log_message('FC_MSP_COMMAND', msg), reliable_qos)
+
+        # FC Adapter Topics
+        self.fc_adapter_status_sub = self.create_subscription(
+            String, '/fc_adapter/status',
+            lambda msg: self.log_message('FC_ADAPTER_STATUS', msg), reliable_qos)
+
+        self.fc_adapter_vel_error_sub = self.create_subscription(
+            Vector3Stamped, '/fc_adapter/velocity_error',
+            lambda msg: self.log_message('FC_ADAPTER_VELOCITY_ERROR', msg), sensor_qos)
 
         # LiDAR Topics
         self.lidar_distance_sub = self.create_subscription(
@@ -293,17 +317,13 @@ class BlackBoxRecorderNode(Node):
             Bool, '/safety/override',
             lambda msg: self.log_message('SAFETY_OVERRIDE', msg, 'safety_status'), reliable_qos)
 
+        self.safety_rth_sub = self.create_subscription(
+            Bool, '/safety/rth_command',
+            lambda msg: self.log_message('SAFETY_RTH_COMMAND', msg, 'safety_status'), reliable_qos)
+
         self.safety_status_sub = self.create_subscription(
             String, '/safety/status',
             lambda msg: self.log_message('SAFETY_STATUS', msg, 'safety_status'), reliable_qos)
-
-        self.safety_emergency_sub = self.create_subscription(
-            Bool, '/safety/emergency_land',
-            lambda msg: self.log_message('SAFETY_EMERGENCY_LAND', msg), reliable_qos)
-
-        self.failsafe_action_sub = self.create_subscription(
-            Twist, '/failsafe/action',
-            lambda msg: self.log_message('FAILSAFE_ACTION', msg), reliable_qos)
 
     def log_message(self, message_type: str, msg, cache_key: str = None):
         """Log a ROS message with timestamp and metadata"""
@@ -361,6 +381,10 @@ class BlackBoxRecorderNode(Node):
                     return {'data': list(msg.data)}
                 else:
                     return {'data': msg.data}
+
+            elif isinstance(msg.data, (list, tuple)) and hasattr(msg, 'data'):
+                # Float32MultiArray (already handled above, but ensure it's first)
+                return {'data': list(msg.data)}
 
             elif hasattr(msg, 'linear') and hasattr(msg, 'angular'):
                 # Twist messages

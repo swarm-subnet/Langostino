@@ -35,10 +35,9 @@ class SafetyMonitorNode(Node):
         /drone/velocity (geometry_msgs/Twist): Current drone velocity
 
     Publishers:
-        /safety/override (std_msgs/Bool): Safety override signal
+        /safety/override (std_msgs/Bool): Safety override signal (hover mode)
+        /safety/rth_command (std_msgs/Bool): RTH (Return to Home) activation command
         /safety/status (std_msgs/String): Safety status messages
-        /safety/emergency_land (std_msgs/Bool): Emergency landing command
-        /failsafe/action (geometry_msgs/Twist): Failsafe control commands
     """
 
     def __init__(self):
@@ -69,7 +68,7 @@ class SafetyMonitorNode(Node):
         self.battery_voltage = 16.0  # Default safe voltage
         self.obstacle_distances = np.full(16, 10.0)  # Default safe distances
         self.safety_override_active = False
-        self.emergency_landing = False
+        self.rth_active = False
 
         # Timing
         self.last_observation_time = time.time()
@@ -115,12 +114,10 @@ class SafetyMonitorNode(Node):
         # Publishers
         self.override_pub = self.create_publisher(
             Bool, '/safety/override', reliable_qos)
+        self.rth_command_pub = self.create_publisher(
+            Bool, '/safety/rth_command', reliable_qos)
         self.status_pub = self.create_publisher(
             String, '/safety/status', reliable_qos)
-        self.emergency_land_pub = self.create_publisher(
-            Bool, '/safety/emergency_land', reliable_qos)
-        self.failsafe_action_pub = self.create_publisher(
-            Twist, '/failsafe/action', reliable_qos)
 
         # Timer for safety monitoring
         self.monitor_timer = self.create_timer(0.1, self.monitor_safety)  # 10 Hz
@@ -210,21 +207,23 @@ class SafetyMonitorNode(Node):
         elif not any_violation and self.safety_override_active:
             self.deactivate_safety_override()
 
-        # Handle critical situations
+        # Handle critical situations requiring RTH
         critical_violations = [
-            'altitude_low',
             'battery_low',
-            'obstacle_close'
+            'distance_far',
+            'communication_lost'
         ]
 
         if any(self.safety_violations[v] for v in critical_violations):
-            self.handle_emergency()
+            self.activate_rth()
+        elif not any_violation and self.rth_active:
+            self.deactivate_rth()
 
         # Publish safety status
         self.publish_safety_status()
 
     def activate_safety_override(self):
-        """Activate safety override"""
+        """Activate safety override (hover mode)"""
         self.safety_override_active = True
 
         # Publish override signal
@@ -232,11 +231,8 @@ class SafetyMonitorNode(Node):
         override_msg.data = True
         self.override_pub.publish(override_msg)
 
-        # Generate failsafe action
-        self.generate_failsafe_action()
-
         violations = [k for k, v in self.safety_violations.items() if v]
-        self.get_logger().warn(f'Safety override activated. Violations: {violations}')
+        self.get_logger().warn(f'⚠️  Safety override activated - HOVER MODE. Violations: {violations}')
 
     def deactivate_safety_override(self):
         """Deactivate safety override"""
@@ -247,75 +243,42 @@ class SafetyMonitorNode(Node):
         override_msg.data = False
         self.override_pub.publish(override_msg)
 
-        self.get_logger().info('Safety override deactivated')
+        self.get_logger().info('✓ Safety override deactivated')
 
-    def handle_emergency(self):
-        """Handle emergency situations"""
-        if not self.emergency_landing:
-            self.emergency_landing = True
+    def activate_rth(self):
+        """Activate Return to Home via INAV NAV RTH (CH9)"""
+        if not self.rth_active:
+            self.rth_active = True
 
-            # Publish emergency landing command
-            emergency_msg = Bool()
-            emergency_msg.data = True
-            self.emergency_land_pub.publish(emergency_msg)
+            # Publish RTH command (will set CH9 = 1800)
+            rth_msg = Bool()
+            rth_msg.data = True
+            self.rth_command_pub.publish(rth_msg)
 
-            self.get_logger().error('EMERGENCY: Initiating emergency landing procedure')
+            violations = [k for k, v in self.safety_violations.items() if v]
+            self.get_logger().error(f'🚨 RTH ACTIVATED - INAV Return to Home engaged! Violations: {violations}')
 
-    def generate_failsafe_action(self):
-        """Generate failsafe control action"""
-        failsafe_action = Twist()
+    def deactivate_rth(self):
+        """Deactivate Return to Home"""
+        if self.rth_active:
+            self.rth_active = False
 
-        # Default: hover in place
-        failsafe_action.linear.x = 0.0
-        failsafe_action.linear.y = 0.0
-        failsafe_action.linear.z = 0.0
-        failsafe_action.angular.z = 0.0
+            # Publish RTH deactivation (will set CH9 = 1000)
+            rth_msg = Bool()
+            rth_msg.data = False
+            self.rth_command_pub.publish(rth_msg)
 
-        # Handle specific violations
-        if self.safety_violations['altitude_high']:
-            # Descend slowly
-            failsafe_action.linear.z = -0.5
-
-        elif self.safety_violations['altitude_low']:
-            # Ascend slowly
-            failsafe_action.linear.z = 0.5
-
-        elif self.safety_violations['obstacle_close']:
-            # Move away from closest obstacle
-            min_idx = np.argmin(self.obstacle_distances)
-
-            # Simple obstacle avoidance based on direction
-            if min_idx < 8:  # Horizontal obstacles
-                angle = min_idx * np.pi / 4  # 0, 45, 90, ... degrees
-                # Move in opposite direction
-                failsafe_action.linear.x = -0.5 * np.cos(angle)
-                failsafe_action.linear.y = -0.5 * np.sin(angle)
-            else:
-                # Vertical obstacles - hover
-                pass
-
-        elif self.safety_violations['distance_far']:
-            # Return to home slowly
-            if self.home_position is not None:
-                direction = self.home_position[:2] - self.current_position[:2]
-                distance = np.linalg.norm(direction)
-                if distance > 0.1:
-                    direction = direction / distance
-                    failsafe_action.linear.x = direction[0] * 1.0
-                    failsafe_action.linear.y = direction[1] * 1.0
-
-        # Publish failsafe action
-        self.failsafe_action_pub.publish(failsafe_action)
+            self.get_logger().info('✓ RTH deactivated - resuming normal operation')
 
     def publish_safety_status(self):
         """Publish safety status message"""
         status_parts = []
 
-        if self.safety_override_active:
-            status_parts.append("OVERRIDE_ACTIVE")
+        if self.rth_active:
+            status_parts.append("🚨 RTH_ACTIVE")
 
-        if self.emergency_landing:
-            status_parts.append("EMERGENCY_LANDING")
+        if self.safety_override_active:
+            status_parts.append("⚠️  HOVER_OVERRIDE")
 
         active_violations = [k for k, v in self.safety_violations.items() if v]
         if active_violations:
@@ -323,13 +286,17 @@ class SafetyMonitorNode(Node):
 
         # Add numerical status
         status_parts.extend([
-            f"ALT:{self.current_position[2]:.1f}",
-            f"VEL:{np.linalg.norm(self.current_velocity):.1f}",
+            f"ALT:{self.current_position[2]:.1f}m",
+            f"VEL:{np.linalg.norm(self.current_velocity):.1f}m/s",
             f"BAT:{self.battery_voltage:.1f}V",
             f"OBS:{np.min(self.obstacle_distances):.1f}m"
         ])
 
-        status_str = " | ".join(status_parts) if status_parts else "NORMAL"
+        if self.home_position is not None:
+            distance_from_home = np.linalg.norm(self.current_position[:2] - self.home_position[:2])
+            status_parts.append(f"HOME_DIST:{distance_from_home:.1f}m")
+
+        status_str = " | ".join(status_parts) if status_parts else "✓ NORMAL"
 
         status_msg = String()
         status_msg.data = status_str
