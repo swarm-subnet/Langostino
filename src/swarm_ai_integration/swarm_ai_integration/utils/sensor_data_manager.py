@@ -32,7 +32,7 @@ class SensorDataManager:
         # Position data (geodetic)
         self.position = np.zeros(3, dtype=np.float32)  # [lat, lon, alt]
         self.origin_geodetic: Optional[np.ndarray] = None
-        self.relative_start_enu = relative_start_enu or np.array([0.0, 0.0, 3.0], dtype=np.float32)
+        self.relative_start_enu = relative_start_enu if relative_start_enu is not None else np.array([0.0, 0.0, 3.0], dtype=np.float32)
 
         # Orientation data
         self.quat_att = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)  # [x, y, z, w]
