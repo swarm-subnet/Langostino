@@ -1,178 +1,312 @@
 # Swarm AI Integration Parameters Configuration
+# Complete parameter set for all nodes in the swarm system
 
+# ═══════════════════════════════════════════════════════════════════
 # AI Adapter Node Parameters
+# ═══════════════════════════════════════════════════════════════════
 ai_adapter_node:
   ros__parameters:
-    # LiDAR processing
-    max_ray_distance: 50.0          # Maximum LiDAR range (meters)
-    update_rate: 100.0               # Observation update rate (Hz)
-    lidar_angle_resolution: 1.0     # Angular resolution for ray mapping (degrees)
+    # Observation generation
+    telemetry_rate: 30.0                # Observation generation rate (Hz)
+    max_ray_distance: 10.0              # Maximum distance for normalization (meters)
+    action_buffer_size: 20              # Number of past actions to buffer
+
+    # Initial position
+    relative_start_enu: [0.0, 0.0, 3.0] # Initial relative position [East, North, Up] (meters)
 
     # Coordinate frame settings
-    world_frame: "map"              # World coordinate frame
-    base_frame: "base_link"         # Drone base frame
+    world_frame: "map"                  # World coordinate frame
+    base_frame: "base_link"             # Drone base frame
 
     # Data validation
-    max_position_jump: 5.0          # Maximum allowed position change per update (meters)
-    max_velocity: 10.0              # Maximum expected velocity (m/s)
+    max_position_jump: 5.0              # Maximum allowed position change per update (meters)
+    max_velocity: 10.0                  # Maximum expected velocity (m/s)
+
+    # QoS settings
+    sensor_qos_depth: 1                 # QoS depth for sensor topics
+    reliable_qos_depth: 10              # QoS depth for reliable topics
 
     # Debug settings
-    debug_mode: false               # Enable debug output
-    publish_debug_info: true        # Publish debug topics
+    debug_mode: false                   # Enable debug output
+    publish_debug_info: true            # Publish debug topics
 
+# ═══════════════════════════════════════════════════════════════════
 # AI Flight Node Parameters
+# ═══════════════════════════════════════════════════════════════════
 ai_flight_node:
   ros__parameters:
     # Model settings
-    model_path: ""                  # Path to AI model (set via launch argument)
-    device: "cpu"                   # Computation device (cpu/cuda)
+    model_path: "/home/pi/swarm-ros/model/UID_117.zip"  # Path to trained AI model
+    device: "cpu"                       # Computation device (cpu/cuda)
+    observation_dim: 131                # Observation vector dimension
+    action_dim: 4                       # Action vector dimension
 
     # Prediction settings
-    prediction_timeout: 0.1         # Maximum prediction time (seconds)
-    prediction_queue_size: 1        # Size of prediction queue
+    prediction_rate: 10.0               # AI prediction rate (Hz)
+    prediction_timeout: 0.1             # Maximum prediction time (seconds)
+    prediction_queue_size: 1            # Size of prediction queue
 
     # Safety limits
-    max_velocity: 3.0               # Maximum velocity command (m/s)
-    max_angular_velocity: 2.0       # Maximum yaw rate (rad/s)
-    safety_enabled: true            # Enable built-in safety checks
+    max_velocity: 3.0                   # Maximum velocity command (m/s)
+    max_angular_velocity: 2.0           # Maximum yaw rate (rad/s)
+    safety_enabled: true                # Enable built-in safety checks
+
+    # QoS settings
+    qos_depth: 1                        # QoS depth for AI topics
 
     # Performance monitoring
-    log_prediction_time: false      # Log prediction timing
-    log_action_commands: false      # Log action commands
+    log_prediction_time: false          # Log prediction timing
+    log_action_commands: false          # Log action commands
 
+# ═══════════════════════════════════════════════════════════════════
 # Safety Monitor Node Parameters
+# ═══════════════════════════════════════════════════════════════════
 safety_monitor_node:
   ros__parameters:
     # Altitude limits
-    max_altitude: 50.0              # Maximum flight altitude (meters)
-    min_altitude: 0.5               # Minimum flight altitude (meters)
+    max_altitude: 50.0                  # Maximum flight altitude (meters)
+    min_altitude: 0.5                   # Minimum flight altitude (meters)
 
     # Velocity limits
-    max_velocity: 5.0               # Maximum velocity before override (m/s)
-    max_acceleration: 5.0           # Maximum acceleration (m/s²)
+    max_velocity: 5.0                   # Maximum velocity before override (m/s)
+    max_acceleration: 5.0               # Maximum acceleration (m/s²)
 
     # Battery monitoring
-    min_battery_voltage: 14.0       # Minimum battery voltage (volts)
-    critical_battery_voltage: 13.0  # Critical battery voltage (volts)
+    min_battery_voltage: 14.0           # Minimum battery voltage (volts)
+    critical_battery_voltage: 13.0      # Critical battery voltage (volts)
+    default_safe_battery_voltage: 16.0  # Default safe battery voltage when no data (volts)
+    battery_timeout_multiplier: 5       # Multiplier for battery data timeout
 
     # Geofencing
-    max_distance_from_home: 100.0   # Maximum distance from takeoff point (meters)
+    max_distance_from_home: 100.0       # Maximum distance from takeoff point (meters)
 
     # Obstacle avoidance
-    obstacle_danger_distance: 1.0   # Danger distance from obstacles (meters)
-    obstacle_warning_distance: 2.0  # Warning distance from obstacles (meters)
+    obstacle_danger_distance: 1.0       # Danger distance from obstacles (meters)
+    obstacle_warning_distance: 2.0      # Warning distance from obstacles (meters)
+    default_safe_lidar_distance: 10.0   # Default safe LiDAR distance when no data (meters)
 
     # Communication monitoring
-    communication_timeout: 2.0      # Communication timeout (seconds)
-    heartbeat_timeout: 5.0          # Heartbeat timeout (seconds)
+    communication_timeout: 2.0          # Communication timeout (seconds)
+    heartbeat_timeout: 5.0              # Heartbeat timeout (seconds)
 
     # Emergency procedures
-    emergency_descent_rate: 2.0     # Emergency descent rate (m/s)
-    emergency_land_timeout: 30.0    # Emergency landing timeout (seconds)
+    emergency_descent_rate: 2.0         # Emergency descent rate (m/s)
+    emergency_land_timeout: 30.0        # Emergency landing timeout (seconds)
 
     # Failsafe actions
-    failsafe_hover_duration: 5.0    # How long to hover before emergency action (seconds)
-    auto_return_home: true          # Automatically return home on failsafe
+    failsafe_hover_duration: 5.0        # How long to hover before emergency action (seconds)
+    auto_return_home: true              # Automatically return home on failsafe
 
     # System monitoring
-    monitor_rate: 10.0              # Safety monitoring rate (Hz)
-    status_publish_rate: 1.0        # Status publishing rate (Hz)
+    monitor_rate: 10.0                  # Safety monitoring rate (Hz)
+    status_publish_rate: 1.0            # Status publishing rate (Hz)
 
+    # QoS settings
+    qos_depth: 1                        # QoS depth for safety topics
+
+# ═══════════════════════════════════════════════════════════════════
 # FC Communications Node Parameters
+# ═══════════════════════════════════════════════════════════════════
 fc_comms_node:
   ros__parameters:
     # Serial communication
-    serial_port: "/dev/ttyAMA0"     # Serial port for INAV communication
-    baud_rate: 115200               # Serial baud rate
-    timeout: 1.0                    # Serial timeout (seconds)
+    serial_port: "/dev/ttyAMA0"         # Serial port for INAV communication
+    baud_rate: 115200                   # Serial baud rate
+    timeout: 1.0                        # Serial timeout (seconds)
 
     # Connection management
-    reconnect_interval: 5.0         # Reconnection attempt interval (seconds)
-    telemetry_rate: 10.0            # Telemetry request rate (Hz)
-    heartbeat_rate: 1.0             # Heartbeat rate (Hz)
+    reconnect_interval: 5.0             # Reconnection attempt interval (seconds)
+    telemetry_rate: 10.0                # Telemetry request rate (Hz)
+    heartbeat_rate: 1.0                 # Heartbeat rate (Hz)
+    heartbeat_timeout: 10.0             # Heartbeat timeout (seconds)
+    connection_timeout: 10.0            # Overall connection timeout (seconds)
 
     # MSP protocol settings
-    msp_timeout: 0.5                # MSP message timeout (seconds)
-    max_retries: 3                  # Maximum message retries
+    msp_timeout: 0.5                    # MSP message timeout (seconds)
+    max_retries: 3                      # Maximum message retries
+    max_rx_buffer_size: 1024            # Maximum receive buffer size (bytes)
 
-    # Data processing
-    imu_scale_accel: 0.001          # IMU accelerometer scale factor
-    imu_scale_gyro: 0.001           # IMU gyroscope scale factor
-    gps_coord_scale: 1e7            # GPS coordinate scale factor
+    # Waypoint polling
+    waypoint_poll_mode: "first"         # Waypoint polling mode (first/all/none)
+    max_waypoint_cycle: 10              # Maximum waypoint index to cycle through
 
+    # Data processing scales
+    imu_scale_accel: 0.001              # IMU accelerometer scale factor
+    imu_scale_gyro: 0.001               # IMU gyroscope scale factor
+    gps_coord_scale: 1e7                # GPS coordinate scale factor (1e7 for INAV)
+    battery_voltage_scale: 10.0         # Battery voltage divisor (vbat / 10.0)
+    battery_current_scale: 100.0        # Battery current divisor (amperage / 100.0)
+
+    # QoS settings
+    command_qos_depth: 10               # QoS depth for command topics
+
+# ═══════════════════════════════════════════════════════════════════
 # FC Adapter Node Parameters
+# ═══════════════════════════════════════════════════════════════════
 fc_adapter_node:
   ros__parameters:
+    # Control rates
+    control_rate_hz: 40.0               # Main control loop rate (Hz)
+    prearm_rate_hz: 40                  # Pre-arm sequence rate (Hz)
+
     # Velocity limits
-    max_velocity: 5.0               # Maximum velocity command (m/s)
-    max_yaw_rate: 180.0             # Maximum yaw rate (deg/s)
-    max_acceleration: 3.0           # Maximum acceleration (m/s²)
+    max_velocity: 3.0                   # Maximum velocity command (m/s)
+    max_yaw_rate: 180.0                 # Maximum yaw rate (deg/s)
+    max_acceleration: 3.0               # Maximum acceleration (m/s²)
+    absolute_max_velocity: 10.0         # Absolute maximum velocity (m/s)
+    absolute_max_yaw_rate: 360.0        # Absolute maximum yaw rate (deg/s)
+    max_tilt_angle: 30.0                # Maximum tilt angle (degrees)
 
     # Command processing
-    command_timeout: 1.0            # Command timeout (seconds)
-    rate_limit_enabled: true        # Enable rate limiting
-    smooth_commands: true           # Enable command smoothing
-    safety_checks_enabled: true     # Enable safety validation
+    command_timeout: 1.0                # Command timeout (seconds)
+    rate_limit_enabled: true            # Enable rate limiting
+    smooth_commands: true               # Enable command smoothing
+    safety_checks_enabled: true         # Enable safety validation
+
+    # Timing
+    warmup_frames: 40                   # Number of warmup frames before accepting commands
+    startup_delay_sec: 20.0             # Initial startup delay (seconds)
+    prearm_duration_sec: 30.0           # Pre-arm sequence duration (seconds)
+    serial_settle_time: 2.0             # Serial connection settle time (seconds)
 
     # Flight control
-    auto_arm: false                 # Automatically arm the aircraft
-    failsafe_mode: "hover"          # Failsafe behavior (hover/land/disarm)
+    auto_arm: false                     # Automatically arm the aircraft
+    failsafe_mode: "hover"              # Failsafe behavior (hover/land/disarm)
+
+    # MSP Serial settings
+    msp_serial_port: "/dev/ttyAMA0"     # MSP serial port
+    msp_baud_rate: 115200               # MSP baud rate
+    msp_write_timeout: 0.05             # MSP write timeout (seconds)
 
     # MSP RC channel mapping
-    rc_mid_value: 1500              # RC channel center value
-    rc_range: 400                   # RC channel range (+/- from center)
+    rc_mid_value: 1500                  # RC channel center value
+    rc_range: 400                       # RC channel range (+/- from center)
+    rc_min_value: 1300                  # RC minimum value (safety limit)
+    rc_max_value: 1700                  # RC maximum value (safety limit)
+    rc_deviation_limit: 400.0           # Maximum RC deviation from center
+    rc_armed_value: 2000                # RC value for armed state
+    rc_disarmed_value: 1000             # RC value for disarmed state
 
-    # Safety limits (absolute maximums)
-    absolute_max_velocity: 10.0     # Absolute maximum velocity (m/s)
-    absolute_max_yaw_rate: 360.0    # Absolute maximum yaw rate (deg/s)
-    max_tilt_angle: 30.0            # Maximum tilt angle (degrees)
+    # Pre-arm RC channel values [roll, pitch, throttle, yaw, arm, mode, aux1, aux2]
+    prearm_rc_channels: [1500, 1500, 1000, 1500, 1800, 1500, 1500, 1800]
+
+    # PID Controller gains
+    kp_xy: 150.0                        # Proportional gain for XY control
+    ki_xy: 10.0                         # Integral gain for XY control
+    kd_xy: 20.0                         # Derivative gain for XY control
+    kp_z: 100.0                         # Proportional gain for Z control
+    ki_z: 5.0                           # Integral gain for Z control
+    kd_z: 15.0                          # Derivative gain for Z control
+
+    # PID limits
+    pid_output_min: -400.0              # Minimum PID output
+    pid_output_max: 400.0               # Maximum PID output
+    pid_integral_max: 50.0              # Maximum integral accumulation
+    pid_derivative_filter_alpha: 0.1    # Derivative filter coefficient (0-1)
+    pid_max_history_length: 100         # Maximum PID history length
 
     # Command smoothing
-    smoothing_alpha: 0.7            # Smoothing filter coefficient (0-1)
-    history_length: 5               # Command history length
+    smoothing_alpha: 0.7                # Smoothing filter coefficient (0-1)
+    history_length: 5                   # Command history length
 
-# LiDAR Reader Node Parameters (Front Sensor)
-# front_lidar/lidar_reader_front:
-#   ros__parameters:
-#     # I2C communication
-#     i2c_bus: 1                      # I2C bus number
-#     i2c_address: 0x08               # I2C device address
-#     distance_register: 0x24         # Distance data register address
+# ═══════════════════════════════════════════════════════════════════
+# Black Box Recorder Node Parameters
+# ═══════════════════════════════════════════════════════════════════
+black_box_recorder_node:
+  ros__parameters:
+    # Storage settings
+    log_directory: "/var/log/swarm_blackbox"  # Directory for log files
+    max_log_file_size_mb: 100           # Maximum log file size (MB)
+    max_files_per_session: 10           # Maximum files per session
 
-#     # Sensor configuration
-#     frame_id: "front_lidar_link"    # TF frame for front sensor
-#     sensor_position: "front"        # Sensor mounting position
-#     publish_rate: 100.0             # Publishing rate (Hz, max 100Hz per specs)
+    # Buffering
+    log_buffer_size: 1000               # Message buffer size
+    log_flush_interval: 5.0             # Buffer flush interval (seconds)
+    max_buffer_bytes: 1024              # Maximum buffer size before forced flush (bytes)
 
-#     # Range limits
-#     max_range: 50.0                 # Maximum valid range (meters)
-#     min_range: 0.05                 # Minimum valid range (meters)
-#     field_of_view: 0.035            # Sensor FOV (radians, ~2 degrees)
+    # Statistics
+    stats_logging_interval: 60.0        # Statistics logging interval (seconds)
 
-#     # Data processing
-#     enable_filtering: true          # Enable distance filtering
-#     filter_window_size: 5           # Moving average window size
-#     max_invalid_readings: 10        # Max consecutive invalid readings before error
+    # QoS settings
+    reliable_qos_depth: 10              # QoS depth for reliable data
+    sensor_qos_depth: 1                 # QoS depth for sensor data
 
+    # Recording options
+    record_observations: true           # Record AI observations
+    record_actions: true                # Record AI actions
+    record_telemetry: true              # Record flight controller telemetry
+    record_safety_events: true          # Record safety events
+    compress_logs: false                # Compress log files (not yet implemented)
+
+# ═══════════════════════════════════════════════════════════════════
 # LiDAR Reader Node Parameters (Down Sensor)
+# ═══════════════════════════════════════════════════════════════════
 down_lidar/lidar_reader_down:
   ros__parameters:
     # I2C communication
-    i2c_bus: 1                      # I2C bus number
-    i2c_address: 0x09               # I2C device address (different from front sensor)
-    distance_register: 0x24         # Distance data register address
+    i2c_bus: 1                          # I2C bus number
+    i2c_address: 0x09                   # I2C device address
+    distance_register: 0x24             # Distance data register address
 
     # Sensor configuration
-    frame_id: "down_lidar_link"     # TF frame for down sensor
-    sensor_position: "down"         # Sensor mounting position
-    publish_rate: 100.0             # Publishing rate (Hz, max 100Hz per specs)
+    frame_id: "down_lidar_link"         # TF frame for down sensor
+    sensor_position: "down"             # Sensor mounting position
+    publish_rate: 100.0                 # Publishing rate (Hz, max 100Hz per specs)
 
     # Range limits
-    max_range: 50.0                 # Maximum valid range (meters)
-    min_range: 0.05                 # Minimum valid range (meters)
-    field_of_view: 0.035            # Sensor FOV (radians, ~2 degrees)
+    max_range: 50.0                     # Maximum valid range (meters)
+    min_range: 0.05                     # Minimum valid range (meters)
+    field_of_view: 0.035                # Sensor FOV (radians, ~2 degrees)
 
     # Data processing
-    enable_filtering: true          # Enable distance filtering
-    filter_window_size: 5           # Moving average window size
-    max_invalid_readings: 10        # Max consecutive invalid readings before error
+    enable_filtering: true              # Enable distance filtering
+    filter_window_size: 5               # Moving average window size
+    max_invalid_readings: 10            # Max consecutive invalid readings before error
+
+    # Timing
+    status_publish_interval: 1.0        # Status publishing interval (seconds)
+    reconnect_interval: 5.0             # I2C reconnection interval (seconds)
+
+    # QoS settings
+    sensor_qos_depth: 1                 # QoS depth for sensor data
+    reliable_qos_depth: 10              # QoS depth for reliable data
+
+    # Conversion
+    mm_to_m_divisor: 1000.0             # Millimeter to meter conversion
+
+# ═══════════════════════════════════════════════════════════════════
+# LiDAR Reader Node Parameters (Front Sensor) - OPTIONAL
+# ═══════════════════════════════════════════════════════════════════
+# Uncomment to enable front-facing LiDAR sensor
+# front_lidar/lidar_reader_front:
+#   ros__parameters:
+#     # I2C communication
+#     i2c_bus: 1                          # I2C bus number
+#     i2c_address: 0x08                   # I2C device address (different from down)
+#     distance_register: 0x24             # Distance data register address
+#
+#     # Sensor configuration
+#     frame_id: "front_lidar_link"        # TF frame for front sensor
+#     sensor_position: "front"            # Sensor mounting position
+#     publish_rate: 100.0                 # Publishing rate (Hz, max 100Hz per specs)
+#
+#     # Range limits
+#     max_range: 50.0                     # Maximum valid range (meters)
+#     min_range: 0.05                     # Minimum valid range (meters)
+#     field_of_view: 0.035                # Sensor FOV (radians, ~2 degrees)
+#
+#     # Data processing
+#     enable_filtering: true              # Enable distance filtering
+#     filter_window_size: 5               # Moving average window size
+#     max_invalid_readings: 10            # Max consecutive invalid readings before error
+#
+#     # Timing
+#     status_publish_interval: 1.0        # Status publishing interval (seconds)
+#     reconnect_interval: 5.0             # I2C reconnection interval (seconds)
+#
+#     # QoS settings
+#     sensor_qos_depth: 1                 # QoS depth for sensor data
+#     reliable_qos_depth: 10              # QoS depth for reliable data
+#
+#     # Conversion
+#     mm_to_m_divisor: 1000.0             # Millimeter to meter conversion

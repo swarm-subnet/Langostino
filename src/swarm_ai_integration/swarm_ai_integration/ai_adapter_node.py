@@ -54,6 +54,8 @@ class AIAdapterNode(Node):
         self.declare_parameter('max_ray_distance', 10.0)  # meters
         self.declare_parameter('action_buffer_size', 20)
         self.declare_parameter('relative_start_enu', [0.0, 0.0, 3.0])  # [E, N, U] meters
+        self.declare_parameter('sensor_qos_depth', 1)
+        self.declare_parameter('reliable_qos_depth', 10)
 
         telemetry_rate = self.get_parameter('telemetry_rate').get_parameter_value().double_value
         max_ray_distance = self.get_parameter('max_ray_distance').get_parameter_value().double_value
@@ -62,6 +64,8 @@ class AIAdapterNode(Node):
             self.get_parameter('relative_start_enu').get_parameter_value().double_array_value,
             dtype=np.float32
         )
+        sensor_qos_depth = self.get_parameter('sensor_qos_depth').get_parameter_value().integer_value
+        reliable_qos_depth = self.get_parameter('reliable_qos_depth').get_parameter_value().integer_value
 
         # -------------------------
         # Initialize Modular Components
@@ -94,12 +98,12 @@ class AIAdapterNode(Node):
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1
+            depth=sensor_qos_depth
         )
         reliable_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1
+            depth=reliable_qos_depth
         )
 
         # -------------------------

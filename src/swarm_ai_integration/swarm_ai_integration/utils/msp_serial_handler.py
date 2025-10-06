@@ -39,7 +39,9 @@ class MSPSerialHandler:
         port: str,
         baudrate: int,
         timeout: float = 1.0,
-        reconnect_interval: float = 5.0
+        reconnect_interval: float = 5.0,
+        heartbeat_timeout: float = 10.0,
+        max_rx_buffer_size: int = 1024
     ):
         """
         Initialize MSP serial handler.
@@ -50,12 +52,16 @@ class MSPSerialHandler:
             baudrate: Serial baud rate
             timeout: Serial read/write timeout
             reconnect_interval: Time between reconnection attempts
+            heartbeat_timeout: Timeout for heartbeat/connection health
+            max_rx_buffer_size: Maximum receive buffer size (bytes)
         """
         self.node = node
         self.port = port
         self.baudrate = baudrate
         self.timeout = timeout
         self.reconnect_interval = reconnect_interval
+        self.heartbeat_timeout = heartbeat_timeout
+        self.max_rx_buffer_size = max_rx_buffer_size
 
         # Serial connection
         self.serial_conn: Optional[serial.Serial] = None
@@ -180,7 +186,7 @@ class MSPSerialHandler:
                 self._read_and_process_data()
 
                 # Check connection health
-                if time.time() - self.last_heartbeat > 10.0:  # 10 second timeout
+                if time.time() - self.last_heartbeat > self.heartbeat_timeout:
                     self.node.get_logger().warn('⚠️  Flight controller communication timeout')
                     self.disconnect()
 
@@ -310,7 +316,7 @@ class MSPSerialHandler:
                 self.rx_buffer = self.rx_buffer[3:]
 
         # Prevent buffer from growing indefinitely
-        if len(self.rx_buffer) > 1024:
+        if len(self.rx_buffer) > self.max_rx_buffer_size:
             self.node.get_logger().warn(
                 f'RX buffer too large ({len(self.rx_buffer)} bytes), clearing. '
                 'This may indicate communication problems.'

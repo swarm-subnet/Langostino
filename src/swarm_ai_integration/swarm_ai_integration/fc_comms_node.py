@@ -40,7 +40,12 @@ class FCCommsNode(Node):
         self.declare_parameter('reconnect_interval', 5.0)
         self.declare_parameter('telemetry_rate', 10.0)
         self.declare_parameter('heartbeat_rate', 1.0)
-        self.declare_parameter('wp_poll_mode', 'first')  # 'first' or 'all'
+        self.declare_parameter('heartbeat_timeout', 10.0)
+        self.declare_parameter('connection_timeout', 10.0)
+        self.declare_parameter('wp_poll_mode', 'first')  # 'first' or 'all' or 'none'
+        self.declare_parameter('max_waypoint_cycle', 10)
+        self.declare_parameter('command_qos_depth', 10)
+        self.declare_parameter('max_rx_buffer_size', 1024)
 
         # Get parameters
         self.serial_port = self.get_parameter('serial_port').get_parameter_value().string_value
@@ -49,7 +54,11 @@ class FCCommsNode(Node):
         self.reconnect_interval = self.get_parameter('reconnect_interval').get_parameter_value().double_value
         self.telemetry_rate = self.get_parameter('telemetry_rate').get_parameter_value().double_value
         self.heartbeat_rate = self.get_parameter('heartbeat_rate').get_parameter_value().double_value
+        self.heartbeat_timeout = self.get_parameter('heartbeat_timeout').get_parameter_value().double_value
+        self.connection_timeout = self.get_parameter('connection_timeout').get_parameter_value().double_value
         self.wp_poll_mode = self.get_parameter('wp_poll_mode').get_parameter_value().string_value
+        self.max_waypoint_cycle = self.get_parameter('max_waypoint_cycle').get_parameter_value().integer_value
+        self.command_qos_depth = self.get_parameter('command_qos_depth').get_parameter_value().integer_value
 
         # Initialize modular components
         self.serial_handler = MSPSerialHandler(
@@ -57,7 +66,9 @@ class FCCommsNode(Node):
             port=self.serial_port,
             baudrate=self.baud_rate,
             timeout=self.timeout,
-            reconnect_interval=self.reconnect_interval
+            reconnect_interval=self.reconnect_interval,
+            heartbeat_timeout=self.heartbeat_timeout,
+            max_rx_buffer_size=self.get_parameter('max_rx_buffer_size').get_parameter_value().integer_value
         )
 
         self.parser = MSPMessageParser()
@@ -97,14 +108,14 @@ class FCCommsNode(Node):
             Float32MultiArray,
             '/fc/msp_command',
             self.msp_command_callback,
-            10
+            self.command_qos_depth
         )
 
         self.create_subscription(
             Float32MultiArray,
             '/fc/rc_override',
             self.rc_override_callback,
-            10
+            self.command_qos_depth
         )
 
         # Start serial communication
@@ -146,7 +157,7 @@ class FCCommsNode(Node):
         elif self.wp_poll_mode == 'all':
             # Cycle through WP #0 to #N (would need to know max from mission)
             wp_payload = MSPDataTypes.pack_waypoint_request(self.wp_poll_index)
-            self.wp_poll_index = (self.wp_poll_index % 10) + 1  # Cycle 1-10
+            self.wp_poll_index = (self.wp_poll_index % self.max_waypoint_cycle) + 1  # Cycle 1-max
         else:
             return
 
