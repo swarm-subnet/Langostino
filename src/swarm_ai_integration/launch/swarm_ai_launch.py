@@ -11,98 +11,198 @@ Usage:
     ros2 launch swarm_ai_integration swarm_ai_launch.py model_path:=/path/to/model.zip
 """
 
+import os
+import yaml
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration, TextSubstitution
 from launch_ros.actions import Node
 from launch.conditions import IfCondition
+from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
+    # Load swarm_params.yaml to get default values
+    package_dir = get_package_share_directory('swarm_ai_integration')
+    params_file = os.path.join(package_dir, 'config', 'swarm_params.yaml')
+
+    with open(params_file, 'r') as f:
+        params = yaml.safe_load(f)
+
+    # Extract default values from YAML
+    ai_adapter_params = params['ai_adapter_node']['ros__parameters']
+    ai_flight_params = params['ai_flight_node']['ros__parameters']
+    safety_params = params['safety_monitor_node']['ros__parameters']
+    fc_comms_params = params['fc_comms_node']['ros__parameters']
+    fc_adapter_params = params['fc_adapter_node']['ros__parameters']
+    down_lidar_params = params['down_lidar/lidar_reader_down']['ros__parameters']
+    blackbox_params = params['black_box_recorder_node']['ros__parameters']
+
     # Declare launch arguments
     model_path_arg = DeclareLaunchArgument(
         'model_path',
-        default_value='',
+        default_value=str(ai_flight_params['model_path']),
         description='Path to the trained AI model file (.zip)'
     )
 
     device_arg = DeclareLaunchArgument(
         'device',
-        default_value='cpu',
+        default_value=str(ai_flight_params['device']),
         description='Device to run AI model on (cpu or cuda)'
     )
 
     enable_safety_arg = DeclareLaunchArgument(
         'enable_safety',
-        default_value='true',
+        default_value=str(ai_flight_params['safety_enabled']).lower(),
         description='Enable safety monitoring'
     )
 
     max_velocity_arg = DeclareLaunchArgument(
         'max_velocity',
-        default_value='3.0',
+        default_value=str(fc_adapter_params['max_velocity']),
         description='Maximum allowed velocity (m/s)'
     )
 
     max_altitude_arg = DeclareLaunchArgument(
         'max_altitude',
-        default_value='50.0',
+        default_value=str(safety_params['max_altitude']),
         description='Maximum allowed altitude (m)'
     )
 
     debug_mode_arg = DeclareLaunchArgument(
         'debug_mode',
-        default_value='false',
+        default_value=str(ai_adapter_params['debug_mode']).lower(),
         description='Enable debug logging'
     )
 
     serial_port_arg = DeclareLaunchArgument(
         'serial_port',
-        default_value='/dev/ttyUSB0',
+        default_value=str(fc_comms_params['serial_port']),
         description='Serial port for flight controller communication'
     )
 
     baud_rate_arg = DeclareLaunchArgument(
         'baud_rate',
-        default_value='115200',
+        default_value=str(fc_comms_params['baud_rate']),
         description='Baud rate for serial communication'
     )
 
-    front_lidar_i2c_bus_arg = DeclareLaunchArgument(
-        'front_lidar_i2c_bus',
-        default_value='1',
-        description='I2C bus number for front LiDAR sensor'
-    )
+    # front_lidar_i2c_bus_arg = DeclareLaunchArgument(
+    #     'front_lidar_i2c_bus',
+    #     default_value='1',
+    #     description='I2C bus number for front LiDAR sensor'
+    # )
 
-    front_lidar_i2c_address_arg = DeclareLaunchArgument(
-        'front_lidar_i2c_address',
-        default_value='8',
-        description='I2C address for front LiDAR sensor (decimal)'
-    )
+    # front_lidar_i2c_address_arg = DeclareLaunchArgument(
+    #     'front_lidar_i2c_address',
+    #     default_value='8',
+    #     description='I2C address for front LiDAR sensor (decimal)'
+    # )
 
     down_lidar_i2c_bus_arg = DeclareLaunchArgument(
         'down_lidar_i2c_bus',
-        default_value='1',
+        default_value=str(down_lidar_params['i2c_bus']),
         description='I2C bus number for down-facing LiDAR sensor'
     )
 
     down_lidar_i2c_address_arg = DeclareLaunchArgument(
         'down_lidar_i2c_address',
-        default_value='9',
+        default_value=str(down_lidar_params['i2c_address']),
         description='I2C address for down-facing LiDAR sensor (decimal)'
     )
 
     # Black Box Recorder arguments
     log_directory_arg = DeclareLaunchArgument(
         'log_directory',
-        default_value='/var/log/swarm_blackbox',
+        default_value=str(blackbox_params['log_directory']),
         description='Directory for black box log files'
     )
 
     enable_blackbox_arg = DeclareLaunchArgument(
         'enable_blackbox',
-        default_value='true',
+        default_value='true',  # Not in YAML, keeping as default
         description='Enable black box flight data recorder'
+    )
+
+    # LiDAR Reader Nodes - Front and Down sensors
+    # front_lidar_node = Node(
+    #     package='swarm_ai_integration',
+    #     executable='lidar_reader_node.py',
+    #     name='lidar_reader_front',
+    #     namespace='front_lidar',
+    #     output='screen',
+    #     parameters=[{
+    #         'i2c_bus': LaunchConfiguration('front_lidar_i2c_bus'),
+    #         'i2c_address': LaunchConfiguration('front_lidar_i2c_address'),
+    #         'distance_register': 0x24,
+    #         'publish_rate': 100.0,
+    #         'frame_id': 'front_lidar_link',
+    #         'sensor_position': 'front',
+    #         'max_range': 50.0,
+    #         'min_range': 0.05,
+    #         'field_of_view': 0.035,
+    #         'enable_filtering': True,
+    #         'filter_window_size': 5
+    #     }],
+    #     remappings=[
+    #         ('lidar_distance', 'lidar_distance_front'),
+    #         ('lidar_raw', 'lidar_raw_front'),
+    #         ('lidar_status', 'lidar_status_front'),
+    #         ('lidar_point', 'lidar_point_front'),
+    #         ('lidar_healthy', 'lidar_healthy_front')
+    #     ]
+    # )
+
+    down_lidar_node = Node(
+        package='swarm_ai_integration',
+        executable='lidar_reader_node.py',
+        name='lidar_reader_down',
+        namespace='down_lidar',
+        output='screen',
+        parameters=[{
+            'i2c_bus': LaunchConfiguration('down_lidar_i2c_bus'),
+            'i2c_address': LaunchConfiguration('down_lidar_i2c_address'),
+            'distance_register': 0x24,
+            'publish_rate': 100.0,
+            'frame_id': 'down_lidar_link',
+            'sensor_position': 'down',
+            'max_range': 50.0,
+            'min_range': 0.05,
+            'field_of_view': 0.035,
+            'enable_filtering': True,
+            'filter_window_size': 5
+        }],
+        remappings=[
+            ('lidar_distance', 'lidar_distance_down'),
+            ('lidar_raw', 'lidar_raw_down'),
+            ('lidar_status', 'lidar_status_down'),
+            ('lidar_point', 'lidar_point_down'),
+            ('lidar_healthy', 'lidar_healthy_down')
+        ]
+    )
+
+    # FC Communications Node - MSP interface to INAV
+    fc_comms_node = Node(
+        package='swarm_ai_integration',
+        executable='fc_comms_node.py',
+        name='fc_comms_node',
+        output='screen',
+        parameters=[{
+            'serial_port': LaunchConfiguration('serial_port'),
+            'baud_rate': LaunchConfiguration('baud_rate'),
+            'timeout': 1.0,
+            'reconnect_interval': 5.0,
+            'telemetry_rate': 10.0,
+            'heartbeat_rate': 1.0
+        }],
+        remappings=[
+            ('/fc/imu_raw', '/imu/data'),
+            ('/fc/gps_fix', '/gps/fix'),
+            ('/fc/attitude', '/fc/attitude'),
+            ('/fc/status', '/fc/status'),
+            ('/fc/battery', '/mavros/battery'),
+            ('/fc/motor_rpm', '/fc/motor_rpm')
+        ]
     )
 
     # AI Adapter Node - converts sensor data to observation array
@@ -140,10 +240,26 @@ def generate_launch_description():
             'prediction_timeout': 0.1,
             'max_velocity': LaunchConfiguration('max_velocity'),
             'safety_enabled': LaunchConfiguration('enable_safety')
-        }],
-        remappings=[
-            ('/ai/action', '/cmd_vel')
-        ]
+        }]
+    )
+
+    # FC Adapter Node - VEL to MSP command translation
+    fc_adapter_node = Node(
+        package='swarm_ai_integration',
+        executable='fc_adapter_node.py',
+        name='fc_adapter_node',
+        output='screen',
+        parameters=[{
+            'max_velocity': LaunchConfiguration('max_velocity'),
+            'max_yaw_rate': 180.0,
+            'max_acceleration': 3.0,
+            'command_timeout': 1.0,
+            'rate_limit_enabled': True,
+            'smooth_commands': True,
+            'safety_checks_enabled': LaunchConfiguration('enable_safety'),
+            'auto_arm': False,
+            'failsafe_mode': 'hover'
+        }]
     )
 
     # Safety Monitor Node - monitors system safety
@@ -166,114 +282,6 @@ def generate_launch_description():
             ('/drone/pose', '/mavros/local_position/pose'),
             ('/drone/velocity', '/mavros/local_position/velocity_local'),
             ('/battery_state', '/mavros/battery')
-        ]
-    )
-
-    # FC Communications Node - MSP interface to INAV
-    fc_comms_node = Node(
-        package='swarm_ai_integration',
-        executable='fc_comms_node.py',
-        name='fc_comms_node',
-        output='screen',
-        parameters=[{
-            'serial_port': LaunchConfiguration('serial_port'),
-            'baud_rate': LaunchConfiguration('baud_rate'),
-            'timeout': 1.0,
-            'reconnect_interval': 5.0,
-            'telemetry_rate': 10.0,
-            'heartbeat_rate': 1.0
-        }],
-        remappings=[
-            ('/fc/imu_raw', '/imu/data'),
-            ('/fc/gps_fix', '/gps/fix'),
-            ('/fc/attitude', '/fc/attitude'),
-            ('/fc/status', '/fc/status'),
-            ('/fc/battery', '/mavros/battery'),
-            ('/fc/motor_rpm', '/fc/motor_rpm')
-        ]
-    )
-
-    # FC Adapter Node - VEL to MSP command translation
-    fc_adapter_node = Node(
-        package='swarm_ai_integration',
-        executable='fc_adapter_node.py',
-        name='fc_adapter_node',
-        output='screen',
-        parameters=[{
-            'max_velocity': LaunchConfiguration('max_velocity'),
-            'max_yaw_rate': 180.0,
-            'max_acceleration': 3.0,
-            'command_timeout': 1.0,
-            'rate_limit_enabled': True,
-            'smooth_commands': True,
-            'safety_checks_enabled': LaunchConfiguration('enable_safety'),
-            'auto_arm': False,
-            'failsafe_mode': 'hover'
-        }],
-        remappings=[
-            ('/cmd_vel', '/cmd_vel'),
-            ('/safety/override', '/safety/override'),
-            ('/fc/attitude', '/fc/attitude'),
-            ('/manual_control', '/joy'),
-            ('/fc/rc_override', '/fc/rc_override'),
-            ('/fc/msp_command', '/fc/msp_command')
-        ]
-    )
-
-    # LiDAR Reader Nodes - Front and Down sensors
-    front_lidar_node = Node(
-        package='swarm_ai_integration',
-        executable='lidar_reader_node.py',
-        name='lidar_reader_front',
-        namespace='front_lidar',
-        output='screen',
-        parameters=[{
-            'i2c_bus': LaunchConfiguration('front_lidar_i2c_bus'),
-            'i2c_address': LaunchConfiguration('front_lidar_i2c_address'),
-            'distance_register': 0x24,
-            'publish_rate': 100.0,
-            'frame_id': 'front_lidar_link',
-            'sensor_position': 'front',
-            'max_range': 50.0,
-            'min_range': 0.05,
-            'field_of_view': 0.035,
-            'enable_filtering': True,
-            'filter_window_size': 5
-        }],
-        remappings=[
-            ('lidar_distance', 'lidar_distance_front'),
-            ('lidar_raw', 'lidar_raw_front'),
-            ('lidar_status', 'lidar_status_front'),
-            ('lidar_point', 'lidar_point_front'),
-            ('lidar_healthy', 'lidar_healthy_front')
-        ]
-    )
-
-    down_lidar_node = Node(
-        package='swarm_ai_integration',
-        executable='lidar_reader_node.py',
-        name='lidar_reader_down',
-        namespace='down_lidar',
-        output='screen',
-        parameters=[{
-            'i2c_bus': LaunchConfiguration('down_lidar_i2c_bus'),
-            'i2c_address': LaunchConfiguration('down_lidar_i2c_address'),
-            'distance_register': 0x24,
-            'publish_rate': 100.0,
-            'frame_id': 'down_lidar_link',
-            'sensor_position': 'down',
-            'max_range': 50.0,
-            'min_range': 0.05,
-            'field_of_view': 0.035,
-            'enable_filtering': True,
-            'filter_window_size': 5
-        }],
-        remappings=[
-            ('lidar_distance', 'lidar_distance_down'),
-            ('lidar_raw', 'lidar_raw_down'),
-            ('lidar_status', 'lidar_status_down'),
-            ('lidar_point', 'lidar_point_down'),
-            ('lidar_healthy', 'lidar_healthy_down')
         ]
     )
 
@@ -313,8 +321,8 @@ def generate_launch_description():
         debug_mode_arg,
         serial_port_arg,
         baud_rate_arg,
-        front_lidar_i2c_bus_arg,
-        front_lidar_i2c_address_arg,
+        # front_lidar_i2c_bus_arg,
+        # front_lidar_i2c_address_arg,
         down_lidar_i2c_bus_arg,
         down_lidar_i2c_address_arg,
         log_directory_arg,
@@ -324,12 +332,12 @@ def generate_launch_description():
         launch_info,
 
         # Nodes
+        #front_lidar_node,
+        down_lidar_node,
+        fc_comms_node,
         ai_adapter_node,
         ai_flight_node,
-        safety_monitor_node,
-        fc_comms_node,
         fc_adapter_node,
-        front_lidar_node,
-        down_lidar_node,
+        safety_monitor_node,
         black_box_recorder_node,
     ])
