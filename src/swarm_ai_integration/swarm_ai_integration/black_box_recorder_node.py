@@ -6,12 +6,24 @@ This node acts as a black box flight data recorder, logging all critical system 
 including sensor inputs, AI model outputs, flight controller communications, and
 safety system status. Data is persisted to files that survive system restarts.
 
-Data Logged:
-- Sensor data: LiDAR, IMU, GPS, battery
-- AI system: observations, actions, model status
-- Flight controller: commands sent, telemetry received, MSP communications
-- Safety system: override status, emergency actions
-- System health: node status, performance metrics
+Data Logged (31 topics):
+- AI System (5): observations, actions, status, model_ready, debug observations
+- Flight Controller (11): IMU, GPS, attitude (quat + euler), battery, status,
+  MSP status, connection, motors, GPS speed/course, waypoints
+- FC Commands (2): RC override, MSP commands
+- FC Adapter (2): status, velocity error
+- LiDAR (5): distance, raw, point, status, health
+- Safety System (3): override, RTH command, status
+- System Events: startup, shutdown, statistics, errors
+
+Features:
+- Buffered writing with automatic flush
+- File rotation at 100MB (configurable)
+- Gzip compression of old files
+- Session-based organization
+- Data correlation (AI actions with observations)
+- Thread-safe operation
+- Graceful fallback to /tmp on permission errors
 """
 
 import json
@@ -22,15 +34,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional
 import gzip
-import numpy as np
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
-from std_msgs.msg import Bool, String, Float32MultiArray, Header
+from std_msgs.msg import Bool, String, Float32MultiArray
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState, Range
-from geometry_msgs.msg import Twist, PoseStamped, Vector3Stamped, PointStamped
+from geometry_msgs.msg import PoseStamped, Vector3Stamped, PointStamped, QuaternionStamped
 
 
 class BlackBoxRecorderNode(Node):
@@ -240,6 +251,10 @@ class BlackBoxRecorderNode(Node):
             Bool, '/ai/model_ready',
             lambda msg: self.log_message('AI_MODEL_READY', msg), reliable_qos)
 
+        self.ai_debug_sub = self.create_subscription(
+            Float32MultiArray, '/ai/observation_debug',
+            lambda msg: self.log_message('AI_OBSERVATION_DEBUG', msg), reliable_qos)
+
         # Flight Controller Topics
         self.fc_imu_sub = self.create_subscription(
             Imu, '/fc/imu_raw',
@@ -250,6 +265,10 @@ class BlackBoxRecorderNode(Node):
             lambda msg: self.log_message('FC_GPS', msg), sensor_qos)
 
         self.fc_attitude_sub = self.create_subscription(
+            QuaternionStamped, '/fc/attitude',
+            lambda msg: self.log_message('FC_ATTITUDE', msg), sensor_qos)
+
+        self.fc_attitude_euler_sub = self.create_subscription(
             Vector3Stamped, '/fc/attitude_euler',
             lambda msg: self.log_message('FC_ATTITUDE_EULER', msg, 'fc_attitude'), sensor_qos)
 
@@ -311,6 +330,14 @@ class BlackBoxRecorderNode(Node):
         self.lidar_point_sub = self.create_subscription(
             PointStamped, '/lidar_point',
             lambda msg: self.log_message('LIDAR_POINT', msg), sensor_qos)
+
+        self.lidar_status_sub = self.create_subscription(
+            String, '/lidar_status',
+            lambda msg: self.log_message('LIDAR_STATUS', msg), reliable_qos)
+
+        self.lidar_healthy_sub = self.create_subscription(
+            Bool, '/lidar_healthy',
+            lambda msg: self.log_message('LIDAR_HEALTHY', msg), reliable_qos)
 
         # Safety System Topics
         self.safety_override_sub = self.create_subscription(
@@ -435,10 +462,39 @@ class BlackBoxRecorderNode(Node):
                     'point': {'x': msg.point.x, 'y': msg.point.y, 'z': msg.point.z}
                 }
 
+            elif hasattr(msg, 'quaternion') and not hasattr(msg, 'data'):
+                # QuaternionStamped messages
+                return {
+                    'quaternion': {
+                        'x': msg.quaternion.x,
+                        'y': msg.quaternion.y,
+                        'z': msg.quaternion.z,
+                        'w': msg.quaternion.w
+                    }
+                }
+
             elif hasattr(msg, 'vector') and not hasattr(msg, 'data'):
                 # Vector3Stamped messages
                 return {
                     'vector': {'x': msg.vector.x, 'y': msg.vector.y, 'z': msg.vector.z}
+                }
+
+            elif hasattr(msg, 'pose') and not hasattr(msg, 'data'):
+                # PoseStamped messages
+                return {
+                    'pose': {
+                        'position': {
+                            'x': msg.pose.position.x,
+                            'y': msg.pose.position.y,
+                            'z': msg.pose.position.z
+                        },
+                        'orientation': {
+                            'x': msg.pose.orientation.x,
+                            'y': msg.pose.orientation.y,
+                            'z': msg.pose.orientation.z,
+                            'w': msg.pose.orientation.w
+                        }
+                    }
                 }
 
             elif hasattr(msg, 'linear') and hasattr(msg, 'angular'):
