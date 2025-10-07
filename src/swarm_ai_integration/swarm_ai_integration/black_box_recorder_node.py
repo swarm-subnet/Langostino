@@ -70,9 +70,6 @@ class BlackBoxRecorderNode(Node):
         self.current_file_size = 0
         self.file_counter = 0
 
-        # Setup log directory and initial file
-        self.setup_logging()
-
         # Data caches for correlation
         self.last_data = {
             'ai_observation': None,
@@ -83,7 +80,7 @@ class BlackBoxRecorderNode(Node):
             'safety_status': None
         }
 
-        # Performance tracking
+        # Performance tracking - MUST be initialized before setup_logging()
         self.stats = {
             'messages_logged': 0,
             'bytes_written': 0,
@@ -91,6 +88,9 @@ class BlackBoxRecorderNode(Node):
             'dropped_messages': 0,
             'errors': 0
         }
+
+        # Setup log directory and initial file
+        self.setup_logging()
 
         # QoS profiles
         reliable_qos = QoSProfile(
