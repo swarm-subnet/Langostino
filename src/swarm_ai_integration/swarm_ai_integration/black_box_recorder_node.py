@@ -375,25 +375,10 @@ class BlackBoxRecorderNode(Node):
     def _extract_message_data(self, msg) -> Dict[str, Any]:
         """Extract data from ROS message into JSON-serializable format"""
         try:
-            if hasattr(msg, 'data'):
-                # Standard data messages
-                if isinstance(msg.data, (list, tuple)):
-                    return {'data': list(msg.data)}
-                else:
-                    return {'data': msg.data}
+            # Check specific message types BEFORE generic .data attribute
+            # Order matters: check most specific types first
 
-            elif isinstance(msg.data, (list, tuple)) and hasattr(msg, 'data'):
-                # Float32MultiArray (already handled above, but ensure it's first)
-                return {'data': list(msg.data)}
-
-            elif hasattr(msg, 'linear') and hasattr(msg, 'angular'):
-                # Twist messages
-                return {
-                    'linear': {'x': msg.linear.x, 'y': msg.linear.y, 'z': msg.linear.z},
-                    'angular': {'x': msg.angular.x, 'y': msg.angular.y, 'z': msg.angular.z}
-                }
-
-            elif hasattr(msg, 'orientation'):
+            if hasattr(msg, 'orientation') and hasattr(msg, 'angular_velocity'):
                 # IMU messages
                 return {
                     'orientation': {
@@ -419,34 +404,56 @@ class BlackBoxRecorderNode(Node):
                     'status': {'status': msg.status.status, 'service': msg.status.service}
                 }
 
-            elif hasattr(msg, 'voltage'):
-                # Battery messages
+            elif hasattr(msg, 'voltage') and hasattr(msg, 'power_supply_status'):
+                # Battery messages (BatteryState)
                 return {
                     'voltage': msg.voltage,
-                    'current': msg.current if hasattr(msg, 'current') else None,
-                    'percentage': msg.percentage if hasattr(msg, 'percentage') else None
+                    'current': msg.current,
+                    'charge': msg.charge,
+                    'capacity': msg.capacity,
+                    'design_capacity': msg.design_capacity,
+                    'percentage': msg.percentage,
+                    'power_supply_status': msg.power_supply_status,
+                    'power_supply_health': msg.power_supply_health,
+                    'power_supply_technology': msg.power_supply_technology,
+                    'present': msg.present
                 }
 
-            elif hasattr(msg, 'range'):
-                # Range sensor messages
+            elif hasattr(msg, 'range') and hasattr(msg, 'radiation_type'):
+                # Range sensor messages (Range)
                 return {
                     'range': msg.range,
                     'min_range': msg.min_range,
                     'max_range': msg.max_range,
-                    'field_of_view': msg.field_of_view
+                    'field_of_view': msg.field_of_view,
+                    'radiation_type': msg.radiation_type
                 }
 
-            elif hasattr(msg, 'vector'):
+            elif hasattr(msg, 'point') and not hasattr(msg, 'data'):
+                # PointStamped messages
+                return {
+                    'point': {'x': msg.point.x, 'y': msg.point.y, 'z': msg.point.z}
+                }
+
+            elif hasattr(msg, 'vector') and not hasattr(msg, 'data'):
                 # Vector3Stamped messages
                 return {
                     'vector': {'x': msg.vector.x, 'y': msg.vector.y, 'z': msg.vector.z}
                 }
 
-            elif hasattr(msg, 'point'):
-                # PointStamped messages
+            elif hasattr(msg, 'linear') and hasattr(msg, 'angular'):
+                # Twist messages
                 return {
-                    'point': {'x': msg.point.x, 'y': msg.point.y, 'z': msg.point.z}
+                    'linear': {'x': msg.linear.x, 'y': msg.linear.y, 'z': msg.linear.z},
+                    'angular': {'x': msg.angular.x, 'y': msg.angular.y, 'z': msg.angular.z}
                 }
+
+            elif hasattr(msg, 'data'):
+                # Standard data messages (Bool, String, Float32MultiArray, etc.)
+                if isinstance(msg.data, (list, tuple)):
+                    return {'data': list(msg.data)}
+                else:
+                    return {'data': msg.data}
 
             else:
                 # Fallback: try to convert to dict
