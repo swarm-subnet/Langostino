@@ -216,6 +216,9 @@ class FCCommsNode(Node):
             elif message.command == MSPCommand.MSP_RC:
                 self._handle_rc(message.data)
 
+            elif message.command == MSPCommand.MSP_IDENT:
+                self._handle_ident(message.data)
+
             else:
                 # Unknown or unhandled command
                 self._handle_unknown_command(message)
@@ -295,6 +298,21 @@ class FCCommsNode(Node):
         channels = self.parser.parse_rc_data(data)
         if channels:
             self.get_logger().debug(f'   RC Channels: {channels}')
+
+    def _handle_ident(self, data: bytes):
+        """Handle MSP_IDENT data (flight controller identification)"""
+        ident_data = self.parser.parse_ident_data(data)
+        if ident_data:
+            self.get_logger().info(
+                f'✈️  Flight Controller Identification:\n'
+                f'   Version: {ident_data["version"]}\n'
+                f'   Aircraft Type: {ident_data["multitype_name"]} (code: {ident_data["multitype"]})\n'
+                f'   MSP Version: {ident_data["msp_version"]}\n'
+                f'   Capabilities: {", ".join(ident_data["capabilities"]) if ident_data["capabilities"] else "None"}\n'
+                f'   - Navigation: {"✓" if ident_data["has_navcap"] else "✗"}\n'
+                f'   - Extended AUX: {"✓" if ident_data["has_extaux"] else "✗"}\n'
+                f'   - Binding: {"✓" if ident_data["has_bind"] else "✗"}'
+            )
 
     def _handle_unknown_command(self, message: MSPMessage):
         """
