@@ -56,31 +56,38 @@ class ObservationBuilder:
         """
         Update with a new action from the AI.
 
+        This stores the action but does NOT append to buffer yet.
+        The buffer is updated in prepare_action_for_observation().
+
         Args:
             action: 4-element action array
         """
         self.last_action_received = action.copy()
-        self.action_buffer.append(action.copy())
         self.action_count += 1
 
     def prepare_action_for_observation(self) -> np.ndarray:
         """
         Prepare action for current observation tick.
 
+        This method is called ONCE per observation cycle to determine
+        what action to use and update the action buffer history.
+
         If no new action received since last tick, returns zeros and
-        appends zeros to the buffer. Otherwise returns the last action.
+        appends zeros to the buffer. Otherwise returns the last action
+        and appends it to the buffer.
 
         Returns:
             4-element action array for this observation
         """
         if self.action_count == self._last_action_count_seen:
-            # No new action, use zeros
+            # No new action since last observation tick, use zeros
             zero_action = np.zeros(4, dtype=np.float32)
             self.action_buffer.append(zero_action.copy())
             last_action_for_obs = zero_action
         else:
-            # New action available
+            # New action available since last observation tick
             last_action_for_obs = self.last_action_received.copy()
+            self.action_buffer.append(last_action_for_obs.copy())
 
         self._last_action_count_seen = self.action_count
         return last_action_for_obs
