@@ -165,15 +165,16 @@ class FCCommsNode(Node):
         self.serial_handler.send_message(wp_message)
 
     def send_heartbeat(self):
-        """Send periodic heartbeat to flight controller"""
+        """
+        Send periodic heartbeat to flight controller.
+
+        Note: MSP_IDENT was removed in INAV 5.x, so we just publish
+        connection status based on serial handler state.
+        """
         if not self.serial_handler.is_connected():
             return
 
-        # Send MSP_IDENT as heartbeat
-        message = MSPMessage(MSPCommand.MSP_IDENT, b'', MSPDirection.REQUEST)
-        self.serial_handler.send_message(message)
-
-        # Publish connection status
+        # Publish connection status (no MSP_IDENT needed for INAV 8.x)
         self.publisher.publish_connection_status(True)
 
     # ═══════════════════════════════════════════════════════════════════
@@ -215,9 +216,6 @@ class FCCommsNode(Node):
 
             elif message.command == MSPCommand.MSP_RC:
                 self._handle_rc(message.data)
-
-            elif message.command == MSPCommand.MSP_IDENT:
-                self._handle_ident(message.data)
 
             else:
                 # Unknown or unhandled command
@@ -298,21 +296,6 @@ class FCCommsNode(Node):
         channels = self.parser.parse_rc_data(data)
         if channels:
             self.get_logger().debug(f'   RC Channels: {channels}')
-
-    def _handle_ident(self, data: bytes):
-        """Handle MSP_IDENT data (flight controller identification)"""
-        ident_data = self.parser.parse_ident_data(data)
-        if ident_data:
-            self.get_logger().info(
-                f'✈️  Flight Controller Identification:\n'
-                f'   Version: {ident_data["version"]}\n'
-                f'   Aircraft Type: {ident_data["multitype_name"]} (code: {ident_data["multitype"]})\n'
-                f'   MSP Version: {ident_data["msp_version"]}\n'
-                f'   Capabilities: {", ".join(ident_data["capabilities"]) if ident_data["capabilities"] else "None"}\n'
-                f'   - Navigation: {"✓" if ident_data["has_navcap"] else "✗"}\n'
-                f'   - Extended AUX: {"✓" if ident_data["has_extaux"] else "✗"}\n'
-                f'   - Binding: {"✓" if ident_data["has_bind"] else "✗"}'
-            )
 
     def _handle_unknown_command(self, message: MSPMessage):
         """
