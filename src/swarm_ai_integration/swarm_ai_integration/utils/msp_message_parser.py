@@ -115,6 +115,13 @@ class MSPMessageParser:
             Tuple of (NavSatFix message, speed/course array, satellite count) or (None, None, None)
         """
         try:
+            # DEBUG: Log raw GPS data bytes
+            if len(data) >= 16:
+                import struct
+                fix_byte = data[0]
+                sat_byte = data[1]
+                print(f"🐛 GPS DEBUG: fix_byte=0x{fix_byte:02x} ({fix_byte}), satellites={sat_byte}, raw_hex={data[:16].hex()}")
+
             gps_data = MSPDataTypes.unpack_gps_data(data)
 
             if not gps_data:
@@ -130,12 +137,21 @@ class MSPMessageParser:
             gps_msg.altitude = float(gps_data['altitude'])  # meters
 
             fix_type_value = gps_data.get('fix_type', 0)
-            # Map: 0=NO_FIX, 1=2D, 2=3D (treat >=3 as 3D as well)
-            if fix_type_value >= 2:
+            num_satellites = int(gps_data.get('satellites', 0))
+
+            # INAV FIX: The fix_type byte is unreliable in INAV.
+            # Use satellite count as proxy for fix quality:
+            # - 6+ satellites with valid position = 3D FIX
+            # - 4-5 satellites = 2D FIX (marginal)
+            # - < 4 satellites = NO FIX
+            if num_satellites >= 6:
+                # With 6+ satellites, definitely have 3D fix
                 gps_msg.status.status = gps_msg.status.STATUS_FIX
-            elif fix_type_value == 1:
+            elif num_satellites >= 4:
+                # 4-5 satellites, likely 2D or marginal 3D
                 gps_msg.status.status = gps_msg.status.STATUS_SBAS_FIX
             else:
+                # < 4 satellites, no reliable fix
                 gps_msg.status.status = gps_msg.status.STATUS_NO_FIX
 
             gps_msg.status.service = gps_msg.status.SERVICE_GPS

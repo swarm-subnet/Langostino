@@ -336,16 +336,19 @@ class MSPDataTypes:
     @staticmethod
     def unpack_gps_data(data: bytes) -> Dict[str, Union[int, float]]:
         """
-        Unpack GPS data for MSP_RAW_GPS (code=106) per ROS/INAV layout:
+        Unpack GPS data for MSP_RAW_GPS (code=106) per MSP spec:
 
         Byte layout (length = 16 bytes):
             0   : uint8   fix
             1   : uint8   numSat
-            2-5 : int32   lat       (° * 1e7, signed)
-            6-9 : int32   lon       (° * 1e7, signed)
+            2-5 : int32   lat       (° * 1e7, SIGNED for negative latitudes)
+            6-9 : int32   lon       (° * 1e7, SIGNED for negative longitudes)
             10-11: uint16 altitude  (meters)
             12-13: uint16 speed     (cm/s)
             14-15: uint16 ground_course (deg * 10)
+
+        NOTE: MSP docs show uint32 for lat/lon but it's actually int32 (signed)
+        to support negative coordinates (southern hemisphere, western longitude).
 
         Returns keys:
             latitude (float, deg), longitude (float, deg),
@@ -354,10 +357,27 @@ class MSPDataTypes:
             satellites (int), fix_type (int)
         """
         if len(data) < 16:
-            logger.warning(f"Insufficient data for GPS: {len(data)} bytes (expected 16)")
+            logger.warning(f"Insufficient data for GPS: {len(data)} bytes (expected 16+)")
             return {}
 
+        # INAV sometimes sends 18 bytes instead of 16
+        # Parse first 16 bytes: BB = two uint8, ii = two int32 (signed), HHH = three uint16
         fix, num_sat, lat_i, lon_i, alt_m, speed_cms, course_10deg = struct.unpack('<BBiiHHH', data[:16])
+
+        # If 18 bytes, check what the extra bytes contain
+        hdop = None
+        extra_bytes_hex = ""
+        if len(data) >= 18:
+            extra_bytes = data[16:18]
+            extra_bytes_hex = extra_bytes.hex()
+            # Try as uint16 HDOP
+            hdop = struct.unpack('<H', extra_bytes)[0]
+            logger.info(f"📡 GPS Extended (18 bytes): extra_bytes=0x{extra_bytes_hex}, interpreted_as_hdop={hdop}")
+
+        # Debug: Log all raw values
+        logger.info(f"🐛 GPS FULL DEBUG: fix_byte={fix} (0x{fix:02x}), sats={num_sat}, "
+                   f"lat_raw={lat_i}, lon_raw={lon_i}, hdop={hdop}, "
+                   f"full_hex={data[:18].hex() if len(data)>=18 else data.hex()}")
 
         return {
             'latitude':  lat_i / 1e7,
