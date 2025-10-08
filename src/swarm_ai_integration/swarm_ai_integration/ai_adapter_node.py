@@ -192,8 +192,14 @@ class AIAdapterNode(Node):
         """Handle GPS position updates with quality validation and tiered averaging."""
 
         # Update GPS quality with fix status
+        # ROS NavSatStatus: STATUS_NO_FIX=-1, STATUS_FIX=0 (3D fix!), STATUS_SBAS_FIX=1, STATUS_GBAS_FIX=2
         sat_count, _, hdop = self.sensor_manager.get_gps_quality()
-        fix_type = 0 if msg.status.status == msg.status.STATUS_NO_FIX else (1 if msg.status.status == msg.status.STATUS_SBAS_FIX else 2)
+        if msg.status.status == msg.status.STATUS_NO_FIX:
+            fix_type = 0  # NO_FIX
+        elif msg.status.status == msg.status.STATUS_FIX:
+            fix_type = 2  # 3D FIX (status=0 means valid fix!)
+        else:
+            fix_type = 1  # 2D or augmented fix
         self.sensor_manager.update_gps_quality(sat_count, fix_type, hdop)
 
         # Check GPS quality before processing
@@ -410,10 +416,11 @@ class AIAdapterNode(Node):
     def compute_observation(self):
         """Compute and publish 131-D observation."""
         # Check GPS quality first
-        if not self.sensor_manager.is_gps_quality_sufficient(self.min_gps_satellites):
-            sat_count, fix_type = self.sensor_manager.get_gps_quality()
+        if not self.sensor_manager.is_gps_quality_sufficient(max_hdop=4.0, min_satellites=self.min_gps_satellites):
+            sat_count, fix_type, hdop = self.sensor_manager.get_gps_quality()
+            hdop_str = f'hdop={hdop:.2f}m' if hdop < 90.0 else f'{sat_count} satellites (need {self.min_gps_satellites})'
             self.get_logger().warn(
-                f'⚠️  GPS not ready: {sat_count} satellites (need {self.min_gps_satellites}), fix_type={fix_type}',
+                f'⚠️  GPS not ready: {hdop_str}, fix_type={fix_type}',
                 throttle_duration_sec=2.0
             )
             return

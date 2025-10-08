@@ -139,14 +139,15 @@ class MSPMessageParser:
             fix_type_value = gps_data.get('fix_type', 0)
             num_satellites = int(gps_data.get('satellites', 0))
 
-            # Use INAV's fix_type byte directly (it's reliable!)
-            # 0=NO_FIX, 1=2D, 2=3D
+            # Map INAV fix_type to ROS NavSatStatus
+            # INAV: 0=NO_FIX, 1=2D, 2=3D
+            # ROS: STATUS_NO_FIX=-1, STATUS_FIX=0 (valid 3D), STATUS_SBAS_FIX=1
             if fix_type_value >= 2:
-                gps_msg.status.status = gps_msg.status.STATUS_FIX  # 3D fix
+                gps_msg.status.status = gps_msg.status.STATUS_FIX  # 3D fix → status=0 (VALID!)
             elif fix_type_value == 1:
-                gps_msg.status.status = gps_msg.status.STATUS_SBAS_FIX  # 2D fix
+                gps_msg.status.status = gps_msg.status.STATUS_SBAS_FIX  # 2D fix → status=1
             else:
-                gps_msg.status.status = gps_msg.status.STATUS_NO_FIX
+                gps_msg.status.status = gps_msg.status.STATUS_NO_FIX  # No fix → status=-1
 
             gps_msg.status.service = gps_msg.status.SERVICE_GPS
             gps_msg.position_covariance_type = gps_msg.COVARIANCE_TYPE_UNKNOWN
