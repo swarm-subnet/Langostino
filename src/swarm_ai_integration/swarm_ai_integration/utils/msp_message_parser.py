@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any, Tuple
 
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState
 from geometry_msgs.msg import QuaternionStamped, Vector3Stamped
-from std_msgs.msg import Float32MultiArray, String
+from std_msgs.msg import Float32MultiArray, String, Int32
 
 from swarm_ai_integration.msp_protocol import MSPDataTypes, MSPCommand
 
@@ -102,9 +102,9 @@ class MSPMessageParser:
         data: bytes,
         timestamp,
         frame_id: str = 'fc_gps'
-    ) -> Tuple[Optional[NavSatFix], Optional[Float32MultiArray]]:
+    ) -> Tuple[Optional[NavSatFix], Optional[Float32MultiArray], Optional[Int32]]:
         """
-        Parse MSP_RAW_GPS data and create GPS and speed/course messages.
+        Parse MSP_RAW_GPS data and create GPS, speed/course, and satellite count messages.
 
         Args:
             data: Raw MSP payload
@@ -112,13 +112,13 @@ class MSPMessageParser:
             frame_id: TF frame ID
 
         Returns:
-            Tuple of (NavSatFix message, speed/course array) or (None, None)
+            Tuple of (NavSatFix message, speed/course array, satellite count) or (None, None, None)
         """
         try:
             gps_data = MSPDataTypes.unpack_gps_data(data)
 
             if not gps_data:
-                return None, None
+                return None, None, None
 
             # Create NavSatFix message
             gps_msg = NavSatFix()
@@ -149,10 +149,14 @@ class MSPMessageParser:
             speed_msg = Float32MultiArray()
             speed_msg.data = [speed_mps, course_deg]  # [m/s, deg]
 
-            return gps_msg, speed_msg
+            # Create satellite count message
+            sat_msg = Int32()
+            sat_msg.data = int(gps_data.get('satellites', 0))
+
+            return gps_msg, speed_msg, sat_msg
 
         except Exception as e:
-            return None, None
+            return None, None, None
 
     def parse_attitude_data(
         self,
