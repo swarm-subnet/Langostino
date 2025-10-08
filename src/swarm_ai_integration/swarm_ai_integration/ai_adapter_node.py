@@ -21,7 +21,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
-from std_msgs.msg import Float32MultiArray, Int32
+from std_msgs.msg import Float32MultiArray, Int32, Float32
 from sensor_msgs.msg import NavSatFix, Imu, Range
 from geometry_msgs.msg import QuaternionStamped, Vector3Stamped
 
@@ -117,6 +117,9 @@ class AIAdapterNode(Node):
         self.gps_satellites_sub = self.create_subscription(
             Int32, '/fc/gps_satellites', self.gps_satellites_callback, sensor_qos
         )
+        self.gps_hdop_sub = self.create_subscription(
+            Float32, '/fc/gps_hdop', self.gps_hdop_callback, sensor_qos
+        )
         self.att_quat_sub = self.create_subscription(
             QuaternionStamped, '/fc/attitude', self.att_quat_callback, sensor_qos
         )
@@ -174,26 +177,32 @@ class AIAdapterNode(Node):
         """Handle GPS satellite count updates."""
         # Update GPS quality tracking
         sat_count = msg.data
-        fix_status = 0  # Will be updated in gps_callback
+        _, fix_status, hdop = self.sensor_manager.get_gps_quality()
 
         # Store satellite count for quality checks
-        self.sensor_manager.update_gps_quality(sat_count, fix_status)
+        self.sensor_manager.update_gps_quality(sat_count, fix_status, hdop)
+
+    def gps_hdop_callback(self, msg: Float32):
+        """Handle GPS HDOP updates."""
+        # Update GPS quality tracking with HDOP
+        sat_count, fix_status, _ = self.sensor_manager.get_gps_quality()
+        self.sensor_manager.update_gps_quality(sat_count, fix_status, msg.data)
 
     def gps_callback(self, msg: NavSatFix):
         """Handle GPS position updates with quality validation and tiered averaging."""
 
         # Update GPS quality with fix status
-        sat_count, _ = self.sensor_manager.get_gps_quality()
+        sat_count, _, hdop = self.sensor_manager.get_gps_quality()
         fix_type = 0 if msg.status.status == msg.status.STATUS_NO_FIX else (1 if msg.status.status == msg.status.STATUS_SBAS_FIX else 2)
-        self.sensor_manager.update_gps_quality(sat_count, fix_type)
+        self.sensor_manager.update_gps_quality(sat_count, fix_type, hdop)
 
         # Check GPS quality before processing
-        if not self.sensor_manager.is_gps_quality_sufficient(self.min_gps_satellites):
+        if not self.sensor_manager.is_gps_quality_sufficient(max_hdop=4.0, min_satellites=self.min_gps_satellites):
             if not self.sensor_manager.data_received['gps']:
-                # First time - log warning
+                # First time - log warning with HDOP info
+                hdop_str = f'hdop={hdop:.2f}m' if hdop < 90.0 else f'sats={sat_count} (need {self.min_gps_satellites})'
                 self.get_logger().warn(
-                    f'⚠️  Waiting for GPS lock: {sat_count} satellites (need {self.min_gps_satellites}), '
-                    f'fix_type={fix_type} (need 2+)',
+                    f'⚠️  Waiting for GPS lock: {hdop_str}, fix_type={fix_type} (need 2+)',
                     throttle_duration_sec=2.0
                 )
             return  # Skip processing until GPS quality is sufficient
@@ -208,8 +217,9 @@ class AIAdapterNode(Node):
         # Log GPS lock achieved
         if first_fix:
             window = self.sensor_manager.origin_averaging_window
+            quality_str = f'hdop={hdop:.2f}m' if hdop < 90.0 else f'{sat_count} satellites'
             self.get_logger().info(
-                f'✅ GPS LOCK: {sat_count} satellites, fix_type={fix_type}'
+                f'✅ GPS LOCK: {quality_str}, fix_type={fix_type}'
             )
             self.get_logger().info(
                 f'📊 Tiered averaging: collecting {window} samples for origin '
@@ -235,10 +245,11 @@ class AIAdapterNode(Node):
                 origin[0], origin[1], origin[2]
             )
 
-            # Log origin setting
+            # Log origin setting with HDOP info
             sample_count = self.sensor_manager.get_origin_sample_count()
+            quality_str = f'hdop={hdop:.2f}m' if hdop < 90.0 else f'{sat_count} satellites'
             self.get_logger().info(
-                f'🎯 ORIGIN SET: Averaged {sample_count} GPS samples with {sat_count} satellites'
+                f'🎯 ORIGIN SET: Averaged {sample_count} GPS samples with {quality_str}'
             )
             self.debug_logger.log_origin_set(
                 origin=origin,

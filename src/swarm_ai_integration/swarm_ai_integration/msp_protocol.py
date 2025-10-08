@@ -386,7 +386,8 @@ class MSPDataTypes:
             'speed':     speed_cms,                   # cm/s
             'ground_course': course_10deg / 10.0,     # degrees
             'satellites': num_sat,
-            'fix_type':  fix
+            'fix_type':  fix,
+            'hdop':      hdop / 100.0 if hdop is not None else None  # HDOP in meters (100 = 1.00m)
         }
 
     @staticmethod

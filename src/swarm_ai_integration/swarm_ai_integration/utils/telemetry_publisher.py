@@ -16,7 +16,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState
 from geometry_msgs.msg import QuaternionStamped, Vector3Stamped
-from std_msgs.msg import Float32MultiArray, String, Bool, Int32
+from std_msgs.msg import Float32MultiArray, String, Bool, Int32, Float32
 
 
 class TelemetryPublisher:
@@ -79,6 +79,9 @@ class TelemetryPublisher:
         self.gps_satellites_pub = self.node.create_publisher(
             Int32, '/fc/gps_satellites', self.sensor_qos
         )
+        self.gps_hdop_pub = self.node.create_publisher(
+            Float32, '/fc/gps_hdop', self.sensor_qos
+        )
 
         # Attitude data
         self.attitude_pub = self.node.create_publisher(
@@ -134,8 +137,8 @@ class TelemetryPublisher:
         )
 
     def publish_gps(self, gps_msg: NavSatFix, speed_course_msg: Optional[Float32MultiArray] = None,
-                    satellites_msg: Optional[Int32] = None):
-        """Publish GPS data, speed/course, and satellite count"""
+                    satellites_msg: Optional[Int32] = None, hdop_msg: Optional[Float32] = None):
+        """Publish GPS data, speed/course, satellite count, and HDOP"""
         self.gps_pub.publish(gps_msg)
         self.last_telemetry['gps'] = gps_msg
 
@@ -152,9 +155,15 @@ class TelemetryPublisher:
         else:
             sat_info = ''
 
+        if hdop_msg:
+            self.gps_hdop_pub.publish(hdop_msg)
+            hdop_info = f'hdop={hdop_msg.data:.2f}m | '
+        else:
+            hdop_info = ''
+
         self.node.get_logger().info(
             f'   ➜ Published to /fc/gps_fix | '
-            f'{speed_info}{sat_info}'
+            f'{speed_info}{sat_info}{hdop_info}'
             f'lat={gps_msg.latitude:.7f} | lon={gps_msg.longitude:.7f} | '
             f'alt={gps_msg.altitude:.1f}m | fix={gps_msg.status.status}'
         )

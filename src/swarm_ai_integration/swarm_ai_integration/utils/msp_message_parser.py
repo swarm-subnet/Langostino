@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any, Tuple
 
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState
 from geometry_msgs.msg import QuaternionStamped, Vector3Stamped
-from std_msgs.msg import Float32MultiArray, String, Int32
+from std_msgs.msg import Float32MultiArray, String, Int32, Float32
 
 from swarm_ai_integration.msp_protocol import MSPDataTypes, MSPCommand
 
@@ -102,9 +102,9 @@ class MSPMessageParser:
         data: bytes,
         timestamp,
         frame_id: str = 'fc_gps'
-    ) -> Tuple[Optional[NavSatFix], Optional[Float32MultiArray], Optional[Int32]]:
+    ) -> Tuple[Optional[NavSatFix], Optional[Float32MultiArray], Optional[Int32], Optional[Float32]]:
         """
-        Parse MSP_RAW_GPS data and create GPS, speed/course, and satellite count messages.
+        Parse MSP_RAW_GPS data and create GPS, speed/course, satellite count, and HDOP messages.
 
         Args:
             data: Raw MSP payload
@@ -112,7 +112,7 @@ class MSPMessageParser:
             frame_id: TF frame ID
 
         Returns:
-            Tuple of (NavSatFix message, speed/course array, satellite count) or (None, None, None)
+            Tuple of (NavSatFix message, speed/course array, satellite count, HDOP) or (None, None, None, None)
         """
         try:
             # DEBUG: Log raw GPS data bytes
@@ -125,7 +125,7 @@ class MSPMessageParser:
             gps_data = MSPDataTypes.unpack_gps_data(data)
 
             if not gps_data:
-                return None, None, None
+                return None, None, None, None
 
             # Create NavSatFix message
             gps_msg = NavSatFix()
@@ -139,19 +139,13 @@ class MSPMessageParser:
             fix_type_value = gps_data.get('fix_type', 0)
             num_satellites = int(gps_data.get('satellites', 0))
 
-            # INAV FIX: The fix_type byte is unreliable in INAV.
-            # Use satellite count as proxy for fix quality:
-            # - 6+ satellites with valid position = 3D FIX
-            # - 4-5 satellites = 2D FIX (marginal)
-            # - < 4 satellites = NO FIX
-            if num_satellites >= 6:
-                # With 6+ satellites, definitely have 3D fix
-                gps_msg.status.status = gps_msg.status.STATUS_FIX
-            elif num_satellites >= 4:
-                # 4-5 satellites, likely 2D or marginal 3D
-                gps_msg.status.status = gps_msg.status.STATUS_SBAS_FIX
+            # Use INAV's fix_type byte directly (it's reliable!)
+            # 0=NO_FIX, 1=2D, 2=3D
+            if fix_type_value >= 2:
+                gps_msg.status.status = gps_msg.status.STATUS_FIX  # 3D fix
+            elif fix_type_value == 1:
+                gps_msg.status.status = gps_msg.status.STATUS_SBAS_FIX  # 2D fix
             else:
-                # < 4 satellites, no reliable fix
                 gps_msg.status.status = gps_msg.status.STATUS_NO_FIX
 
             gps_msg.status.service = gps_msg.status.SERVICE_GPS
@@ -169,10 +163,17 @@ class MSPMessageParser:
             sat_msg = Int32()
             sat_msg.data = int(gps_data.get('satellites', 0))
 
-            return gps_msg, speed_msg, sat_msg
+            # Create HDOP message (if available)
+            hdop_msg = None
+            hdop_value = gps_data.get('hdop')
+            if hdop_value is not None:
+                hdop_msg = Float32()
+                hdop_msg.data = float(hdop_value)
+
+            return gps_msg, speed_msg, sat_msg, hdop_msg
 
         except Exception as e:
-            return None, None, None
+            return None, None, None, None
 
     def parse_attitude_data(
         self,

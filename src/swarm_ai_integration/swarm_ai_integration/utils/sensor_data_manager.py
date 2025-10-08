@@ -37,6 +37,7 @@ class SensorDataManager:
         # GPS quality tracking
         self.gps_satellite_count = 0
         self.gps_fix_type = 0  # 0=NO_FIX, 1=2D, 2+=3D
+        self.gps_hdop = 99.99  # HDOP in meters (high = poor quality)
 
         # Origin averaging (tiered strategy)
         self.origin_samples = []  # Buffer for averaging initial origin
@@ -77,46 +78,76 @@ class SensorDataManager:
     # Position & Origin Management
     # -------------------------------------------------------------------------
 
-    def update_gps_quality(self, satellite_count: int, fix_type: int):
+    def update_gps_quality(self, satellite_count: int, fix_type: int, hdop: Optional[float] = None):
         """
         Update GPS quality metrics.
 
         Args:
             satellite_count: Number of satellites
             fix_type: Fix type (0=NO_FIX, 1=2D, 2+=3D)
+            hdop: Horizontal Dilution of Precision in meters (optional)
         """
         self.gps_satellite_count = int(satellite_count)
         self.gps_fix_type = int(fix_type)
+        if hdop is not None:
+            self.gps_hdop = float(hdop)
 
-    def get_gps_quality(self) -> Tuple[int, int]:
-        """Get GPS quality metrics. Returns (satellite_count, fix_type)."""
-        return self.gps_satellite_count, self.gps_fix_type
+    def get_gps_quality(self) -> Tuple[int, int, float]:
+        """Get GPS quality metrics. Returns (satellite_count, fix_type, hdop)."""
+        return self.gps_satellite_count, self.gps_fix_type, self.gps_hdop
 
-    def is_gps_quality_sufficient(self, min_satellites: int = 6) -> bool:
+    def is_gps_quality_sufficient(self, max_hdop: float = 4.0, min_satellites: int = 6) -> bool:
         """
         Check if GPS quality is sufficient for flight.
 
         Args:
-            min_satellites: Minimum satellite count required (default: 6)
+            max_hdop: Maximum HDOP allowed in meters (default: 4.0)
+            min_satellites: Minimum satellite count required (default: 6, fallback if no HDOP)
 
         Returns:
-            True if GPS has 3D fix and sufficient satellites
+            True if GPS has 3D fix and sufficient quality (HDOP or satellite count)
         """
-        return self.gps_fix_type >= 2 and self.gps_satellite_count >= min_satellites
+        # Must have 3D fix
+        if self.gps_fix_type < 2:
+            return False
+
+        # Prefer HDOP if available, otherwise fall back to satellite count
+        if self.gps_hdop < 90.0:  # Valid HDOP received
+            return self.gps_hdop <= max_hdop
+        else:
+            return self.gps_satellite_count >= min_satellites
 
     def determine_averaging_window(self) -> int:
         """
-        Determine origin averaging window based on satellite count (tiered strategy).
+        Determine origin averaging window based on HDOP (tiered strategy).
 
-        Strategy:
-        - 10+ satellites: Average 10 samples (~7 seconds at 1.5 Hz) - excellent quality
-        - 8-9 satellites: Average 20 samples (~14 seconds) - good quality
-        - 6-7 satellites: Average 30 samples (~20 seconds) - marginal quality
+        Strategy (HDOP-based):
+        - HDOP < 1.5m: Average 10 samples (~7 seconds at 1.5 Hz) - excellent quality
+        - HDOP 1.5-2.5m: Average 20 samples (~14 seconds) - good quality
+        - HDOP 2.5-4.0m: Average 30 samples (~20 seconds) - marginal quality
+        - HDOP > 4.0m: Return 0 (insufficient)
+
+        Fallback (satellite count if HDOP unavailable):
+        - 10+ satellites: Average 10 samples - excellent quality
+        - 8-9 satellites: Average 20 samples - good quality
+        - 6-7 satellites: Average 30 samples - marginal quality
         - <6 satellites: Return 0 (insufficient)
 
         Returns:
-            Number of samples to average, or 0 if insufficient satellites
+            Number of samples to average, or 0 if insufficient quality
         """
+        # Use HDOP if available
+        if self.gps_hdop < 90.0:  # Valid HDOP received
+            if self.gps_hdop < 1.5:
+                return 10  # Excellent
+            elif self.gps_hdop < 2.5:
+                return 20  # Good
+            elif self.gps_hdop <= 4.0:
+                return 30  # Marginal
+            else:
+                return 0  # Insufficient
+
+        # Fallback to satellite count
         if self.gps_satellite_count >= 10:
             return 10
         elif self.gps_satellite_count >= 8:

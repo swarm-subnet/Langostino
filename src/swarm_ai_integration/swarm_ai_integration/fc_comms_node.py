@@ -242,13 +242,13 @@ class FCCommsNode(Node):
 
     def _handle_gps(self, data: bytes):
         """Handle GPS data"""
-        gps_msg, speed_msg, sat_msg = self.parser.parse_gps_data(
+        gps_msg, speed_msg, sat_msg, hdop_msg = self.parser.parse_gps_data(
             data,
             self.get_clock().now().to_msg(),
             'fc_gps'
         )
         if gps_msg:
-            self.publisher.publish_gps(gps_msg, speed_msg, sat_msg)
+            self.publisher.publish_gps(gps_msg, speed_msg, sat_msg, hdop_msg)
 
     def _handle_attitude(self, data: bytes):
         """Handle attitude data"""
