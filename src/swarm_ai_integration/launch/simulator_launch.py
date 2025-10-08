@@ -7,8 +7,8 @@ This launch file starts the simulator node for testing AI models without hardwar
 Usage:
     ros2 launch swarm_ai_integration simulator_launch.py
 
-    # With custom goal
-    ros2 launch swarm_ai_integration simulator_launch.py goal_x:=10.0 goal_y:=10.0 goal_z:=3.0
+    # With custom goal (MUST be in quotes and comma-separated)
+    ros2 launch swarm_ai_integration simulator_launch.py goal_position:='[10.0,10.0,3.0]'
 
     # With custom step size
     ros2 launch swarm_ai_integration simulator_launch.py step_size:=0.20
@@ -24,22 +24,16 @@ def generate_launch_description():
     """Generate launch description for simulator node."""
 
     # Declare launch arguments
-    goal_x_arg = DeclareLaunchArgument(
-        'goal_x',
-        default_value='5.0',
-        description='Goal position X (East) in meters'
+    goal_position_arg = DeclareLaunchArgument(
+        'goal_position',
+        default_value='[5.0, 5.0, 3.0]',
+        description='Goal position [E, N, U] in meters'
     )
 
-    goal_y_arg = DeclareLaunchArgument(
-        'goal_y',
-        default_value='5.0',
-        description='Goal position Y (North) in meters'
-    )
-
-    goal_z_arg = DeclareLaunchArgument(
-        'goal_z',
-        default_value='3.0',
-        description='Goal position Z (Up) in meters'
+    start_position_arg = DeclareLaunchArgument(
+        'start_position',
+        default_value='[0.0, 0.0, 3.0]',
+        description='Start position [E, N, U] in meters'
     )
 
     step_size_arg = DeclareLaunchArgument(
@@ -67,22 +61,19 @@ def generate_launch_description():
         name='ai_adapter_simulator',
         output='screen',
         parameters=[{
-            'goal_relative_enu': [
-                LaunchConfiguration('goal_x'),
-                LaunchConfiguration('goal_y'),
-                LaunchConfiguration('goal_z')
-            ],
             'meters_per_step': LaunchConfiguration('step_size'),
             'telemetry_rate': LaunchConfiguration('telemetry_rate'),
             'physics_rate': LaunchConfiguration('physics_rate'),
-            'relative_start_enu': [0.0, 0.0, 3.0],
-        }]
+        }],
+        # Use remapping or command line args for arrays since they don't work well in parameters
+        arguments=['--ros-args',
+                   '-p', 'goal_relative_enu:=' + LaunchConfiguration('goal_position'),
+                   '-p', 'relative_start_enu:=' + LaunchConfiguration('start_position')]
     )
 
     return LaunchDescription([
-        goal_x_arg,
-        goal_y_arg,
-        goal_z_arg,
+        goal_position_arg,
+        start_position_arg,
         step_size_arg,
         telemetry_rate_arg,
         physics_rate_arg,
