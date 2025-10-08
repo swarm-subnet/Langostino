@@ -164,6 +164,8 @@ class AIAdapterSimulatedNode(Node):
         # Distance tracking for logging
         self.iteration_count = 0
         self.total_distance_traveled = 0.0
+        self.goal_reached = False
+        self.goal_tolerance = 0.20  # meters - consider goal reached within 20cm
 
         # ─────────────────────────
         # QoS and I/O
@@ -290,6 +292,40 @@ class AIAdapterSimulatedNode(Node):
             f'Traveled={self.total_distance_traveled:6.2f}m | '
             f'Action=[{vx:5.2f}, {vy:5.2f}, {vz:5.2f}, spd={spd:4.2f}]'
         )
+
+        # Check if goal reached
+        if distance_to_goal <= self.goal_tolerance and not self.goal_reached:
+            self.goal_reached = True
+            self.get_logger().info('=' * 80)
+            self.get_logger().info('🎯 GOAL REACHED!')
+            self.get_logger().info('=' * 80)
+            self.get_logger().info(f'   • Final position: [{self.rel_pos_enu[0]:.2f}, {self.rel_pos_enu[1]:.2f}, {self.rel_pos_enu[2]:.2f}]')
+            self.get_logger().info(f'   • Target position: [{self.goal_rel_enu[0]:.2f}, {self.goal_rel_enu[1]:.2f}, {self.goal_rel_enu[2]:.2f}]')
+            self.get_logger().info(f'   • Final distance to goal: {distance_to_goal:.3f}m')
+            self.get_logger().info(f'   • Total iterations: {self.iteration_count}')
+            self.get_logger().info(f'   • Total distance traveled: {self.total_distance_traveled:.2f}m')
+
+            # Calculate efficiency (straight line distance vs actual traveled)
+            straight_line_dist = np.linalg.norm(self.goal_rel_enu - self.relative_start_enu)
+            efficiency = (straight_line_dist / self.total_distance_traveled * 100) if self.total_distance_traveled > 0 else 0
+            self.get_logger().info(f'   • Straight line distance: {straight_line_dist:.2f}m')
+            self.get_logger().info(f'   • Path efficiency: {efficiency:.1f}%')
+            self.get_logger().info('=' * 80)
+            self.get_logger().info('✅ Simulation complete. Shutting down in 2 seconds...')
+            self.get_logger().info('=' * 80)
+
+            # Schedule shutdown
+            import threading
+            def delayed_shutdown():
+                import time
+                time.sleep(2.0)
+                self.get_logger().info('Shutting down simulator node...')
+                import os
+                os._exit(0)
+
+            shutdown_thread = threading.Thread(target=delayed_shutdown)
+            shutdown_thread.daemon = True
+            shutdown_thread.start()
 
     # ────────────────────────────────────────────────────────────────
     # Telemetry tick (publish sensors + build observation)
