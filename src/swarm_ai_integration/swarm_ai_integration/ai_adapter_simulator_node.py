@@ -55,7 +55,7 @@ class AIAdapterSimulatedNode(Node):
         # ─────────────────────────
         self.declare_parameter('telemetry_rate', 30.0)             # Hz for building/publishing observation
         self.declare_parameter('physics_rate', 10.0)               # Hz for state integration (match AIFlightNode 10 Hz)
-        self.declare_parameter('meters_per_step', 0.1)             # meters * speed per physics tick (at speed=1.0)
+        self.declare_parameter('meters_per_step', 0.15)            # 15cm per physics tick
         self.declare_parameter('use_speed_scalar', True)           # if True, scale [vx,vy,vz] by 'speed'
 
         # Start geodetic (approx your logs, adjust as needed)
@@ -64,10 +64,10 @@ class AIAdapterSimulatedNode(Node):
         self.declare_parameter('start_alt', 182.0)
 
         # Desired initial relative ENU (same semantics as your real adapter)
-        self.declare_parameter('relative_start_enu', [0.0, 0.0, 3.0])  # meters
+        self.declare_parameter('relative_start_enu', [0.0, 0.0, 3.0])  # meters (hardcoded start)
 
         # Goal as RELATIVE ENU offset from origin (converted to geodetic here)
-        self.declare_parameter('goal_relative_enu', [20.0, 0.0, 3.0])   # E,N,U in meters
+        self.declare_parameter('goal_relative_enu', [5.0, 5.0, 3.0])   # E,N,U in meters (default final point)
 
         # Lidar model
         self.declare_parameter('lidar_min_range', 0.05)
@@ -161,6 +161,10 @@ class AIAdapterSimulatedNode(Node):
         # Action from AI (default zeros until messages arrive)
         self.last_action = np.zeros(4, dtype=np.float32)  # [vx, vy, vz, speed]
 
+        # Distance tracking for logging
+        self.iteration_count = 0
+        self.total_distance_traveled = 0.0
+
         # ─────────────────────────
         # QoS and I/O
         # ─────────────────────────
@@ -241,6 +245,10 @@ class AIAdapterSimulatedNode(Node):
         step_vec_body = np.array([vx, vy, vz], dtype=np.float32) * float(self.meters_per_step * spd)
         # Since yaw=0, body==ENU:
         dE, dN, dU = [float(step_vec_body[i]) for i in range(3)]
+
+        # Store old position for distance calculation
+        old_pos = self.rel_pos_enu.copy()
+
         self.rel_pos_enu[0] += dE
         self.rel_pos_enu[1] += dN
         self.rel_pos_enu[2] += dU
@@ -265,6 +273,23 @@ class AIAdapterSimulatedNode(Node):
             float(self.origin[2]),
         )
         self.cur_lat, self.cur_lon, self.cur_alt = float(geo[0]), float(geo[1]), float(geo[2])
+
+        # Calculate distances for logging
+        step_distance = np.linalg.norm(self.rel_pos_enu - old_pos)
+        self.total_distance_traveled += step_distance
+
+        distance_to_goal = np.linalg.norm(self.goal_rel_enu - self.rel_pos_enu)
+        distance_from_start = np.linalg.norm(self.rel_pos_enu - self.relative_start_enu)
+
+        # Log progress every iteration
+        self.iteration_count += 1
+        self.get_logger().info(
+            f'🚁 Iter {self.iteration_count:04d} | '
+            f'Pos=[{self.rel_pos_enu[0]:6.2f}, {self.rel_pos_enu[1]:6.2f}, {self.rel_pos_enu[2]:6.2f}] | '
+            f'→Goal={distance_to_goal:6.2f}m | '
+            f'Traveled={self.total_distance_traveled:6.2f}m | '
+            f'Action=[{vx:5.2f}, {vy:5.2f}, {vz:5.2f}, spd={spd:4.2f}]'
+        )
 
     # ────────────────────────────────────────────────────────────────
     # Telemetry tick (publish sensors + build observation)
