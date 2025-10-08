@@ -22,6 +22,7 @@ ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
   swarm_ai_integration/ai_adapter_node.py
+  swarm_ai_integration/ai_adapter_simulator_node.py
   swarm_ai_integration/ai_flight_node.py
   swarm_ai_integration/safety_monitor_node.py
   swarm_ai_integration/fc_comms_node.py
