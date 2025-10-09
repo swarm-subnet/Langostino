@@ -51,7 +51,7 @@ class AIAdapterNode(Node):
         # Configuration
         # -------------------------
         self.declare_parameter('telemetry_rate', 30.0)  # Hz
-        self.declare_parameter('max_ray_distance', 10.0)  # meters
+        self.declare_parameter('max_ray_distance', 20.0)  # meters - MUST MATCH TRAINING
         self.declare_parameter('action_buffer_size', 20)
         self.declare_parameter('relative_start_enu', [0.0, 0.0, 3.0])  # [E, N, U] meters
         self.declare_parameter('sensor_qos_depth', 1)

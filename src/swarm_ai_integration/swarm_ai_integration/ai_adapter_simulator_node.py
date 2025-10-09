@@ -71,7 +71,7 @@ class AIAdapterSimulatedNode(Node):
 
         # Lidar model
         self.declare_parameter('lidar_min_range', 0.05)
-        self.declare_parameter('lidar_max_range', 50.0)
+        self.declare_parameter('lidar_max_range', 20.0)
         self.declare_parameter('lidar_fov', 0.035)  # rad
         self.declare_parameter('lidar_frame', 'lidar_link')
 

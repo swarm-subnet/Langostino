@@ -31,20 +31,22 @@ class ObservationBuilder:
       [128:131] - Goal vector (ENU, normalized)
     """
 
-    def __init__(self, action_buffer_size: int = 20, max_ray_distance: float = 10.0):
+    def __init__(self, action_buffer_size: int = 20, max_ray_distance: float = 20.0):
         """
         Initialize observation builder.
 
         Args:
-            action_buffer_size: Number of past actions to store
-            max_ray_distance: Maximum distance for normalization (meters)
+            action_buffer_size: Number of past actions to store (default: 20)
+            max_ray_distance: Maximum distance for normalization in meters (default: 20.0)
+                             CRITICAL: Must match training environment (swarm/constants.py:MAX_RAY_DISTANCE)
+                             NOTE: ROS nodes pass this from swarm_params.yaml via ROS parameters
         """
         self.action_buffer_size = action_buffer_size
         self.max_ray_distance = max_ray_distance
 
         # Action buffer
-        self.action_buffer = deque(maxlen=action_buffer_size)
-        for _ in range(action_buffer_size):
+        self.action_buffer = deque(maxlen=self.action_buffer_size)
+        for _ in range(self.action_buffer_size):
             self.action_buffer.append(np.zeros(4, dtype=np.float32))
 
         # Track action updates

@@ -1,0 +1,54 @@
+# ROS2 build and install folders
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+*.egg
+*.env
+.env/
+.venv/
+venv/
+ENV/
+env/
+pip-wheel-metadata/
+*.manifest
+*.spec
+
+# ROS2 launch and config files (optional, if generated)
+*.launch.pyc
+*.yamlc
+
+# VSCode and IDE files
+.vscode/
+.idea/
+*.swp
+
+# MacOS
+.DS_Store
+
+# ROS2 Colcon
+.colcon/
+.colcon_install_layout
+
+# Test results
+test_results/
+coverage.xml
+htmlcov/
+.tox/
+.cache/
+nosetests.xml
+*.cover
+*.py,cover
+
+# ROS2 workspace overlay
+overlay_ws/
