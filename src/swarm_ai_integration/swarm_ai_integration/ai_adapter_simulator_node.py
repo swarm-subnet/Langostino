@@ -241,6 +241,10 @@ class AIAdapterSimulatedNode(Node):
         vx, vy, vz, spd = [float(x) for x in self.last_action]
         if not self.use_speed_scalar:
             spd = 1.0  # ignore speed head if disabled
+        else:
+            # CRITICAL: Speed scalar should be non-negative. The model may output
+            # negative values during training artifacts, but we interpret it as magnitude.
+            spd = abs(spd)
 
         # ═══════════════════════════════════════════════════════════════════
         # CRITICAL: Body->ENU coordinate transformation
