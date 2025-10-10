@@ -242,11 +242,44 @@ class AIAdapterSimulatedNode(Node):
         if not self.use_speed_scalar:
             spd = 1.0  # ignore speed head if disabled
 
-        # Body->ENU with yaw=0 ⇒ vE=vx, vN=vy, vU=vz
-        # Step is meters_per_step * speed per tick, not m/s.
-        step_vec_body = np.array([vx, vy, vz], dtype=np.float32) * float(self.meters_per_step * spd)
-        # Since yaw=0, body==ENU:
-        dE, dN, dU = [float(step_vec_body[i]) for i in range(3)]
+        # ═══════════════════════════════════════════════════════════════════
+        # CRITICAL: Body->ENU coordinate transformation
+        # ═══════════════════════════════════════════════════════════════════
+        # The AI model was trained in PyBullet using Body Frame coordinates:
+        #   vx = forward/backward (along drone's nose, Body-X axis)
+        #   vy = right/left (perpendicular to nose, Body-Y axis)
+        #   vz = up/down (Body-Z axis)
+        #
+        # PyBullet's Body Frame convention (when yaw=0):
+        #   Body-X (forward) → ENU-North (NOT East!)
+        #   Body-Y (right)   → ENU-East  (NOT North!)
+        #   Body-Z (up)      → ENU-Up
+        #
+        # For arbitrary yaw angle, the transformation is:
+        #   E = vx * sin(yaw) + vy * cos(yaw)
+        #   N = vx * cos(yaw) - vy * sin(yaw)
+        #   U = vz
+        #
+        # When yaw=0: cos(0)=1, sin(0)=0, so:
+        #   E = vy  (right → East)
+        #   N = vx  (forward → North)
+        #   U = vz
+        # ═══════════════════════════════════════════════════════════════════
+
+        # Apply body-to-ENU rotation
+        cos_yaw = math.cos(self.yaw)
+        sin_yaw = math.sin(self.yaw)
+
+        # Transform body velocities to ENU frame
+        v_east = vx * sin_yaw + vy * cos_yaw
+        v_north = vx * cos_yaw - vy * sin_yaw
+        v_up = vz
+
+        # Scale by meters_per_step and speed
+        step_scale = float(self.meters_per_step * spd)
+        dE = v_east * step_scale
+        dN = v_north * step_scale
+        dU = v_up * step_scale
 
         # Store old position for distance calculation
         old_pos = self.rel_pos_enu.copy()
