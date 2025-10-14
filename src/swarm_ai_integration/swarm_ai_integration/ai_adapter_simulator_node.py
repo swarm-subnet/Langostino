@@ -380,9 +380,68 @@ class AIAdapterSimulatedNode(Node):
         else:
             course_deg = self.last_course_deg
 
-        # Sensor: LiDAR down (distance = U)
-        down_distance = float(self.rel_pos_enu[2])
-        down_distance = float(max(self.lidar_min, min(self.lidar_max, down_distance)))
+        # ═══════════════════════════════════════════════════════════════════════
+        # CRITICAL: Simulate all 16 LiDAR rays (not just down ray)
+        # ═══════════════════════════════════════════════════════════════════════
+        # The model was trained with 16 rays providing 3D obstacle detection.
+        # Ray configuration (body frame, from moving_drone.py:116-138):
+        #   0: Up [0,0,1]           1: Down [0,0,-1]
+        #   2: Forward [1,0,0]      3: Forward-Right [√2/2,√2/2,0]
+        #   4: Right [0,1,0]        5: Back-Right [-√2/2,√2/2,0]
+        #   6: Back [-1,0,0]        7: Back-Left [-√2/2,-√2/2,0]
+        #   8: Left [0,-1,0]        9: Forward-Left [√2/2,-√2/2,0]
+        #   10-15: Diagonal rays at ±30° elevation
+        #
+        # For this simple simulator (no obstacles), we set:
+        #   - Down ray (1): actual altitude (distance to ground)
+        #   - Up ray (0): large distance (sky is open)
+        #   - Horizontal rays (2-9): large distance (open space)
+        #   - Diagonal rays (10-15): calculated based on direction and altitude
+        # ═══════════════════════════════════════════════════════════════════════
+
+        altitude = float(self.rel_pos_enu[2])  # meters above ground
+
+        # Ray 0: Up - open sky
+        self.sensor_manager.update_lidar_ray(0, 1.0)
+
+        # Ray 1: Down - distance to ground
+        down_dist = max(self.lidar_min, min(self.lidar_max, altitude))
+        norm_down = self.obs_builder.normalize_lidar_distance(down_dist)
+        self.sensor_manager.update_lidar_ray(1, norm_down)
+
+        # Rays 2-9: Horizontal rays - open space (no obstacles)
+        for ray_idx in range(2, 10):
+            self.sensor_manager.update_lidar_ray(ray_idx, 1.0)
+
+        # Rays 10-15: Diagonal rays at ±30° elevation
+        # These rays point up/down at 30°, so they may hit ground or be open
+        sin_30 = 0.5  # sin(30°)
+        cos_30 = 0.866025  # cos(30°)
+
+        # Ray 10: Forward-Up (30°) - open sky
+        self.sensor_manager.update_lidar_ray(10, 1.0)
+
+        # Ray 11: Forward-Down (-30°) - may hit ground
+        # Distance to ground along this ray: altitude / sin(30°)
+        dist_11 = altitude / sin_30 if altitude > 0 else self.lidar_max
+        dist_11 = min(self.lidar_max, dist_11)
+        norm_11 = self.obs_builder.normalize_lidar_distance(dist_11)
+        self.sensor_manager.update_lidar_ray(11, norm_11)
+
+        # Ray 12: Back-Up (30°) - open sky
+        self.sensor_manager.update_lidar_ray(12, 1.0)
+
+        # Ray 13: Back-Down (-30°) - may hit ground
+        dist_13 = altitude / sin_30 if altitude > 0 else self.lidar_max
+        dist_13 = min(self.lidar_max, dist_13)
+        norm_13 = self.obs_builder.normalize_lidar_distance(dist_13)
+        self.sensor_manager.update_lidar_ray(13, norm_13)
+
+        # Ray 14: Right-Up (30°) - open sky
+        self.sensor_manager.update_lidar_ray(14, 1.0)
+
+        # Ray 15: Left-Up (30°) - open sky
+        self.sensor_manager.update_lidar_ray(15, 1.0)
 
         # Feed SensorDataManager with the latest truths (exactly like real callbacks)
         # GPS position
@@ -401,10 +460,6 @@ class AIAdapterSimulatedNode(Node):
 
         # IMU angular velocity (zero)
         self.sensor_manager.update_angular_velocity(0.0, 0.0, 0.0)
-
-        # LiDAR normalized (ray 1 = down)
-        norm_lidar = self.obs_builder.normalize_lidar_distance(down_distance)
-        self.sensor_manager.update_lidar_ray(1, norm_lidar)
 
         # Goal (in geodetic)
         self.sensor_manager.update_goal(self.goal_lat, self.goal_lon, self.goal_alt)
