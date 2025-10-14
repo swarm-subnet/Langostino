@@ -513,7 +513,7 @@ class AIAdapterSimulatedNode(Node):
         rng.field_of_view = self.lidar_fov
         rng.min_range = self.lidar_min
         rng.max_range = self.lidar_max
-        rng.range = down_distance
+        rng.range = down_dist
         self.pub_lidar.publish(rng)
 
         # ── Build and publish the 131-D observation (exactly like your AIAdapterNode) ──
@@ -553,7 +553,7 @@ class AIAdapterSimulatedNode(Node):
         dbg.data = [
             float(rel_enu[0]), float(rel_enu[1]), float(rel_enu[2]),
             float(self.sensor_manager.get_euler()[2]),
-            float(norm_lidar),
+            float(norm_down),
             used_flag
         ]
         self.pub_debug.publish(dbg)
