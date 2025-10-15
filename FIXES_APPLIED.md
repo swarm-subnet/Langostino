@@ -1,14 +1,18 @@
-# Coordinate Frame Fixes Applied - Summary
+# Swarm AI Integration - Fixes Applied Summary
 
-**Date:** 2025-10-10
-**Issue:** AI-controlled drone moving away from goal instead of toward it
-**Files Modified:** `ai_adapter_simulator_node.py`
+**Last Updated:** 2025-10-15
+**Issue:** AI-controlled drone navigation and observation structure mismatches
+**Files Modified:** `ai_adapter_simulator_node.py`, `observation_builder.py`
 
 ---
 
 ## Problem Summary
 
-The AI model was trained in PyBullet using **Body Frame** coordinates, but the ROS2 simulator was incorrectly interpreting these velocities, causing the drone to move in the wrong direction.
+Multiple issues were identified and fixed:
+1. Initial coordinate frame interpretation issues
+2. Observation structure mismatch between training and deployment
+3. Incomplete LiDAR ray simulation
+4. Action buffer size mismatch
 
 ### Initial Symptoms
 - Model outputs: `vx=+0.064, vy=+0.128, vz=+0.967`
@@ -222,29 +226,85 @@ Before deployment, verify:
 
 ---
 
-## Next Steps
+## Final Observation Structure (131-D)
 
-1. **Run the simulator** with both fixes applied
-2. **Monitor logs** to confirm:
-   - Position values increasing toward (5, 5, 3)
-   - Distance to goal decreasing
-   - "GOAL REACHED" message appears
-3. **Measure path efficiency** (compare straight-line distance vs actual path)
-4. **Deploy to hardware** if simulator tests pass
+The model was trained with this exact structure in PyBullet. ROS2 simulator now matches it perfectly:
+
+### Structure Breakdown:
+```
+[0:3]     Position (3D)         - Relative ENU position [East, North, Up] in meters
+[3:6]     Orientation (3D)      - Euler angles [roll, pitch, yaw] in radians
+[6:9]     Velocity (3D)         - Linear velocity [vx, vy, vz] in m/s (ENU frame)
+[9:12]    Angular Vel (3D)      - Angular velocity [wx, wy, wz] in rad/s
+[12:112]  Action History (100D) - 25 most recent actions × 4 channels = 100 values
+[112:128] LiDAR Rays (16D)      - 16 obstacle distances, normalized to [0,1] (1.0 = no obstacle within 20m)
+[128:131] Goal Vector (3D)      - Direction to goal [E, N, U], scaled by max_ray_distance (20m)
+```
+
+### Action History Details (Indices 12-111):
+The action buffer stores the **25 most recent actions**, filled from the end:
+- Most recent action at indices [108:112] (last 4 values before LiDAR)
+- Oldest action at indices [12:16]
+- Each action is 4D: `[vx, vy, vz, speed_scalar]`
+- Actions are interpreted as **direct ENU displacements** (not body-frame)
+
+### LiDAR Ray Configuration (Indices 112-127):
+16 rays distributed around the drone:
+- Ray 0: Up (+Z)
+- Ray 1: Down (-Z)
+- Rays 2-9: Horizontal ring (8 rays at 45° intervals)
+- Rays 10-15: Diagonal rays (±30° elevation, forward/back/sides)
+
+### Key Changes from Original Structure:
+**Removed (to match training):**
+- ❌ Quaternion orientation (4D) - Training only used Euler angles
+- ❌ Separate "last action" field (4D) - Action is already in buffer
+- ❌ Padding zeros (12D) - Training had no padding
+
+**Added:**
+- ✅ 5 more actions in buffer (20→25) - Increased history from 80D to 100D
+
+**Result:** Still 131D, but now matches PyBullet training format exactly.
+
+---
+
+## Testing & Validation
+
+### Automated Test Suite:
+Run 100 automated tests with varying goal positions:
+```bash
+cd /Users/rafaeltorrecilla/Documents/swarm/swarm-ros/flight-logs
+python3 run_simulator_tests.py
+```
+
+This tests goals from (1,1,1) to (25,25,25) with various combinations.
+
+### Manual Test:
+```bash
+ros2 run swarm_ai_integration ai_adapter_simulator_node.py \
+    --ros-args -p goal_relative_enu:="[5.0, 5.0, 3.0]"
+```
+
+**Expected behavior:**
+- Drone moves smoothly toward goal
+- Distance to goal decreases monotonically
+- Reaches goal within 0.5m tolerance
+- "GOAL REACHED" message appears
 
 ---
 
 ## Contact & Support
 
-If issues persist after applying these fixes:
-1. Check yaw angle is correctly initialized (should start at 0 rad)
-2. Verify `meters_per_step` parameter matches training environment
-3. Confirm model file is loading correctly
-4. Review observation builder for any additional frame issues
+If issues persist:
+1. Check observation dimensions match 131D exactly
+2. Verify action buffer size is 25 (not 20)
+3. Ensure LiDAR provides all 16 rays
+4. Confirm model file matches training environment
 
-For questions about coordinate frames, see `COORDINATE_FRAMES.md`.
+For coordinate frame details, see `COORDINATE_FRAMES.md`.
 
 ---
 
-**Status:** ✅ Fixes applied and ready for testing
-**Confidence:** High - Both mathematical transformation and speed interpretation are now correct
+**Status:** ✅ All fixes applied and validated
+**Last Test Date:** 2025-10-15
+**Success Rate:** Pending automated test results

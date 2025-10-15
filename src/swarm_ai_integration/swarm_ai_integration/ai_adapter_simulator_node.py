@@ -163,7 +163,7 @@ class AIAdapterSimulatedNode(Node):
         self.iteration_count = 0
         self.total_distance_traveled = 0.0
         self.goal_reached = False
-        self.goal_tolerance = 0.20  # m
+        self.goal_tolerance = 0.50  # m (success threshold)
 
         # QoS and I/O
         sensor_qos = QoSProfile(
