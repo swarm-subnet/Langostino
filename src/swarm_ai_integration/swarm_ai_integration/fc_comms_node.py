@@ -165,15 +165,16 @@ class FCCommsNode(Node):
         self.serial_handler.send_message(wp_message)
 
     def send_heartbeat(self):
-        """Send periodic heartbeat to flight controller"""
+        """
+        Send periodic heartbeat to flight controller.
+
+        Note: MSP_IDENT was removed in INAV 5.x, so we just publish
+        connection status based on serial handler state.
+        """
         if not self.serial_handler.is_connected():
             return
 
-        # Send MSP_IDENT as heartbeat
-        message = MSPMessage(MSPCommand.MSP_IDENT, b'', MSPDirection.REQUEST)
-        self.serial_handler.send_message(message)
-
-        # Publish connection status
+        # Publish connection status (no MSP_IDENT needed for INAV 8.x)
         self.publisher.publish_connection_status(True)
 
     # ═══════════════════════════════════════════════════════════════════
@@ -241,23 +242,23 @@ class FCCommsNode(Node):
 
     def _handle_gps(self, data: bytes):
         """Handle GPS data"""
-        gps_msg, speed_msg = self.parser.parse_gps_data(
+        gps_msg, speed_msg, sat_msg, hdop_msg = self.parser.parse_gps_data(
             data,
             self.get_clock().now().to_msg(),
             'fc_gps'
         )
         if gps_msg:
-            self.publisher.publish_gps(gps_msg, speed_msg)
+            self.publisher.publish_gps(gps_msg, speed_msg, sat_msg, hdop_msg)
 
     def _handle_attitude(self, data: bytes):
         """Handle attitude data"""
-        quat_msg, euler_msg = self.parser.parse_attitude_data(
+        euler_msg = self.parser.parse_attitude_data(
             data,
             self.get_clock().now().to_msg(),
             'fc_attitude'
         )
-        if quat_msg and euler_msg:
-            self.publisher.publish_attitude(quat_msg, euler_msg)
+        if euler_msg:
+            self.publisher.publish_attitude(euler_msg)
 
     def _handle_status(self, data: bytes):
         """Handle status data"""

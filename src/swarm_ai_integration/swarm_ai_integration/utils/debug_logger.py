@@ -58,13 +58,10 @@ class DebugLogger:
             data_status: Data availability flags
         """
         pos = breakdown['rel_pos_enu']
-        quat = breakdown['quat_att']
         euler = breakdown['euler_att']
         vel = breakdown['velocity']
         ang_vel = breakdown['angular_velocity']
-        last_act = breakdown['last_action']
         action_buf = breakdown['action_buffer']
-        padding = breakdown['padding']
         lidar_obs = breakdown['lidar_distances']
         goal_vector = breakdown['goal_vector']
 
@@ -77,50 +74,36 @@ class DebugLogger:
         print(f'   {pos}')
         print(f'   E={pos[0]:.3f} m, N={pos[1]:.3f} m, U={pos[2]:.3f} m')
 
-        # Orientation (Quaternion)
-        print('\n🔄 ORIENTATION QUATERNION [3:7] (4 values) — /fc/attitude:')
-        print(f'   {quat}')
-        print(f'   qx={quat[0]:.4f}, qy={quat[1]:.4f}, qz={quat[2]:.4f}, qw={quat[3]:.4f}')
-
-        # Orientation (Euler)
-        print('\n📐 ORIENTATION EULER [7:10] (3 values, rad) — /fc/attitude_euler:')
+        # Orientation (Euler only - no quaternion)
+        print('\n📐 ORIENTATION EULER [3:6] (3 values, rad) — /fc/attitude_euler:')
         print(f'   {euler}')
         print(f'   roll={euler[0]:.6f} rad ({np.degrees(euler[0]):.1f}°), '
               f'pitch={euler[1]:.6f} rad ({np.degrees(euler[1]):.1f}°), '
               f'yaw={euler[2]:.6f} rad ({np.degrees(euler[2]):.1f}°)')
 
         # Velocity
-        print('\n⚡ VELOCITY [10:13] (3 values) — from /fc/gps_speed_course (ENU):')
+        print('\n⚡ VELOCITY [6:9] (3 values) — from /fc/gps_speed_course (ENU):')
         print(f'   {vel}')
         print(f'   speed={speed_mps:.4f} m/s, course={course_deg:.1f}° → '
               f'vx_east={vel[0]:.4f}, vy_north={vel[1]:.4f}, vz={vel[2]:.4f}')
 
         # Angular Velocity
-        print('\n🌀 ANGULAR VELOCITY [13:16] (3 values) — /fc/imu_raw:')
+        print('\n🌀 ANGULAR VELOCITY [9:12] (3 values) — /fc/imu_raw:')
         print(f'   {ang_vel}')
         print(f'   wx={ang_vel[0]:.4f}, wy={ang_vel[1]:.4f}, wz={ang_vel[2]:.4f} rad/s')
 
-        # Last Action
-        print('\n🎮 LAST ACTION [16:20] (4 values):')
-        print(f'   {last_act}')
-        using_action = '✓ YES' if not np.allclose(last_act, 0.0) else '✗ NO (zeros this tick)'
-        print(f'   Using real action: {using_action}')
-
-        # Action Buffer
-        print('\n📚 ACTION BUFFER [20:100] (80 values = 20 actions × 4):')
-        action_buf_reshaped = action_buf.reshape(20, 4)
+        # Action Buffer (25 actions now, no separate last_action field)
+        print('\n📚 ACTION HISTORY [12:112] (100 values = 25 actions × 4):')
+        action_buf_reshaped = action_buf.reshape(25, 4)
         print('   Oldest actions (first 3):')
-        for i in range(min(3, 20)):
+        for i in range(min(3, 25)):
             print(f'      [{i}] {action_buf_reshaped[i]}')
         if len(action_buf_reshaped) > 6:
             print(f'   ... ({len(action_buf_reshaped)-6} more actions) ...')
         print('   Newest actions (last 3):')
         for i in range(max(0, len(action_buf_reshaped)-3), len(action_buf_reshaped)):
             print(f'      [{i}] {action_buf_reshaped[i]}')
-
-        # Padding
-        print('\n⬜ PADDING [100:112] (12 values):')
-        print(f'   {padding}')
+        print('   Most recent action is at the end of the buffer')
 
         # LiDAR
         print('\n📡 LIDAR DISTANCES [112:128] (16 values, normalized):')
@@ -192,7 +175,6 @@ class DebugLogger:
         print('=' * 80)
         print('📡 SUBSCRIBING TO:')
         print('   • /fc/gps_fix            (sensor_msgs/NavSatFix)            → position [lat,lon,alt]')
-        print('   • /fc/attitude           (geometry_msgs/QuaternionStamped)  → orientation quaternion')
         print('   • /fc/attitude_euler     (geometry_msgs/Vector3Stamped)     → orientation Euler [rad]')
         print('   • /fc/imu_raw            (sensor_msgs/Imu)                   → angular velocity')
         print('   • /fc/gps_speed_course   (std_msgs/Float32MultiArray[2])     → [speed_mps, course_deg]')

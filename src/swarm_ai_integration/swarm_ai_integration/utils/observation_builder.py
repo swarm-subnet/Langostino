@@ -18,33 +18,32 @@ class ObservationBuilder:
     """
     Builds 131-dimensional observation arrays for the swarm AI model.
 
-    Observation structure:
+    Observation structure (matches PyBullet training):
       [0:3]     - Relative position ENU (meters)
-      [3:7]     - Orientation quaternion
-      [7:10]    - Orientation Euler (roll, pitch, yaw in radians)
-      [10:13]   - Velocity ENU (m/s)
-      [13:16]   - Angular velocity (rad/s)
-      [16:20]   - Last action
-      [20:100]  - Action buffer (20 × 4 = 80)
-      [100:112] - Padding (12 zeros)
+      [3:6]     - Orientation Euler (roll, pitch, yaw in radians)
+      [6:9]     - Velocity ENU (m/s)
+      [9:12]    - Angular velocity (rad/s)
+      [12:112]  - Action buffer (25 × 4 = 100)
       [112:128] - LiDAR distances (16 rays, normalized)
       [128:131] - Goal vector (ENU, normalized)
     """
 
-    def __init__(self, action_buffer_size: int = 20, max_ray_distance: float = 10.0):
+    def __init__(self, action_buffer_size: int = 25, max_ray_distance: float = 20.0):
         """
         Initialize observation builder.
 
         Args:
-            action_buffer_size: Number of past actions to store
-            max_ray_distance: Maximum distance for normalization (meters)
+            action_buffer_size: Number of past actions to store (default: 20)
+            max_ray_distance: Maximum distance for normalization in meters (default: 20.0)
+                             CRITICAL: Must match training environment (swarm/constants.py:MAX_RAY_DISTANCE)
+                             NOTE: ROS nodes pass this from swarm_params.yaml via ROS parameters
         """
         self.action_buffer_size = action_buffer_size
         self.max_ray_distance = max_ray_distance
 
         # Action buffer
-        self.action_buffer = deque(maxlen=action_buffer_size)
-        for _ in range(action_buffer_size):
+        self.action_buffer = deque(maxlen=self.action_buffer_size)
+        for _ in range(self.action_buffer_size):
             self.action_buffer.append(np.zeros(4, dtype=np.float32))
 
         # Track action updates
@@ -56,31 +55,38 @@ class ObservationBuilder:
         """
         Update with a new action from the AI.
 
+        This stores the action but does NOT append to buffer yet.
+        The buffer is updated in prepare_action_for_observation().
+
         Args:
             action: 4-element action array
         """
         self.last_action_received = action.copy()
-        self.action_buffer.append(action.copy())
         self.action_count += 1
 
     def prepare_action_for_observation(self) -> np.ndarray:
         """
         Prepare action for current observation tick.
 
+        This method is called ONCE per observation cycle to determine
+        what action to use and update the action buffer history.
+
         If no new action received since last tick, returns zeros and
-        appends zeros to the buffer. Otherwise returns the last action.
+        appends zeros to the buffer. Otherwise returns the last action
+        and appends it to the buffer.
 
         Returns:
             4-element action array for this observation
         """
         if self.action_count == self._last_action_count_seen:
-            # No new action, use zeros
+            # No new action since last observation tick, use zeros
             zero_action = np.zeros(4, dtype=np.float32)
             self.action_buffer.append(zero_action.copy())
             last_action_for_obs = zero_action
         else:
-            # New action available
+            # New action available since last observation tick
             last_action_for_obs = self.last_action_received.copy()
+            self.action_buffer.append(last_action_for_obs.copy())
 
         self._last_action_count_seen = self.action_count
         return last_action_for_obs
@@ -88,38 +94,36 @@ class ObservationBuilder:
     def build_base_observation(
         self,
         rel_pos_enu: np.ndarray,
-        quat_att: np.ndarray,
         euler_att: np.ndarray,
         velocity: np.ndarray,
-        angular_velocity: np.ndarray,
-        last_action: np.ndarray
+        angular_velocity: np.ndarray
     ) -> np.ndarray:
         """
         Build base 112-D observation vector.
 
+        Matches PyBullet training format:
+        - 12D kinematics (pos, euler, vel, ang_vel)
+        - 100D action history (25 actions × 4)
+
         Args:
             rel_pos_enu: Relative position [E, N, U] in meters
-            quat_att: Orientation quaternion [x, y, z, w]
             euler_att: Euler angles [roll, pitch, yaw] in radians
             velocity: Velocity [vx, vy, vz] in m/s
             angular_velocity: Angular velocity [wx, wy, wz] in rad/s
-            last_action: Last action [4 values]
 
         Returns:
             112-element base observation array
         """
-        # Flatten action buffer
+        # Flatten action buffer (25 actions × 4 = 100 values)
         action_buffer_flat = np.concatenate(list(self.action_buffer)).astype(np.float32)
 
+        # Match PyBullet KIN observation format: 12D kinematics + 100D action history
         obs = np.concatenate([
             rel_pos_enu.astype(np.float32),           # 3
-            quat_att.astype(np.float32),              # 4
             euler_att.astype(np.float32),             # 3
             velocity.astype(np.float32),              # 3
             angular_velocity.astype(np.float32),      # 3
-            last_action.astype(np.float32),           # 4
-            action_buffer_flat,                       # 80
-            np.zeros(12, dtype=np.float32)            # 12 padding
+            action_buffer_flat,                       # 100 (25 actions × 4)
         ], dtype=np.float32)
 
         return obs
@@ -127,11 +131,9 @@ class ObservationBuilder:
     def build_full_observation(
         self,
         rel_pos_enu: np.ndarray,
-        quat_att: np.ndarray,
         euler_att: np.ndarray,
         velocity: np.ndarray,
         angular_velocity: np.ndarray,
-        last_action: np.ndarray,
         lidar_distances: np.ndarray,
         goal_vector: np.ndarray
     ) -> np.ndarray:
@@ -140,11 +142,9 @@ class ObservationBuilder:
 
         Args:
             rel_pos_enu: Relative position [E, N, U] in meters
-            quat_att: Orientation quaternion [x, y, z, w]
             euler_att: Euler angles [roll, pitch, yaw] in radians
             velocity: Velocity [vx, vy, vz] in m/s
             angular_velocity: Angular velocity [wx, wy, wz] in rad/s
-            last_action: Last action [4 values]
             lidar_distances: LiDAR distances [16 rays], normalized
             goal_vector: Goal vector [E, N, U], normalized
 
@@ -153,8 +153,7 @@ class ObservationBuilder:
         """
         # Build base observation (112-D)
         base_obs = self.build_base_observation(
-            rel_pos_enu, quat_att, euler_att,
-            velocity, angular_velocity, last_action
+            rel_pos_enu, euler_att, velocity, angular_velocity
         )
 
         # Concatenate with LiDAR and goal
@@ -219,13 +218,10 @@ class ObservationBuilder:
 
         return {
             'rel_pos_enu': observation[0:3],
-            'quat_att': observation[3:7],
-            'euler_att': observation[7:10],
-            'velocity': observation[10:13],
-            'angular_velocity': observation[13:16],
-            'last_action': observation[16:20],
-            'action_buffer': observation[20:100],
-            'padding': observation[100:112],
+            'euler_att': observation[3:6],
+            'velocity': observation[6:9],
+            'angular_velocity': observation[9:12],
+            'action_buffer': observation[12:112],  # 25 actions × 4 = 100
             'lidar_distances': observation[112:128],
             'goal_vector': observation[128:131]
         }

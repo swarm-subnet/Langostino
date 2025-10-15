@@ -13,8 +13,8 @@ import numpy as np
 from typing import Optional, Dict, Any, Tuple
 
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState
-from geometry_msgs.msg import QuaternionStamped, Vector3Stamped
-from std_msgs.msg import Float32MultiArray, String
+from geometry_msgs.msg import Vector3Stamped
+from std_msgs.msg import Float32MultiArray, String, Int32, Float32
 
 from swarm_ai_integration.msp_protocol import MSPDataTypes, MSPCommand
 
@@ -26,33 +26,6 @@ class MSPMessageParser:
     This class contains all the data parsing logic, keeping the main
     node clean and focused on coordination.
     """
-
-    @staticmethod
-    def euler_to_quaternion(roll: float, pitch: float, yaw: float) -> Tuple[float, float, float, float]:
-        """
-        Convert Euler angles (radians) to quaternion (x, y, z, w) using ZYX order.
-
-        Args:
-            roll: Roll angle in radians
-            pitch: Pitch angle in radians
-            yaw: Yaw angle in radians
-
-        Returns:
-            Tuple of (qx, qy, qz, qw)
-        """
-        cy = np.cos(yaw * 0.5)
-        sy = np.sin(yaw * 0.5)
-        cp = np.cos(pitch * 0.5)
-        sp = np.sin(pitch * 0.5)
-        cr = np.cos(roll * 0.5)
-        sr = np.sin(roll * 0.5)
-
-        qw = cr * cp * cy + sr * sp * sy
-        qx = sr * cp * cy - cr * sp * sy
-        qy = cr * sp * cy + sr * cp * sy
-        qz = cr * cp * sy - sr * sp * cy
-
-        return (qx, qy, qz, qw)
 
     def parse_imu_data(self, data: bytes, timestamp, frame_id: str = 'fc_imu') -> Optional[Imu]:
         """
@@ -102,9 +75,9 @@ class MSPMessageParser:
         data: bytes,
         timestamp,
         frame_id: str = 'fc_gps'
-    ) -> Tuple[Optional[NavSatFix], Optional[Float32MultiArray]]:
+    ) -> Tuple[Optional[NavSatFix], Optional[Float32MultiArray], Optional[Int32], Optional[Float32]]:
         """
-        Parse MSP_RAW_GPS data and create GPS and speed/course messages.
+        Parse MSP_RAW_GPS data and create GPS, speed/course, satellite count, and HDOP messages.
 
         Args:
             data: Raw MSP payload
@@ -112,13 +85,20 @@ class MSPMessageParser:
             frame_id: TF frame ID
 
         Returns:
-            Tuple of (NavSatFix message, speed/course array) or (None, None)
+            Tuple of (NavSatFix message, speed/course array, satellite count, HDOP) or (None, None, None, None)
         """
         try:
+            # DEBUG: Log raw GPS data bytes
+            if len(data) >= 16:
+                import struct
+                fix_byte = data[0]
+                sat_byte = data[1]
+                print(f"🐛 GPS DEBUG: fix_byte=0x{fix_byte:02x} ({fix_byte}), satellites={sat_byte}, raw_hex={data[:16].hex()}")
+
             gps_data = MSPDataTypes.unpack_gps_data(data)
 
             if not gps_data:
-                return None, None
+                return None, None, None, None
 
             # Create NavSatFix message
             gps_msg = NavSatFix()
@@ -130,13 +110,17 @@ class MSPMessageParser:
             gps_msg.altitude = float(gps_data['altitude'])  # meters
 
             fix_type_value = gps_data.get('fix_type', 0)
-            # Map: 0=NO_FIX, 1=2D, 2=3D (treat >=3 as 3D as well)
+            num_satellites = int(gps_data.get('satellites', 0))
+
+            # Map INAV fix_type to ROS NavSatStatus
+            # INAV: 0=NO_FIX, 1=2D, 2=3D
+            # ROS: STATUS_NO_FIX=-1, STATUS_FIX=0 (valid 3D), STATUS_SBAS_FIX=1
             if fix_type_value >= 2:
-                gps_msg.status.status = gps_msg.status.STATUS_FIX
+                gps_msg.status.status = gps_msg.status.STATUS_FIX  # 3D fix → status=0 (VALID!)
             elif fix_type_value == 1:
-                gps_msg.status.status = gps_msg.status.STATUS_SBAS_FIX
+                gps_msg.status.status = gps_msg.status.STATUS_SBAS_FIX  # 2D fix → status=1
             else:
-                gps_msg.status.status = gps_msg.status.STATUS_NO_FIX
+                gps_msg.status.status = gps_msg.status.STATUS_NO_FIX  # No fix → status=-1
 
             gps_msg.status.service = gps_msg.status.SERVICE_GPS
             gps_msg.position_covariance_type = gps_msg.COVARIANCE_TYPE_UNKNOWN
@@ -149,19 +133,30 @@ class MSPMessageParser:
             speed_msg = Float32MultiArray()
             speed_msg.data = [speed_mps, course_deg]  # [m/s, deg]
 
-            return gps_msg, speed_msg
+            # Create satellite count message
+            sat_msg = Int32()
+            sat_msg.data = int(gps_data.get('satellites', 0))
+
+            # Create HDOP message (if available)
+            hdop_msg = None
+            hdop_value = gps_data.get('hdop')
+            if hdop_value is not None:
+                hdop_msg = Float32()
+                hdop_msg.data = float(hdop_value)
+
+            return gps_msg, speed_msg, sat_msg, hdop_msg
 
         except Exception as e:
-            return None, None
+            return None, None, None, None
 
     def parse_attitude_data(
         self,
         data: bytes,
         timestamp,
         frame_id: str = 'fc_attitude'
-    ) -> Tuple[Optional[QuaternionStamped], Optional[Vector3Stamped]]:
+    ) -> Optional[Vector3Stamped]:
         """
-        Parse MSP_ATTITUDE data and create quaternion and Euler messages.
+        Parse MSP_ATTITUDE data and create Euler angles message.
 
         Args:
             data: Raw MSP payload
@@ -169,7 +164,7 @@ class MSPMessageParser:
             frame_id: TF frame ID
 
         Returns:
-            Tuple of (QuaternionStamped, Vector3Stamped) or (None, None)
+            Vector3Stamped with Euler angles or None
         """
         try:
             roll, pitch, yaw = MSPDataTypes.unpack_attitude(data)
@@ -187,22 +182,10 @@ class MSPMessageParser:
             euler_msg.vector.y = pitch_rad  # pitch
             euler_msg.vector.z = yaw_rad    # yaw
 
-            # Convert to quaternion
-            qx, qy, qz, qw = self.euler_to_quaternion(roll_rad, pitch_rad, yaw_rad)
-
-            # Create quaternion message
-            quat_msg = QuaternionStamped()
-            quat_msg.header.stamp = timestamp
-            quat_msg.header.frame_id = frame_id
-            quat_msg.quaternion.x = qx
-            quat_msg.quaternion.y = qy
-            quat_msg.quaternion.z = qz
-            quat_msg.quaternion.w = qw
-
-            return quat_msg, euler_msg
+            return euler_msg
 
         except Exception as e:
-            return None, None
+            return None
 
     def parse_status_data(
         self,

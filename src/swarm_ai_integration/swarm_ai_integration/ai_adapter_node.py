@@ -21,9 +21,9 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, Int32, Float32
 from sensor_msgs.msg import NavSatFix, Imu, Range
-from geometry_msgs.msg import QuaternionStamped, Vector3Stamped
+from geometry_msgs.msg import Vector3Stamped
 
 from swarm_ai_integration.utils import (
     CoordinateTransforms,
@@ -51,11 +51,12 @@ class AIAdapterNode(Node):
         # Configuration
         # -------------------------
         self.declare_parameter('telemetry_rate', 30.0)  # Hz
-        self.declare_parameter('max_ray_distance', 10.0)  # meters
-        self.declare_parameter('action_buffer_size', 20)
+        self.declare_parameter('max_ray_distance', 20.0)  # meters - MUST MATCH TRAINING
+        self.declare_parameter('action_buffer_size', 25)  # 25 actions × 4 = 100D in observation
         self.declare_parameter('relative_start_enu', [0.0, 0.0, 3.0])  # [E, N, U] meters
         self.declare_parameter('sensor_qos_depth', 1)
         self.declare_parameter('reliable_qos_depth', 10)
+        self.declare_parameter('min_gps_satellites', 6)  # Minimum satellites for GPS lock
 
         telemetry_rate = self.get_parameter('telemetry_rate').get_parameter_value().double_value
         max_ray_distance = self.get_parameter('max_ray_distance').get_parameter_value().double_value
@@ -66,6 +67,7 @@ class AIAdapterNode(Node):
         )
         sensor_qos_depth = self.get_parameter('sensor_qos_depth').get_parameter_value().integer_value
         reliable_qos_depth = self.get_parameter('reliable_qos_depth').get_parameter_value().integer_value
+        self.min_gps_satellites = self.get_parameter('min_gps_satellites').get_parameter_value().integer_value
 
         # -------------------------
         # Initialize Modular Components
@@ -112,8 +114,11 @@ class AIAdapterNode(Node):
         self.gps_sub = self.create_subscription(
             NavSatFix, '/fc/gps_fix', self.gps_callback, sensor_qos
         )
-        self.att_quat_sub = self.create_subscription(
-            QuaternionStamped, '/fc/attitude', self.att_quat_callback, sensor_qos
+        self.gps_satellites_sub = self.create_subscription(
+            Int32, '/fc/gps_satellites', self.gps_satellites_callback, sensor_qos
+        )
+        self.gps_hdop_sub = self.create_subscription(
+            Float32, '/fc/gps_hdop', self.gps_hdop_callback, sensor_qos
         )
         self.att_euler_sub = self.create_subscription(
             Vector3Stamped, '/fc/attitude_euler', self.att_euler_callback, sensor_qos
@@ -165,28 +170,89 @@ class AIAdapterNode(Node):
     # Sensor Callbacks
     # ═══════════════════════════════════════════════════════════════════
 
+    def gps_satellites_callback(self, msg: Int32):
+        """Handle GPS satellite count updates."""
+        # Update GPS quality tracking
+        sat_count = msg.data
+        _, fix_status, hdop = self.sensor_manager.get_gps_quality()
+
+        # Store satellite count for quality checks
+        self.sensor_manager.update_gps_quality(sat_count, fix_status, hdop)
+
+    def gps_hdop_callback(self, msg: Float32):
+        """Handle GPS HDOP updates."""
+        # Update GPS quality tracking with HDOP
+        sat_count, fix_status, _ = self.sensor_manager.get_gps_quality()
+        self.sensor_manager.update_gps_quality(sat_count, fix_status, msg.data)
+
     def gps_callback(self, msg: NavSatFix):
-        """Handle GPS position updates."""
-        first_fix = self.sensor_manager.update_gps_position(
+        """Handle GPS position updates with quality validation and tiered averaging."""
+
+        # Update GPS quality with fix status
+        # ROS NavSatStatus: STATUS_NO_FIX=-1, STATUS_FIX=0 (3D fix!), STATUS_SBAS_FIX=1, STATUS_GBAS_FIX=2
+        sat_count, _, hdop = self.sensor_manager.get_gps_quality()
+        if msg.status.status == msg.status.STATUS_NO_FIX:
+            fix_type = 0  # NO_FIX
+        elif msg.status.status == msg.status.STATUS_FIX:
+            fix_type = 2  # 3D FIX (status=0 means valid fix!)
+        else:
+            fix_type = 1  # 2D or augmented fix
+        self.sensor_manager.update_gps_quality(sat_count, fix_type, hdop)
+
+        # Check GPS quality before processing
+        if not self.sensor_manager.is_gps_quality_sufficient(max_hdop=4.0, min_satellites=self.min_gps_satellites):
+            if not self.sensor_manager.data_received['gps']:
+                # First time - log warning with HDOP info
+                hdop_str = f'hdop={hdop:.2f}m' if hdop < 90.0 else f'sats={sat_count} (need {self.min_gps_satellites})'
+                self.get_logger().warn(
+                    f'⚠️  Waiting for GPS lock: {hdop_str}, fix_type={fix_type} (need 2+)',
+                    throttle_duration_sec=2.0
+                )
+            return  # Skip processing until GPS quality is sufficient
+
+        # Update position with tiered averaging
+        first_fix, origin_ready = self.sensor_manager.update_gps_position(
             lat=msg.latitude,
             lon=msg.longitude,
             alt=msg.altitude
         )
 
-        # Set relative origin on first fix
+        # Log GPS lock achieved
         if first_fix:
+            window = self.sensor_manager.origin_averaging_window
+            quality_str = f'hdop={hdop:.2f}m' if hdop < 90.0 else f'{sat_count} satellites'
+            self.get_logger().info(
+                f'✅ GPS LOCK: {quality_str}, fix_type={fix_type}'
+            )
+            self.get_logger().info(
+                f'📊 Tiered averaging: collecting {window} samples for origin '
+                f'(~{window/1.5:.1f}s at 1.5 Hz)'
+            )
+
+        # Set origin when averaging is complete
+        if origin_ready and self.sensor_manager.get_origin() is None:
+            averaged_origin = self.sensor_manager.get_averaged_origin_samples()
+
+            # Compute origin offset for desired relative start position
             origin = self.transforms.compute_origin_for_initial_position(
-                current_lat=msg.latitude,
-                current_lon=msg.longitude,
-                current_alt=msg.altitude,
+                current_lat=averaged_origin[0],
+                current_lon=averaged_origin[1],
+                current_alt=averaged_origin[2],
                 desired_enu=self.sensor_manager.get_relative_start_enu()
             )
             self.sensor_manager.set_origin_geodetic(origin)
 
             # Verify initial position
             initial_rel = self.transforms.geodetic_to_enu(
-                msg.latitude, msg.longitude, msg.altitude,
+                averaged_origin[0], averaged_origin[1], averaged_origin[2],
                 origin[0], origin[1], origin[2]
+            )
+
+            # Log origin setting with HDOP info
+            sample_count = self.sensor_manager.get_origin_sample_count()
+            quality_str = f'hdop={hdop:.2f}m' if hdop < 90.0 else f'{sat_count} satellites'
+            self.get_logger().info(
+                f'🎯 ORIGIN SET: Averaged {sample_count} GPS samples with {quality_str}'
             )
             self.debug_logger.log_origin_set(
                 origin=origin,
@@ -194,11 +260,11 @@ class AIAdapterNode(Node):
                 target_rel=self.sensor_manager.get_relative_start_enu()
             )
 
-        # Log first GPS fix
+        # Log first GPS data received
         if not self.sensor_manager.data_received['gps']:
             self.debug_logger.log_first_data_received(
                 'GPS fix',
-                f'lat={msg.latitude:.7f}, lon={msg.longitude:.7f}, alt={msg.altitude:.3f} m'
+                f'lat={msg.latitude:.7f}, lon={msg.longitude:.7f}, alt={msg.altitude:.3f} m, sats={sat_count}'
             )
             self.sensor_manager.data_received['gps'] = True
 
@@ -224,23 +290,6 @@ class AIAdapterNode(Node):
                 f'wp#{wp_no} (lat={lat:.7f}, lon={lon:.7f}, alt={alt:.2f} m)'
             )
             self.sensor_manager.data_received['waypoint'] = True
-
-    def att_quat_callback(self, msg: QuaternionStamped):
-        """Handle attitude quaternion updates."""
-        self.sensor_manager.update_attitude_quaternion(
-            x=msg.quaternion.x,
-            y=msg.quaternion.y,
-            z=msg.quaternion.z,
-            w=msg.quaternion.w
-        )
-
-        if not self.sensor_manager.data_received['att_quat']:
-            quat = self.sensor_manager.get_quaternion()
-            self.debug_logger.log_first_data_received(
-                'Attitude quaternion',
-                f'q=[{quat[0]:.6f}, {quat[1]:.6f}, {quat[2]:.6f}, {quat[3]:.6f}]'
-            )
-            self.sensor_manager.data_received['att_quat'] = True
 
     def att_euler_callback(self, msg: Vector3Stamped):
         """Handle attitude Euler angles updates."""
@@ -346,8 +395,29 @@ class AIAdapterNode(Node):
 
     def compute_observation(self):
         """Compute and publish 131-D observation."""
+        # Check GPS quality first
+        if not self.sensor_manager.is_gps_quality_sufficient(max_hdop=4.0, min_satellites=self.min_gps_satellites):
+            sat_count, fix_type, hdop = self.sensor_manager.get_gps_quality()
+            hdop_str = f'hdop={hdop:.2f}m' if hdop < 90.0 else f'{sat_count} satellites (need {self.min_gps_satellites})'
+            self.get_logger().warn(
+                f'⚠️  GPS not ready: {hdop_str}, fix_type={fix_type}',
+                throttle_duration_sec=2.0
+            )
+            return
+
+        # Check if origin is set (averaging complete)
+        origin = self.sensor_manager.get_origin()
+        if origin is None:
+            sample_count = self.sensor_manager.get_origin_sample_count()
+            window = self.sensor_manager.origin_averaging_window
+            self.get_logger().warn(
+                f'⏳ Collecting GPS samples for origin: {sample_count}/{window}',
+                throttle_duration_sec=1.0
+            )
+            return
+
         # Check required data
-        required = ['gps', 'att_quat', 'att_euler', 'imu', 'lidar', 'gps_speed', 'waypoint']
+        required = ['gps', 'att_euler', 'imu', 'lidar', 'gps_speed', 'waypoint']
         if not self.sensor_manager.is_data_ready(required):
             missing = self.sensor_manager.get_missing_data(required)
             self.get_logger().warn(
@@ -362,7 +432,6 @@ class AIAdapterNode(Node):
 
             # Get sensor data
             position = self.sensor_manager.get_position()
-            origin = self.sensor_manager.get_origin()
             goal = self.sensor_manager.get_goal()
 
             # Compute relative position ENU
@@ -378,14 +447,12 @@ class AIAdapterNode(Node):
             )
             goal_vector = self.obs_builder.compute_goal_vector(goal_enu, rel_pos_enu)
 
-            # Build full observation
+            # Build full observation (131-D: 12 kinematics + 100 actions + 16 lidar + 3 goal)
             full_obs = self.obs_builder.build_full_observation(
                 rel_pos_enu=rel_pos_enu,
-                quat_att=self.sensor_manager.get_quaternion(),
                 euler_att=self.sensor_manager.get_euler(),
                 velocity=self.sensor_manager.get_velocity(),
                 angular_velocity=self.sensor_manager.get_angular_velocity(),
-                last_action=last_action,
                 lidar_distances=self.sensor_manager.get_lidar_distances(),
                 goal_vector=goal_vector
             )

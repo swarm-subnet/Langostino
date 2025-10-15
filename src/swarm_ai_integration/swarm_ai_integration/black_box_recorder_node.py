@@ -6,12 +6,24 @@ This node acts as a black box flight data recorder, logging all critical system 
 including sensor inputs, AI model outputs, flight controller communications, and
 safety system status. Data is persisted to files that survive system restarts.
 
-Data Logged:
-- Sensor data: LiDAR, IMU, GPS, battery
-- AI system: observations, actions, model status
-- Flight controller: commands sent, telemetry received, MSP communications
-- Safety system: override status, emergency actions
-- System health: node status, performance metrics
+Data Logged (30 topics):
+- AI System (5): observations, actions, status, model_ready, debug observations
+- Flight Controller (10): IMU, GPS, attitude (euler), battery, status,
+  MSP status, connection, motors, GPS speed/course, waypoints
+- FC Commands (2): RC override, MSP commands
+- FC Adapter (2): status, velocity error
+- LiDAR (5): distance, raw, point, status, health
+- Safety System (3): override, RTH command, status
+- System Events: startup, shutdown, statistics, errors
+
+Features:
+- Buffered writing with automatic flush
+- File rotation at 100MB (configurable)
+- Gzip compression of old files
+- Session-based organization
+- Data correlation (AI actions with observations)
+- Thread-safe operation
+- Graceful fallback to /tmp on permission errors
 """
 
 import json
@@ -22,15 +34,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional
 import gzip
-import numpy as np
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
-from std_msgs.msg import Bool, String, Float32MultiArray, Header
+from std_msgs.msg import Bool, String, Float32MultiArray
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState, Range
-from geometry_msgs.msg import Twist, PoseStamped, Vector3Stamped, PointStamped
+from geometry_msgs.msg import PoseStamped, Vector3Stamped, PointStamped
 
 
 class BlackBoxRecorderNode(Node):
@@ -70,9 +81,6 @@ class BlackBoxRecorderNode(Node):
         self.current_file_size = 0
         self.file_counter = 0
 
-        # Setup log directory and initial file
-        self.setup_logging()
-
         # Data caches for correlation
         self.last_data = {
             'ai_observation': None,
@@ -83,7 +91,7 @@ class BlackBoxRecorderNode(Node):
             'safety_status': None
         }
 
-        # Performance tracking
+        # Performance tracking - MUST be initialized before setup_logging()
         self.stats = {
             'messages_logged': 0,
             'bytes_written': 0,
@@ -91,6 +99,9 @@ class BlackBoxRecorderNode(Node):
             'dropped_messages': 0,
             'errors': 0
         }
+
+        # Setup log directory and initial file
+        self.setup_logging()
 
         # QoS profiles
         reliable_qos = QoSProfile(
@@ -240,6 +251,10 @@ class BlackBoxRecorderNode(Node):
             Bool, '/ai/model_ready',
             lambda msg: self.log_message('AI_MODEL_READY', msg), reliable_qos)
 
+        self.ai_debug_sub = self.create_subscription(
+            Float32MultiArray, '/ai/observation_debug',
+            lambda msg: self.log_message('AI_OBSERVATION_DEBUG', msg), reliable_qos)
+
         # Flight Controller Topics
         self.fc_imu_sub = self.create_subscription(
             Imu, '/fc/imu_raw',
@@ -249,7 +264,7 @@ class BlackBoxRecorderNode(Node):
             NavSatFix, '/fc/gps_fix',
             lambda msg: self.log_message('FC_GPS', msg), sensor_qos)
 
-        self.fc_attitude_sub = self.create_subscription(
+        self.fc_attitude_euler_sub = self.create_subscription(
             Vector3Stamped, '/fc/attitude_euler',
             lambda msg: self.log_message('FC_ATTITUDE_EULER', msg, 'fc_attitude'), sensor_qos)
 
@@ -311,6 +326,14 @@ class BlackBoxRecorderNode(Node):
         self.lidar_point_sub = self.create_subscription(
             PointStamped, '/lidar_point',
             lambda msg: self.log_message('LIDAR_POINT', msg), sensor_qos)
+
+        self.lidar_status_sub = self.create_subscription(
+            String, '/lidar_status',
+            lambda msg: self.log_message('LIDAR_STATUS', msg), reliable_qos)
+
+        self.lidar_healthy_sub = self.create_subscription(
+            Bool, '/lidar_healthy',
+            lambda msg: self.log_message('LIDAR_HEALTHY', msg), reliable_qos)
 
         # Safety System Topics
         self.safety_override_sub = self.create_subscription(
@@ -375,25 +398,10 @@ class BlackBoxRecorderNode(Node):
     def _extract_message_data(self, msg) -> Dict[str, Any]:
         """Extract data from ROS message into JSON-serializable format"""
         try:
-            if hasattr(msg, 'data'):
-                # Standard data messages
-                if isinstance(msg.data, (list, tuple)):
-                    return {'data': list(msg.data)}
-                else:
-                    return {'data': msg.data}
+            # Check specific message types BEFORE generic .data attribute
+            # Order matters: check most specific types first
 
-            elif isinstance(msg.data, (list, tuple)) and hasattr(msg, 'data'):
-                # Float32MultiArray (already handled above, but ensure it's first)
-                return {'data': list(msg.data)}
-
-            elif hasattr(msg, 'linear') and hasattr(msg, 'angular'):
-                # Twist messages
-                return {
-                    'linear': {'x': msg.linear.x, 'y': msg.linear.y, 'z': msg.linear.z},
-                    'angular': {'x': msg.angular.x, 'y': msg.angular.y, 'z': msg.angular.z}
-                }
-
-            elif hasattr(msg, 'orientation'):
+            if hasattr(msg, 'orientation') and hasattr(msg, 'angular_velocity'):
                 # IMU messages
                 return {
                     'orientation': {
@@ -419,34 +427,85 @@ class BlackBoxRecorderNode(Node):
                     'status': {'status': msg.status.status, 'service': msg.status.service}
                 }
 
-            elif hasattr(msg, 'voltage'):
-                # Battery messages
+            elif hasattr(msg, 'voltage') and hasattr(msg, 'power_supply_status'):
+                # Battery messages (BatteryState)
                 return {
                     'voltage': msg.voltage,
-                    'current': msg.current if hasattr(msg, 'current') else None,
-                    'percentage': msg.percentage if hasattr(msg, 'percentage') else None
+                    'current': msg.current,
+                    'charge': msg.charge,
+                    'capacity': msg.capacity,
+                    'design_capacity': msg.design_capacity,
+                    'percentage': msg.percentage,
+                    'power_supply_status': msg.power_supply_status,
+                    'power_supply_health': msg.power_supply_health,
+                    'power_supply_technology': msg.power_supply_technology,
+                    'present': msg.present
                 }
 
-            elif hasattr(msg, 'range'):
-                # Range sensor messages
+            elif hasattr(msg, 'range') and hasattr(msg, 'radiation_type'):
+                # Range sensor messages (Range)
                 return {
                     'range': msg.range,
                     'min_range': msg.min_range,
                     'max_range': msg.max_range,
-                    'field_of_view': msg.field_of_view
+                    'field_of_view': msg.field_of_view,
+                    'radiation_type': msg.radiation_type
                 }
 
-            elif hasattr(msg, 'vector'):
+            elif hasattr(msg, 'point') and not hasattr(msg, 'data'):
+                # PointStamped messages
+                return {
+                    'point': {'x': msg.point.x, 'y': msg.point.y, 'z': msg.point.z}
+                }
+
+            elif hasattr(msg, 'quaternion') and not hasattr(msg, 'data'):
+                # QuaternionStamped messages
+                return {
+                    'quaternion': {
+                        'x': msg.quaternion.x,
+                        'y': msg.quaternion.y,
+                        'z': msg.quaternion.z,
+                        'w': msg.quaternion.w
+                    }
+                }
+
+            elif hasattr(msg, 'vector') and not hasattr(msg, 'data'):
                 # Vector3Stamped messages
                 return {
                     'vector': {'x': msg.vector.x, 'y': msg.vector.y, 'z': msg.vector.z}
                 }
 
-            elif hasattr(msg, 'point'):
-                # PointStamped messages
+            elif hasattr(msg, 'pose') and not hasattr(msg, 'data'):
+                # PoseStamped messages
                 return {
-                    'point': {'x': msg.point.x, 'y': msg.point.y, 'z': msg.point.z}
+                    'pose': {
+                        'position': {
+                            'x': msg.pose.position.x,
+                            'y': msg.pose.position.y,
+                            'z': msg.pose.position.z
+                        },
+                        'orientation': {
+                            'x': msg.pose.orientation.x,
+                            'y': msg.pose.orientation.y,
+                            'z': msg.pose.orientation.z,
+                            'w': msg.pose.orientation.w
+                        }
+                    }
                 }
+
+            elif hasattr(msg, 'linear') and hasattr(msg, 'angular'):
+                # Twist messages
+                return {
+                    'linear': {'x': msg.linear.x, 'y': msg.linear.y, 'z': msg.linear.z},
+                    'angular': {'x': msg.angular.x, 'y': msg.angular.y, 'z': msg.angular.z}
+                }
+
+            elif hasattr(msg, 'data'):
+                # Standard data messages (Bool, String, Float32MultiArray, etc.)
+                if isinstance(msg.data, (list, tuple)):
+                    return {'data': list(msg.data)}
+                else:
+                    return {'data': msg.data}
 
             else:
                 # Fallback: try to convert to dict

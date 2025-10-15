@@ -34,8 +34,17 @@ class SensorDataManager:
         self.origin_geodetic: Optional[np.ndarray] = None
         self.relative_start_enu = relative_start_enu if relative_start_enu is not None else np.array([0.0, 0.0, 3.0], dtype=np.float32)
 
-        # Orientation data
-        self.quat_att = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)  # [x, y, z, w]
+        # GPS quality tracking
+        self.gps_satellite_count = 0
+        self.gps_fix_type = 0  # 0=NO_FIX, 1=2D, 2+=3D
+        self.gps_hdop = 99.99  # HDOP in meters (high = poor quality)
+
+        # Origin averaging (tiered strategy)
+        self.origin_samples = []  # Buffer for averaging initial origin
+        self.origin_averaging_window = 0  # Determined by satellite count
+        self.origin_is_set = False
+
+        # Orientation data (Euler angles only)
         self.euler_att = np.zeros(3, dtype=np.float32)  # [roll, pitch, yaw] radians
 
         # Velocity data
@@ -55,7 +64,6 @@ class SensorDataManager:
         # Data received flags
         self.data_received = {
             'gps': False,
-            'att_quat': False,
             'att_euler': False,
             'imu': False,
             'lidar': False,
@@ -68,9 +76,88 @@ class SensorDataManager:
     # Position & Origin Management
     # -------------------------------------------------------------------------
 
-    def update_gps_position(self, lat: float, lon: float, alt: float) -> bool:
+    def update_gps_quality(self, satellite_count: int, fix_type: int, hdop: Optional[float] = None):
         """
-        Update GPS position. Returns True if this is the first fix.
+        Update GPS quality metrics.
+
+        Args:
+            satellite_count: Number of satellites
+            fix_type: Fix type (0=NO_FIX, 1=2D, 2+=3D)
+            hdop: Horizontal Dilution of Precision in meters (optional)
+        """
+        self.gps_satellite_count = int(satellite_count)
+        self.gps_fix_type = int(fix_type)
+        if hdop is not None:
+            self.gps_hdop = float(hdop)
+
+    def get_gps_quality(self) -> Tuple[int, int, float]:
+        """Get GPS quality metrics. Returns (satellite_count, fix_type, hdop)."""
+        return self.gps_satellite_count, self.gps_fix_type, self.gps_hdop
+
+    def is_gps_quality_sufficient(self, max_hdop: float = 4.0, min_satellites: int = 6) -> bool:
+        """
+        Check if GPS quality is sufficient for flight.
+
+        Args:
+            max_hdop: Maximum HDOP allowed in meters (default: 4.0)
+            min_satellites: Minimum satellite count required (default: 6, fallback if no HDOP)
+
+        Returns:
+            True if GPS has 3D fix and sufficient quality (HDOP or satellite count)
+        """
+        # Must have 3D fix
+        if self.gps_fix_type < 2:
+            return False
+
+        # Prefer HDOP if available, otherwise fall back to satellite count
+        if self.gps_hdop < 90.0:  # Valid HDOP received
+            return self.gps_hdop <= max_hdop
+        else:
+            return self.gps_satellite_count >= min_satellites
+
+    def determine_averaging_window(self) -> int:
+        """
+        Determine origin averaging window based on HDOP (tiered strategy).
+
+        Strategy (HDOP-based):
+        - HDOP < 1.5m: Average 10 samples (~7 seconds at 1.5 Hz) - excellent quality
+        - HDOP 1.5-2.5m: Average 20 samples (~14 seconds) - good quality
+        - HDOP 2.5-4.0m: Average 30 samples (~20 seconds) - marginal quality
+        - HDOP > 4.0m: Return 0 (insufficient)
+
+        Fallback (satellite count if HDOP unavailable):
+        - 10+ satellites: Average 10 samples - excellent quality
+        - 8-9 satellites: Average 20 samples - good quality
+        - 6-7 satellites: Average 30 samples - marginal quality
+        - <6 satellites: Return 0 (insufficient)
+
+        Returns:
+            Number of samples to average, or 0 if insufficient quality
+        """
+        # Use HDOP if available
+        if self.gps_hdop < 90.0:  # Valid HDOP received
+            if self.gps_hdop < 1.5:
+                return 10  # Excellent
+            elif self.gps_hdop < 2.5:
+                return 20  # Good
+            elif self.gps_hdop <= 4.0:
+                return 30  # Marginal
+            else:
+                return 0  # Insufficient
+
+        # Fallback to satellite count
+        if self.gps_satellite_count >= 10:
+            return 10
+        elif self.gps_satellite_count >= 8:
+            return 20
+        elif self.gps_satellite_count >= 6:
+            return 30
+        else:
+            return 0  # Insufficient satellites
+
+    def update_gps_position(self, lat: float, lon: float, alt: float) -> Tuple[bool, bool]:
+        """
+        Update GPS position with tiered averaging for origin.
 
         Args:
             lat: Latitude (degrees)
@@ -78,22 +165,64 @@ class SensorDataManager:
             alt: Altitude (meters)
 
         Returns:
-            True if this is the first GPS fix (origin was just set)
+            Tuple of (first_fix, origin_ready):
+                - first_fix: True if this is the first GPS sample received
+                - origin_ready: True if origin has been set (averaging complete)
         """
         self.position[0] = float(lat)
         self.position[1] = float(lon)
         self.position[2] = float(alt)
 
-        first_fix = self.origin_geodetic is None
+        first_fix = len(self.origin_samples) == 0
 
         if not self.data_received['gps']:
             self.data_received['gps'] = True
 
-        return first_fix
+        # Origin setting with tiered averaging
+        if not self.origin_is_set:
+            # Determine averaging window if not yet set
+            if self.origin_averaging_window == 0:
+                self.origin_averaging_window = self.determine_averaging_window()
+
+                if self.origin_averaging_window > 0:
+                    # Log the strategy
+                    pass  # Will be logged by calling node
+
+            # Collect samples if window is determined
+            if self.origin_averaging_window > 0:
+                self.origin_samples.append([lat, lon, alt])
+
+                # Check if we have enough samples
+                if len(self.origin_samples) >= self.origin_averaging_window:
+                    # Compute averaged origin
+                    samples_array = np.array(self.origin_samples, dtype=np.float32)
+                    averaged_origin = np.mean(samples_array, axis=0)
+
+                    self.origin_is_set = True
+                    return first_fix, True  # Origin is ready!
+
+        return first_fix, self.origin_is_set
 
     def set_origin_geodetic(self, origin: np.ndarray):
         """Set the relative origin in geodetic coordinates."""
         self.origin_geodetic = origin.copy()
+
+    def get_averaged_origin_samples(self) -> Optional[np.ndarray]:
+        """
+        Get averaged origin from collected samples.
+
+        Returns:
+            Averaged origin [lat, lon, alt] if samples collected, else None
+        """
+        if len(self.origin_samples) == 0:
+            return None
+
+        samples_array = np.array(self.origin_samples, dtype=np.float32)
+        return np.mean(samples_array, axis=0)
+
+    def get_origin_sample_count(self) -> int:
+        """Get number of origin samples collected."""
+        return len(self.origin_samples)
 
     def get_position(self) -> np.ndarray:
         """Get current geodetic position [lat, lon, alt]."""
@@ -111,21 +240,11 @@ class SensorDataManager:
     # Orientation Management
     # -------------------------------------------------------------------------
 
-    def update_attitude_quaternion(self, x: float, y: float, z: float, w: float):
-        """Update attitude quaternion."""
-        self.quat_att = np.array([x, y, z, w], dtype=np.float32)
-        if not self.data_received['att_quat']:
-            self.data_received['att_quat'] = True
-
     def update_attitude_euler(self, roll: float, pitch: float, yaw: float):
         """Update attitude Euler angles (radians)."""
         self.euler_att = np.array([roll, pitch, yaw], dtype=np.float32)
         if not self.data_received['att_euler']:
             self.data_received['att_euler'] = True
-
-    def get_quaternion(self) -> np.ndarray:
-        """Get current quaternion [x, y, z, w]."""
-        return self.quat_att.copy()
 
     def get_euler(self) -> np.ndarray:
         """Get current Euler angles [roll, pitch, yaw] in radians."""
@@ -259,7 +378,6 @@ class SensorDataManager:
         return {
             'position': self.get_position(),
             'origin': self.get_origin(),
-            'quaternion': self.get_quaternion(),
             'euler': self.get_euler(),
             'velocity': self.get_velocity(),
             'angular_velocity': self.get_angular_velocity(),

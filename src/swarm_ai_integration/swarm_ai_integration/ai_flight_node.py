@@ -217,7 +217,7 @@ class AIFlightNode(Node):
     """
 
     # Hard requirements from your request
-    MODEL_PATH = "/home/pi/swarm-ros/model/UID_117.zip"
+    MODEL_PATH = "/home/pi/swarm-ros/model/UID_203.zip"
     OBS_DIM = 131
     ACT_DIM = 4
     PREDICT_HZ = 10.0  # infer 10 times per second

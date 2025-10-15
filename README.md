@@ -367,6 +367,17 @@ ros2 launch swarm_ai_integration swarm_ai_launch.py \
     log_directory:=/var/log/swarm_blackbox
 ```
 
+**Production deployment with PM2 (process monitoring and auto-restart):**
+```bash
+pm2 start "ros2 launch swarm_ai_integration swarm_ai_launch.py" --name swarm_ai
+```
+
+PM2 provides process monitoring, automatic restart on failure, and system startup integration. To enable auto-start on boot:
+```bash
+pm2 save
+pm2 startup
+```
+
 **Minimal launch (testing without LiDAR):**
 ```bash
 ros2 launch swarm_ai_integration swarm_ai_launch.py \
