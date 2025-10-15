@@ -8,15 +8,17 @@ Loop:
                                         ^                      |
                                         |______ this node _____|
 
-Key points:
-- The policy was trained with ActionType.VEL in PyBullet, where action[:3]
-  is a WORLD-FRAME direction (x=East, y=North, z=Up), normalized internally,
-  and |action[3]| is the speed magnitude.
-- Therefore, in this simulator we must:
-  1) Treat [vx,vy,vz] as ENU WORLD-FRAME (no yaw rotation, no axis swap).
-  2) Normalize [vx,vy,vz] to unit length (if non-zero).
-  3) Scale the step by abs(speed) only.
-- Yaw is fixed at 0 here (we still publish it in telemetry).
+Behavior (idealized):
+- Yaw fixed at 0 rad (body frame aligned with ENU when yaw=0).
+- Each physics tick (default 10 Hz), position += meters_per_step * speed * [vx, vy, vz].
+- No actuator lag, no noise, no dropouts.
+- Publishes realistic sensor topics and constructs the exact 131-D observation
+  via your real ObservationBuilder/CoordinateTransforms/SensorDataManager.
+
+IMPORTANT: The model outputs BODY-FRAME velocities (forward/right/up), which must
+be transformed to ENU world frame using the yaw angle before integration.
+
+Do NOT run fc_comms_node at the same time (it publishes the same /fc/* topics).
 """
 
 import math
@@ -232,24 +234,50 @@ class AIAdapterSimulatedNode(Node):
     def _physics_tick(self):
         vx, vy, vz, spd = [float(x) for x in self.last_action]
 
-        # **** CRITICAL: match training semantics (ActionType.VEL) ****
-        # - Treat [vx, vy, vz] as WORLD-FRAME ENU (E, N, U). No yaw rotation.
-        # - Normalize direction; use |speed| as magnitude.
-        v = np.array([vx, vy, vz], dtype=np.float32)
-        n = float(np.linalg.norm(v))
-        if n > 1e-9:
-            v_unit = v / n
-        else:
-            v_unit = np.zeros(3, dtype=np.float32)
+        # ═══════════════════════════════════════════════════════════════════
+        # CRITICAL: Body->ENU coordinate transformation
+        # ═══════════════════════════════════════════════════════════════════
+        # The AI model was trained in PyBullet using Body Frame coordinates:
+        #   vx = forward/backward (along drone's nose, Body-X axis)
+        #   vy = right/left (perpendicular to nose, Body-Y axis)
+        #   vz = up/down (Body-Z axis)
+        #
+        # PyBullet's Body Frame convention (when yaw=0):
+        #   Body-X (forward) → ENU-North (NOT East!)
+        #   Body-Y (right)   → ENU-East  (NOT North!)
+        #   Body-Z (up)      → ENU-Up
+        #
+        # For arbitrary yaw angle, the transformation is:
+        #   E = vx * sin(yaw) + vy * cos(yaw)
+        #   N = vx * cos(yaw) - vy * sin(yaw)
+        #   U = vz
+        #
+        # When yaw=0: cos(0)=1, sin(0)=0, so:
+        #   E = vy  (right → East)
+        #   N = vx  (forward → North)
+        #   U = vz
+        # ═══════════════════════════════════════════════════════════════════
 
+        # Treat speed as magnitude
         if self.use_speed_scalar:
-            spd = abs(spd)             # speed magnitude only
+            spd = abs(spd)
         else:
             spd = 1.0
 
-        # Step in ENU directly
-        step_scale = float(self.meters_per_step * max(0.0, min(1.0, spd)))
-        dE, dN, dU = (v_unit * step_scale).tolist()
+        # Apply body-to-ENU rotation
+        cos_yaw = math.cos(self.yaw)
+        sin_yaw = math.sin(self.yaw)
+
+        # Transform body velocities to ENU frame
+        v_east = vx * sin_yaw + vy * cos_yaw
+        v_north = vx * cos_yaw - vy * sin_yaw
+        v_up = vz
+
+        # Scale by meters_per_step and speed
+        step_scale = float(self.meters_per_step * spd)
+        dE = v_east * step_scale
+        dN = v_north * step_scale
+        dU = v_up * step_scale
 
         old_pos = self.rel_pos_enu.copy()
         self.rel_pos_enu[0] += dE
