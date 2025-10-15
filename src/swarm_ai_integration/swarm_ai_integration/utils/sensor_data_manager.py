@@ -44,8 +44,7 @@ class SensorDataManager:
         self.origin_averaging_window = 0  # Determined by satellite count
         self.origin_is_set = False
 
-        # Orientation data
-        self.quat_att = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)  # [x, y, z, w]
+        # Orientation data (Euler angles only)
         self.euler_att = np.zeros(3, dtype=np.float32)  # [roll, pitch, yaw] radians
 
         # Velocity data
@@ -65,7 +64,6 @@ class SensorDataManager:
         # Data received flags
         self.data_received = {
             'gps': False,
-            'att_quat': False,
             'att_euler': False,
             'imu': False,
             'lidar': False,
@@ -242,21 +240,11 @@ class SensorDataManager:
     # Orientation Management
     # -------------------------------------------------------------------------
 
-    def update_attitude_quaternion(self, x: float, y: float, z: float, w: float):
-        """Update attitude quaternion."""
-        self.quat_att = np.array([x, y, z, w], dtype=np.float32)
-        if not self.data_received['att_quat']:
-            self.data_received['att_quat'] = True
-
     def update_attitude_euler(self, roll: float, pitch: float, yaw: float):
         """Update attitude Euler angles (radians)."""
         self.euler_att = np.array([roll, pitch, yaw], dtype=np.float32)
         if not self.data_received['att_euler']:
             self.data_received['att_euler'] = True
-
-    def get_quaternion(self) -> np.ndarray:
-        """Get current quaternion [x, y, z, w]."""
-        return self.quat_att.copy()
 
     def get_euler(self) -> np.ndarray:
         """Get current Euler angles [roll, pitch, yaw] in radians."""
@@ -390,7 +378,6 @@ class SensorDataManager:
         return {
             'position': self.get_position(),
             'origin': self.get_origin(),
-            'quaternion': self.get_quaternion(),
             'euler': self.get_euler(),
             'velocity': self.get_velocity(),
             'angular_velocity': self.get_angular_velocity(),

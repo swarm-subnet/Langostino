@@ -6,9 +6,9 @@ This node acts as a black box flight data recorder, logging all critical system 
 including sensor inputs, AI model outputs, flight controller communications, and
 safety system status. Data is persisted to files that survive system restarts.
 
-Data Logged (31 topics):
+Data Logged (30 topics):
 - AI System (5): observations, actions, status, model_ready, debug observations
-- Flight Controller (11): IMU, GPS, attitude (quat + euler), battery, status,
+- Flight Controller (10): IMU, GPS, attitude (euler), battery, status,
   MSP status, connection, motors, GPS speed/course, waypoints
 - FC Commands (2): RC override, MSP commands
 - FC Adapter (2): status, velocity error
@@ -41,7 +41,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from std_msgs.msg import Bool, String, Float32MultiArray
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState, Range
-from geometry_msgs.msg import PoseStamped, Vector3Stamped, PointStamped, QuaternionStamped
+from geometry_msgs.msg import PoseStamped, Vector3Stamped, PointStamped
 
 
 class BlackBoxRecorderNode(Node):
@@ -263,10 +263,6 @@ class BlackBoxRecorderNode(Node):
         self.fc_gps_sub = self.create_subscription(
             NavSatFix, '/fc/gps_fix',
             lambda msg: self.log_message('FC_GPS', msg), sensor_qos)
-
-        self.fc_attitude_sub = self.create_subscription(
-            QuaternionStamped, '/fc/attitude',
-            lambda msg: self.log_message('FC_ATTITUDE', msg), sensor_qos)
 
         self.fc_attitude_euler_sub = self.create_subscription(
             Vector3Stamped, '/fc/attitude_euler',

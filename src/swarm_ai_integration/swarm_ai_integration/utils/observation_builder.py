@@ -94,27 +94,22 @@ class ObservationBuilder:
     def build_base_observation(
         self,
         rel_pos_enu: np.ndarray,
-        quat_att: np.ndarray,
         euler_att: np.ndarray,
         velocity: np.ndarray,
-        angular_velocity: np.ndarray,
-        last_action: np.ndarray
+        angular_velocity: np.ndarray
     ) -> np.ndarray:
         """
         Build base 112-D observation vector.
 
         Matches PyBullet training format:
-        - 12D kinematics (pos, euler, vel, ang_vel) - NO quaternion, NO last_action
+        - 12D kinematics (pos, euler, vel, ang_vel)
         - 100D action history (25 actions × 4)
-        - NO padding
 
         Args:
             rel_pos_enu: Relative position [E, N, U] in meters
-            quat_att: Orientation quaternion [x, y, z, w] (NOT USED - kept for compatibility)
             euler_att: Euler angles [roll, pitch, yaw] in radians
             velocity: Velocity [vx, vy, vz] in m/s
             angular_velocity: Angular velocity [wx, wy, wz] in rad/s
-            last_action: Last action [4 values] (NOT USED - already in buffer)
 
         Returns:
             112-element base observation array
@@ -136,11 +131,9 @@ class ObservationBuilder:
     def build_full_observation(
         self,
         rel_pos_enu: np.ndarray,
-        quat_att: np.ndarray,
         euler_att: np.ndarray,
         velocity: np.ndarray,
         angular_velocity: np.ndarray,
-        last_action: np.ndarray,
         lidar_distances: np.ndarray,
         goal_vector: np.ndarray
     ) -> np.ndarray:
@@ -149,11 +142,9 @@ class ObservationBuilder:
 
         Args:
             rel_pos_enu: Relative position [E, N, U] in meters
-            quat_att: Orientation quaternion [x, y, z, w]
             euler_att: Euler angles [roll, pitch, yaw] in radians
             velocity: Velocity [vx, vy, vz] in m/s
             angular_velocity: Angular velocity [wx, wy, wz] in rad/s
-            last_action: Last action [4 values]
             lidar_distances: LiDAR distances [16 rays], normalized
             goal_vector: Goal vector [E, N, U], normalized
 
@@ -162,8 +153,7 @@ class ObservationBuilder:
         """
         # Build base observation (112-D)
         base_obs = self.build_base_observation(
-            rel_pos_enu, quat_att, euler_att,
-            velocity, angular_velocity, last_action
+            rel_pos_enu, euler_att, velocity, angular_velocity
         )
 
         # Concatenate with LiDAR and goal

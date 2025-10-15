@@ -31,7 +31,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import NavSatFix, Imu, Range
-from geometry_msgs.msg import QuaternionStamped, Vector3Stamped
+from geometry_msgs.msg import Vector3Stamped
 
 from swarm_ai_integration.utils import (
     CoordinateTransforms,
@@ -39,12 +39,6 @@ from swarm_ai_integration.utils import (
     ObservationBuilder,
     DebugLogger,
 )
-
-
-def quat_from_yaw(yaw_rad: float):
-    """Quaternion for yaw-only (roll=pitch=0). Returns (x,y,z,w)."""
-    half = 0.5 * yaw_rad
-    return (0.0, 0.0, math.sin(half), math.cos(half))
 
 
 class AIAdapterSimulatedNode(Node):
@@ -180,7 +174,6 @@ class AIAdapterSimulatedNode(Node):
         # Publishers (fake sensors)
         self.pub_gps_fix = self.create_publisher(NavSatFix, '/fc/gps_fix', sensor_qos)
         self.pub_gps_spd = self.create_publisher(Float32MultiArray, '/fc/gps_speed_course', sensor_qos)
-        self.pub_att_q = self.create_publisher(QuaternionStamped, '/fc/attitude', sensor_qos)
         self.pub_att_e = self.create_publisher(Vector3Stamped, '/fc/attitude_euler', sensor_qos)
         self.pub_imu = self.create_publisher(Imu, '/fc/imu_raw', sensor_qos)
         self.pub_lidar = self.create_publisher(Range, '/lidar_distance', sensor_qos)
@@ -214,7 +207,7 @@ class AIAdapterSimulatedNode(Node):
         )
 
         self.sensor_manager.data_received.update({
-            'gps': True, 'att_quat': True, 'att_euler': True, 'imu': True,
+            'gps': True, 'att_euler': True, 'imu': True,
             'lidar': True, 'gps_speed': True, 'waypoint': True, 'action': True
         })
 
@@ -318,8 +311,6 @@ class AIAdapterSimulatedNode(Node):
     # Telemetry tick (publish sensors + build observation)
     # ────────────────────────────────────────────────────────────────
     def _telemetry_tick(self):
-        qx, qy, qz, qw = quat_from_yaw(self.yaw)
-
         # GPS speed/course from ENU velocity
         speed_xy = float(math.hypot(self.vel_enu[0], self.vel_enu[1]))
         if speed_xy > 1e-6:
@@ -356,7 +347,6 @@ class AIAdapterSimulatedNode(Node):
         first_fix = self.sensor_manager.update_gps_position(self.cur_lat, self.cur_lon, self.cur_alt)
         vel_enu_from_course = self.transforms.velocity_cog_to_enu(speed_xy, course_deg)
         self.sensor_manager.update_velocity_from_gps(speed_xy, course_deg, vel_enu_from_course)
-        self.sensor_manager.update_attitude_quaternion(qx, qy, qz, qw)
         self.sensor_manager.update_attitude_euler(roll=0.0, pitch=0.0, yaw=self.yaw)
         self.sensor_manager.update_angular_velocity(0.0, 0.0, 0.0)
         self.sensor_manager.update_goal(self.goal_lat, self.goal_lon, self.goal_alt)
@@ -374,24 +364,16 @@ class AIAdapterSimulatedNode(Node):
         spdmsg.data = [float(speed_xy), float(course_deg)]
         self.pub_gps_spd.publish(spdmsg)
 
-        qs = QuaternionStamped()
-        qs.header.stamp = fix.header.stamp
-        qs.header.frame_id = self.att_frame
-        qs.quaternion.x = qx
-        qs.quaternion.y = qy
-        qs.quaternion.z = qz
-        qs.quaternion.w = qw
-        self.pub_att_q.publish(qs)
-
         ve = Vector3Stamped()
-        ve.header = qs.header
+        ve.header.stamp = fix.header.stamp
+        ve.header.frame_id = self.att_frame
         ve.vector.x = 0.0
         ve.vector.y = 0.0
         ve.vector.z = self.yaw
         self.pub_att_e.publish(ve)
 
         imu = Imu()
-        imu.header = qs.header
+        imu.header = ve.header
         imu.angular_velocity.x = 0.0
         imu.angular_velocity.y = 0.0
         imu.angular_velocity.z = 0.0
@@ -422,11 +404,9 @@ class AIAdapterSimulatedNode(Node):
 
         full_obs = self.obs_builder.build_full_observation(
             rel_pos_enu=rel_enu,
-            quat_att=self.sensor_manager.get_quaternion(),
             euler_att=self.sensor_manager.get_euler(),
             velocity=self.sensor_manager.get_velocity(),
             angular_velocity=self.sensor_manager.get_angular_velocity(),
-            last_action=last_action,
             lidar_distances=self.sensor_manager.get_lidar_distances(),
             goal_vector=goal_vec
         )

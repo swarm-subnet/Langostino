@@ -13,7 +13,7 @@ import numpy as np
 from typing import Optional, Dict, Any, Tuple
 
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState
-from geometry_msgs.msg import QuaternionStamped, Vector3Stamped
+from geometry_msgs.msg import Vector3Stamped
 from std_msgs.msg import Float32MultiArray, String, Int32, Float32
 
 from swarm_ai_integration.msp_protocol import MSPDataTypes, MSPCommand
@@ -26,33 +26,6 @@ class MSPMessageParser:
     This class contains all the data parsing logic, keeping the main
     node clean and focused on coordination.
     """
-
-    @staticmethod
-    def euler_to_quaternion(roll: float, pitch: float, yaw: float) -> Tuple[float, float, float, float]:
-        """
-        Convert Euler angles (radians) to quaternion (x, y, z, w) using ZYX order.
-
-        Args:
-            roll: Roll angle in radians
-            pitch: Pitch angle in radians
-            yaw: Yaw angle in radians
-
-        Returns:
-            Tuple of (qx, qy, qz, qw)
-        """
-        cy = np.cos(yaw * 0.5)
-        sy = np.sin(yaw * 0.5)
-        cp = np.cos(pitch * 0.5)
-        sp = np.sin(pitch * 0.5)
-        cr = np.cos(roll * 0.5)
-        sr = np.sin(roll * 0.5)
-
-        qw = cr * cp * cy + sr * sp * sy
-        qx = sr * cp * cy - cr * sp * sy
-        qy = cr * sp * cy + sr * cp * sy
-        qz = cr * cp * sy - sr * sp * cy
-
-        return (qx, qy, qz, qw)
 
     def parse_imu_data(self, data: bytes, timestamp, frame_id: str = 'fc_imu') -> Optional[Imu]:
         """
@@ -181,9 +154,9 @@ class MSPMessageParser:
         data: bytes,
         timestamp,
         frame_id: str = 'fc_attitude'
-    ) -> Tuple[Optional[QuaternionStamped], Optional[Vector3Stamped]]:
+    ) -> Optional[Vector3Stamped]:
         """
-        Parse MSP_ATTITUDE data and create quaternion and Euler messages.
+        Parse MSP_ATTITUDE data and create Euler angles message.
 
         Args:
             data: Raw MSP payload
@@ -191,7 +164,7 @@ class MSPMessageParser:
             frame_id: TF frame ID
 
         Returns:
-            Tuple of (QuaternionStamped, Vector3Stamped) or (None, None)
+            Vector3Stamped with Euler angles or None
         """
         try:
             roll, pitch, yaw = MSPDataTypes.unpack_attitude(data)
@@ -209,22 +182,10 @@ class MSPMessageParser:
             euler_msg.vector.y = pitch_rad  # pitch
             euler_msg.vector.z = yaw_rad    # yaw
 
-            # Convert to quaternion
-            qx, qy, qz, qw = self.euler_to_quaternion(roll_rad, pitch_rad, yaw_rad)
-
-            # Create quaternion message
-            quat_msg = QuaternionStamped()
-            quat_msg.header.stamp = timestamp
-            quat_msg.header.frame_id = frame_id
-            quat_msg.quaternion.x = qx
-            quat_msg.quaternion.y = qy
-            quat_msg.quaternion.z = qz
-            quat_msg.quaternion.w = qw
-
-            return quat_msg, euler_msg
+            return euler_msg
 
         except Exception as e:
-            return None, None
+            return None
 
     def parse_status_data(
         self,

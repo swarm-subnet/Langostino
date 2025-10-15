@@ -23,7 +23,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from std_msgs.msg import Float32MultiArray, Int32, Float32
 from sensor_msgs.msg import NavSatFix, Imu, Range
-from geometry_msgs.msg import QuaternionStamped, Vector3Stamped
+from geometry_msgs.msg import Vector3Stamped
 
 from swarm_ai_integration.utils import (
     CoordinateTransforms,
@@ -52,7 +52,7 @@ class AIAdapterNode(Node):
         # -------------------------
         self.declare_parameter('telemetry_rate', 30.0)  # Hz
         self.declare_parameter('max_ray_distance', 20.0)  # meters - MUST MATCH TRAINING
-        self.declare_parameter('action_buffer_size', 20)
+        self.declare_parameter('action_buffer_size', 25)  # 25 actions × 4 = 100D in observation
         self.declare_parameter('relative_start_enu', [0.0, 0.0, 3.0])  # [E, N, U] meters
         self.declare_parameter('sensor_qos_depth', 1)
         self.declare_parameter('reliable_qos_depth', 10)
@@ -119,9 +119,6 @@ class AIAdapterNode(Node):
         )
         self.gps_hdop_sub = self.create_subscription(
             Float32, '/fc/gps_hdop', self.gps_hdop_callback, sensor_qos
-        )
-        self.att_quat_sub = self.create_subscription(
-            QuaternionStamped, '/fc/attitude', self.att_quat_callback, sensor_qos
         )
         self.att_euler_sub = self.create_subscription(
             Vector3Stamped, '/fc/attitude_euler', self.att_euler_callback, sensor_qos
@@ -294,23 +291,6 @@ class AIAdapterNode(Node):
             )
             self.sensor_manager.data_received['waypoint'] = True
 
-    def att_quat_callback(self, msg: QuaternionStamped):
-        """Handle attitude quaternion updates."""
-        self.sensor_manager.update_attitude_quaternion(
-            x=msg.quaternion.x,
-            y=msg.quaternion.y,
-            z=msg.quaternion.z,
-            w=msg.quaternion.w
-        )
-
-        if not self.sensor_manager.data_received['att_quat']:
-            quat = self.sensor_manager.get_quaternion()
-            self.debug_logger.log_first_data_received(
-                'Attitude quaternion',
-                f'q=[{quat[0]:.6f}, {quat[1]:.6f}, {quat[2]:.6f}, {quat[3]:.6f}]'
-            )
-            self.sensor_manager.data_received['att_quat'] = True
-
     def att_euler_callback(self, msg: Vector3Stamped):
         """Handle attitude Euler angles updates."""
         self.sensor_manager.update_attitude_euler(
@@ -437,7 +417,7 @@ class AIAdapterNode(Node):
             return
 
         # Check required data
-        required = ['gps', 'att_quat', 'att_euler', 'imu', 'lidar', 'gps_speed', 'waypoint']
+        required = ['gps', 'att_euler', 'imu', 'lidar', 'gps_speed', 'waypoint']
         if not self.sensor_manager.is_data_ready(required):
             missing = self.sensor_manager.get_missing_data(required)
             self.get_logger().warn(
@@ -467,14 +447,12 @@ class AIAdapterNode(Node):
             )
             goal_vector = self.obs_builder.compute_goal_vector(goal_enu, rel_pos_enu)
 
-            # Build full observation
+            # Build full observation (131-D: 12 kinematics + 100 actions + 16 lidar + 3 goal)
             full_obs = self.obs_builder.build_full_observation(
                 rel_pos_enu=rel_pos_enu,
-                quat_att=self.sensor_manager.get_quaternion(),
                 euler_att=self.sensor_manager.get_euler(),
                 velocity=self.sensor_manager.get_velocity(),
                 angular_velocity=self.sensor_manager.get_angular_velocity(),
-                last_action=last_action,
                 lidar_distances=self.sensor_manager.get_lidar_distances(),
                 goal_vector=goal_vector
             )

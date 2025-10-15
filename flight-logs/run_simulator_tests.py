@@ -15,7 +15,7 @@ import json
 import argparse
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 
 
 class SimulatorTest:

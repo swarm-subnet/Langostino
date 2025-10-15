@@ -252,13 +252,13 @@ class FCCommsNode(Node):
 
     def _handle_attitude(self, data: bytes):
         """Handle attitude data"""
-        quat_msg, euler_msg = self.parser.parse_attitude_data(
+        euler_msg = self.parser.parse_attitude_data(
             data,
             self.get_clock().now().to_msg(),
             'fc_attitude'
         )
-        if quat_msg and euler_msg:
-            self.publisher.publish_attitude(quat_msg, euler_msg)
+        if euler_msg:
+            self.publisher.publish_attitude(euler_msg)
 
     def _handle_status(self, data: bytes):
         """Handle status data"""
