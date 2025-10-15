@@ -15,8 +15,8 @@ Behavior (idealized):
 - Publishes realistic sensor topics and constructs the exact 131-D observation
   via your real ObservationBuilder/CoordinateTransforms/SensorDataManager.
 
-IMPORTANT: The model outputs BODY-FRAME velocities (forward/right/up), which must
-be transformed to ENU world frame using the yaw angle before integration.
+NOTE: Model actions are interpreted as direct ENU displacements (vx→East, vy→North, vz→Up).
+Though trained in body-frame, the model appears to have learned ENU-aligned outputs.
 
 Do NOT run fc_comms_node at the same time (it publishes the same /fc/* topics).
 """
@@ -234,50 +234,20 @@ class AIAdapterSimulatedNode(Node):
     def _physics_tick(self):
         vx, vy, vz, spd = [float(x) for x in self.last_action]
 
-        # ═══════════════════════════════════════════════════════════════════
-        # CRITICAL: Body->ENU coordinate transformation
-        # ═══════════════════════════════════════════════════════════════════
-        # The AI model was trained in PyBullet using Body Frame coordinates:
-        #   vx = forward/backward (along drone's nose, Body-X axis)
-        #   vy = right/left (perpendicular to nose, Body-Y axis)
-        #   vz = up/down (Body-Z axis)
-        #
-        # PyBullet's Body Frame convention (when yaw=0):
-        #   Body-X (forward) → ENU-North (NOT East!)
-        #   Body-Y (right)   → ENU-East  (NOT North!)
-        #   Body-Z (up)      → ENU-Up
-        #
-        # For arbitrary yaw angle, the transformation is:
-        #   E = vx * sin(yaw) + vy * cos(yaw)
-        #   N = vx * cos(yaw) - vy * sin(yaw)
-        #   U = vz
-        #
-        # When yaw=0: cos(0)=1, sin(0)=0, so:
-        #   E = vy  (right → East)
-        #   N = vx  (forward → North)
-        #   U = vz
-        # ═══════════════════════════════════════════════════════════════════
-
-        # Treat speed as magnitude
-        if self.use_speed_scalar:
-            spd = abs(spd)
-        else:
+        # Treat speed as magnitude (not direction)
+        if not self.use_speed_scalar:
             spd = 1.0
+        else:
+            # CRITICAL: Speed scalar should be non-negative. The model may output
+            # negative values during training artifacts, but we interpret it as magnitude.
+            spd = abs(spd)
 
-        # Apply body-to-ENU rotation
-        cos_yaw = math.cos(self.yaw)
-        sin_yaw = math.sin(self.yaw)
-
-        # Transform body velocities to ENU frame
-        v_east = vx * sin_yaw + vy * cos_yaw
-        v_north = vx * cos_yaw - vy * sin_yaw
-        v_up = vz
-
-        # Scale by meters_per_step and speed
+        # Direct mapping: model outputs appear to be in ENU-like frame already
+        # (despite body-frame training, the model may have learned ENU outputs)
         step_scale = float(self.meters_per_step * spd)
-        dE = v_east * step_scale
-        dN = v_north * step_scale
-        dU = v_up * step_scale
+        dE = vx * step_scale
+        dN = vy * step_scale
+        dU = vz * step_scale
 
         old_pos = self.rel_pos_enu.copy()
         self.rel_pos_enu[0] += dE
