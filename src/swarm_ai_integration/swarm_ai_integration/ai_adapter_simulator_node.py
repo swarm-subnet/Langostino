@@ -114,9 +114,9 @@ class AIAdapterSimulatedNode(Node):
         # ─────────────────────────
         self.transforms = CoordinateTransforms()
         # IMPORTANT: action buffer length in the observation should match training.
-        # The model was trained with 131-D observations, which requires buffer_size=20.
-        # Formula: 20 (base) + 20*4 (actions) + 12 (padding) + 16 (lidar) + 3 (goal) = 131
-        self.obs_builder = ObservationBuilder(action_buffer_size=20, max_ray_distance=self.lidar_max)
+        # The model was trained with 131-D observations, which requires buffer_size=25.
+        # Formula: 12 (kinematics) + 25*4 (actions) + 16 (lidar) + 3 (goal) = 131
+        self.obs_builder = ObservationBuilder(action_buffer_size=25, max_ray_distance=self.lidar_max)
         self.sensor_manager = SensorDataManager(num_lidar_rays=16, relative_start_enu=self.relative_start_enu)
         self.debug_logger = DebugLogger(node=self, max_ray_distance=self.lidar_max)
 
