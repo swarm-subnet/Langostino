@@ -383,7 +383,7 @@ class AIAdapterSimulatedNode(Node):
         self.pub_imu.publish(imu)
 
         rng = Range()
-        rng.header = qs.header
+        rng.header = fix.header
         rng.header.frame_id = self.lidar_frame
         rng.radiation_type = Range.INFRARED
         rng.field_of_view = self.lidar_fov
