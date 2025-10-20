@@ -1,0 +1,216 @@
+1|fc_comms | 2025-10-20 20:00:26,445 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms | [INFO] [1760983226.464719692] [fc_comms_node]: 📥 Received: MSP_STATUS (code=101, size=11 bytes)
+1|fc_comms | [INFO] [1760983226.483250812] [fc_comms_node]:    ➜ Published to /fc/status | Cycle: 524us, I2C Errors: 0, Sensors: 0x00cf, Box Flags: 0x04000008
+1|fc_comms | 2025-10-20 20:00:26,487 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms | 2025-10-20 20:00:26,490 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms | 2025-10-20 20:00:26,492 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms | [INFO] [1760983226.505548219] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms | 2025-10-20 20:00:26,508 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms | [INFO] [1760983226.535194709] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms | 2025-10-20 20:00:26,539 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e076e94760000002900a2
+1|fc_comms | 2025-10-20 20:00:26,543 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=REQ, size=0
+1|fc_comms | 2025-10-20 20:00:26,552 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms | 2025-10-20 20:00:26,547 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ANALOG (code=110), direction=RESP, size=7
+1|fc_comms | 2025-10-20 20:00:26,573 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_ANALOG (code=110), size=7, payload=94760000002900
+1|fc_comms | [INFO] [1760983226.591636983] [fc_comms_node]: 📥 Received: MSP_ANALOG (code=110, size=7 bytes)
+
+1|fc_comms   | [INFO] [1760983226.696028636] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:26,700 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e1068e803e803e803e803000000000000000078
+1|fc_comms   | 2025-10-20 20:00:26,705 - MSP_Protocol - DEBUG - Creating MSP message: MSP_MOTOR (code=104), direction=RESP, size=16
+1|fc_comms   | 2025-10-20 20:00:26,707 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_MOTOR (code=104), size=16, payload=e803e803e803e8030000000000000000
+1|fc_comms   | [INFO] [1760983226.720181270] [fc_comms_node]: 📥 Received: MSP_MOTOR (code=104, size=16 bytes)
+1|fc_comms   | [INFO] [1760983226.740079070] [fc_comms_node]:    ➜ Published to /fc/motor_rpm | M1=1000, M2=1000, M3=1000, M4=1000
+1|fc_comms   | 2025-10-20 20:00:26,744 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms   | 2025-10-20 20:00:26,748 - MSP_Protocol - DEBUG - Creating MSP message: MSP_MOTOR (code=104), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:26,754 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | 2025-10-20 20:00:26,750 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms   | 2025-10-20 20:00:26,771 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms   | [INFO] [1760983226.794294083] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms   | 2025-10-20 20:00:26,799 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms   | [INFO] [1760983226.815980338] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:26,819 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e126681001600ed010000000000006c00cd0000fc52
+1|fc_comms   | 2025-10-20 20:00:26,824 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=RESP, size=18
+1|fc_comms   | 2025-10-20 20:00:26,830 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_RAW_IMU (code=102), size=18, payload=81001600ed010000000000006c00cd0000fc
+1|fc_comms   | 2025-10-20 20:00:26,843 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:26,845 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | [INFO] [1760983226.865749057] [fc_comms_node]: 📥 Received: MSP_RAW_IMU (code=102, size=18 bytes)
+1|fc_comms   | 2025-10-20 20:00:26,872 - MSP_Protocol - DEBUG - Unpacked IMU: {'acc': (129, 22, 493), 'gyro': (0, 0, 0), 'mag': (108, 205, -1024)}
+1|fc_comms   | [INFO] [1760983226.905980808] [fc_comms_node]:    ➜ Published to /fc/imu_raw | acc=[2.47, 0.42, 9.45] m/s² | gyro=[0.000, 0.000, 0.000] rad/s
+1|fc_comms   | 2025-10-20 20:00:26,910 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms   | 2025-10-20 20:00:26,914 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms   | 2025-10-20 20:00:26,915 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms   | [INFO] [1760983226.930180161] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms   | 2025-10-20 20:00:26,934 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms   | 2025-10-20 20:00:26,944 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:26,945 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | [INFO] [1760983226.977913443] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:26,979 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e126a0212e1ae3316963eccfcb50005008d028b002e
+1|fc_comms   | 2025-10-20 20:00:26,980 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=RESP, size=18
+1|fc_comms   | 2025-10-20 20:00:26,982 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_RAW_GPS (code=106), size=18, payload=0212e1ae3316963eccfcb50005008d028b00
+1|fc_comms   | [INFO] [1760983226.995669920] [fc_comms_node]: 📥 Received: MSP_RAW_GPS (code=106, size=18 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,001 - MSP_Protocol - INFO - 📡 GPS Extended (18 bytes): extra_bytes=0x8b00, interpreted_as_hdop=139
+1|fc_comms   | 2025-10-20 20:00:27,002 - MSP_Protocol - INFO - 🐛 GPS FULL DEBUG: fix_byte=2 (0x02), sats=18, lat_raw=372485857, lon_raw=-53723498, hdop=139, full_hex=0212e1ae3316963eccfcb50005008d028b00
+1|fc_comms   | [INFO] [1760983227.022396329] [fc_comms_node]:    ➜ Published to /fc/gps_fix | speed=0.05m/s | course=65.3° | sats=18 | hdop=1.39m | lat=37.2485857 | lon=-5.3723498 | alt=181.0m | fix=0
+1|fc_comms   | 2025-10-20 20:00:27,024 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms   | 2025-10-20 20:00:27,026 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms   | 2025-10-20 20:00:27,027 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms   | 2025-10-20 20:00:27,043 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:27,046 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | [INFO] [1760983227.049076956] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,049 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms   | [INFO] [1760983227.091232787] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:27,095 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e066c10006bff2100cf
+1|fc_comms   | 2025-10-20 20:00:27,100 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=RESP, size=6
+1|fc_comms   | 2025-10-20 20:00:27,105 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_ATTITUDE (code=108), size=6, payload=10006bff2100
+1|fc_comms   | [INFO] [1760983227.125919847] [fc_comms_node]: 📥 Received: MSP_ATTITUDE (code=108, size=6 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,133 - MSP_Protocol - DEBUG - Unpacked attitude: roll=1.6°, pitch=-14.9°, yaw=3.3°
+1|fc_comms   | 2025-10-20 20:00:27,143 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:27,145 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | [INFO] [1760983227.170786955] [fc_comms_node]:    ➜ Published to /fc/attitude_euler | roll=1.6° | pitch=-14.9° | yaw=3.3°
+1|fc_comms   | 2025-10-20 20:00:27,176 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms   | 2025-10-20 20:00:27,178 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms   | 2025-10-20 20:00:27,179 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms   | [INFO] [1760983227.197674043] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,202 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms   | [INFO] [1760983227.224147376] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:27,228 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e0b65f9010000cf00080000040055
+1|fc_comms   | 2025-10-20 20:00:27,232 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=RESP, size=11
+1|fc_comms   | 2025-10-20 20:00:27,233 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_STATUS (code=101), size=11, payload=f9010000cf000800000400
+1|fc_comms   | 2025-10-20 20:00:27,245 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ANALOG (code=110), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:27,246 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | [INFO] [1760983227.268646876] [fc_comms_node]: 📥 Received: MSP_STATUS (code=101, size=11 bytes)
+1|fc_comms   | [INFO] [1760983227.287876128] [fc_comms_node]:    ➜ Published to /fc/status | Cycle: 505us, I2C Errors: 0, Sensors: 0x00cf, Box Flags: 0x04000008
+1|fc_comms   | 2025-10-20 20:00:27,292 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms   | 2025-10-20 20:00:27,297 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms   | 2025-10-20 20:00:27,298 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms   | [INFO] [1760983227.317932413] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,321 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms   | 2025-10-20 20:00:27,343 - MSP_Protocol - DEBUG - Creating MSP message: MSP_MOTOR (code=104), direction=REQ, size=0
+1|fc_comms   | [INFO] [1760983227.348707351] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:27,354 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | 2025-10-20 20:00:27,351 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e076e94760000002900a2
+1|fc_comms   | 2025-10-20 20:00:27,367 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ANALOG (code=110), direction=RESP, size=7
+1|fc_comms   | 2025-10-20 20:00:27,369 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_ANALOG (code=110), size=7, payload=94760000002900
+1|fc_comms   | [INFO] [1760983227.386107198] [fc_comms_node]: 📥 Received: MSP_ANALOG (code=110, size=7 bytes)
+1|fc_comms   | [INFO] [1760983227.407053758] [fc_comms_node]:    ➜ Published to /fc/battery | voltage=14.80V | current=0.00A | power=0.00W
+1|fc_comms   | 2025-10-20 20:00:27,409 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms   | 2025-10-20 20:00:27,411 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms   | 2025-10-20 20:00:27,412 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms   | [INFO] [1760983227.425727327] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,429 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms   | 2025-10-20 20:00:27,443 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:27,446 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | [INFO] [1760983227.470628602] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:27,472 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e1068e803e803e803e803000000000000000078
+1|fc_comms   | 2025-10-20 20:00:27,474 - MSP_Protocol - DEBUG - Creating MSP message: MSP_MOTOR (code=104), direction=RESP, size=16
+1|fc_comms   | 2025-10-20 20:00:27,475 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_MOTOR (code=104), size=16, payload=e803e803e803e8030000000000000000
+1|fc_comms   | [INFO] [1760983227.489237587] [fc_comms_node]: 📥 Received: MSP_MOTOR (code=104, size=16 bytes)
+1|fc_comms   | [INFO] [1760983227.507387454] [fc_comms_node]:    ➜ Published to /fc/motor_rpm | M1=1000, M2=1000, M3=1000, M4=1000
+1|fc_comms   | 2025-10-20 20:00:27,508 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms   | 2025-10-20 20:00:27,509 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms   | 2025-10-20 20:00:27,510 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms   | [INFO] [1760983227.524168087] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,525 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms   | 2025-10-20 20:00:27,543 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:27,545 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | [INFO] [1760983227.559020930] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:27,562 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e126681001600ed010000000000007400d80004fc5b
+1|fc_comms   | 2025-10-20 20:00:27,566 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=RESP, size=18
+1|fc_comms   | 2025-10-20 20:00:27,570 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_RAW_IMU (code=102), size=18, payload=81001600ed010000000000007400d80004fc
+1|fc_comms   | [INFO] [1760983227.586108644] [fc_comms_node]: 📥 Received: MSP_RAW_IMU (code=102, size=18 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,592 - MSP_Protocol - DEBUG - Unpacked IMU: {'acc': (129, 22, 493), 'gyro': (0, 0, 0), 'mag': (116, 216, -1020)}
+1|fc_comms   | [INFO] [1760983227.612524633] [fc_comms_node]:    ➜ Published to /fc/imu_raw | acc=[2.47, 0.42, 9.45] m/s² | gyro=[0.000, 0.000, 0.000] rad/s
+1|fc_comms   | 2025-10-20 20:00:27,614 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms   | 2025-10-20 20:00:27,615 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms   | 2025-10-20 20:00:27,616 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms   | [INFO] [1760983227.631762114] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,636 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms   | 2025-10-20 20:00:27,650 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:27,651 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | [INFO] [1760983227.690503005] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:27,694 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e126a0212e1ae3316953eccfcb50006008d028b002e
+1|fc_comms   | 2025-10-20 20:00:27,698 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=RESP, size=18
+1|fc_comms   | 2025-10-20 20:00:27,702 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_RAW_GPS (code=106), size=18, payload=0212e1ae3316953eccfcb50006008d028b00
+1|fc_comms   | [INFO] [1760983227.719193547] [fc_comms_node]: 📥 Received: MSP_RAW_GPS (code=106, size=18 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,720 - MSP_Protocol - INFO - 📡 GPS Extended (18 bytes): extra_bytes=0x8b00, interpreted_as_hdop=139
+1|fc_comms   | 2025-10-20 20:00:27,754 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:27,760 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | 2025-10-20 20:00:27,758 - MSP_Protocol - INFO - 🐛 GPS FULL DEBUG: fix_byte=2 (0x02), sats=18, lat_raw=372485857, lon_raw=-53723499, hdop=139, full_hex=0212e1ae3316953eccfcb50006008d028b00
+1|fc_comms   | [INFO] [1760983227.808432758] [fc_comms_node]:    ➜ Published to /fc/gps_fix | speed=0.06m/s | course=65.3° | sats=18 | hdop=1.39m | lat=37.2485857 | lon=-5.3723499 | alt=181.0m | fix=0
+1|fc_comms   | 2025-10-20 20:00:27,812 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms   | 2025-10-20 20:00:27,817 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms   | 2025-10-20 20:00:27,821 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms   | 2025-10-20 20:00:27,843 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ANALOG (code=110), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:27,845 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | [INFO] [1760983227.864801282] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,866 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms   | [INFO] [1760983227.887259263] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:27,890 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e066c11006bff2100ce
+1|fc_comms   | 2025-10-20 20:00:27,895 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=RESP, size=6
+1|fc_comms   | 2025-10-20 20:00:27,896 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_ATTITUDE (code=108), size=6, payload=11006bff2100
+1|fc_comms   | [INFO] [1760983227.919392652] [fc_comms_node]: 📥 Received: MSP_ATTITUDE (code=108, size=6 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,920 - MSP_Protocol - DEBUG - Unpacked attitude: roll=1.7°, pitch=-14.9°, yaw=3.3°
+1|fc_comms   | [INFO] [1760983227.939068575] [fc_comms_node]:    ➜ Published to /fc/attitude_euler | roll=1.7° | pitch=-14.9° | yaw=3.3°
+1|fc_comms   | 2025-10-20 20:00:27,943 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+1|fc_comms   | 2025-10-20 20:00:27,948 - MSP_Protocol - DEBUG - Creating MSP message: MSP_MOTOR (code=104), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:27,951 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | 2025-10-20 20:00:27,949 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+1|fc_comms   | 2025-10-20 20:00:27,964 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+1|fc_comms   | [INFO] [1760983227.987782908] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+1|fc_comms   | 2025-10-20 20:00:27,988 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+1|fc_comms   | [INFO] [1760983228.006573457] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+1|fc_comms   | 2025-10-20 20:00:28,010 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e0b6503020000cf000800000400ac
+1|fc_comms   | 2025-10-20 20:00:28,015 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=RESP, size=11
+1|fc_comms   | 2025-10-20 20:00:28,019 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_STATUS (code=101), size=11, payload=03020000cf000800000400
+1|fc_comms   | [INFO] [1760983228.036893651] [fc_comms_node]: 📥 Received: MSP_STATUS (code=101, size=11 bytes)
+1|fc_comms   | 2025-10-20 20:00:28,045 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:28,050 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | [INFO] [1760983228.081810915] [fc_comms_node]:    ➜ Published to /fc/status | Cycle: 515us, I2C Errors: 0, Sensors: 0x00cf, Box Flags: 0x04000008
+1|fc_comms   | 2025-10-20 20:00:28,085 - MSP_Protocol - DEBUG - Encoded message: 244d3c006e6e
+1|fc_comms   | 2025-10-20 20:00:28,090 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,097 - MSP_Protocol - DEBUG - Encoded message: 244d3c006868
+1|fc_comms   | 2025-10-20 20:00:28,105 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,117 - MSP_Protocol - DEBUG - Encoded message: 244d3c006666
+1|fc_comms   | 2025-10-20 20:00:28,130 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,142 - MSP_Protocol - DEBUG - Encoded message: 244d3c006a6a
+1|fc_comms   | 2025-10-20 20:00:28,145 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:28,148 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | 2025-10-20 20:00:28,159 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,170 - MSP_Protocol - DEBUG - Encoded message: 244d3c006c6c
+1|fc_comms   | 2025-10-20 20:00:28,181 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,193 - MSP_Protocol - DEBUG - Encoded message: 244d3c006565
+1|fc_comms   | 2025-10-20 20:00:28,206 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,221 - MSP_Protocol - DEBUG - Encoded message: 244d3c006e6e
+1|fc_comms   | 2025-10-20 20:00:28,234 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,243 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:28,245 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | 2025-10-20 20:00:28,248 - MSP_Protocol - DEBUG - Encoded message: 244d3c006868
+1|fc_comms   | 2025-10-20 20:00:28,269 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,281 - MSP_Protocol - DEBUG - Encoded message: 244d3c006666
+1|fc_comms   | 2025-10-20 20:00:28,294 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,306 - MSP_Protocol - DEBUG - Encoded message: 244d3c006a6a
+1|fc_comms   | 2025-10-20 20:00:28,321 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,333 - MSP_Protocol - DEBUG - Encoded message: 244d3c006c6c
+1|fc_comms   | 2025-10-20 20:00:28,343 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:28,344 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | 2025-10-20 20:00:28,346 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,366 - MSP_Protocol - DEBUG - Encoded message: 244d3c006565
+1|fc_comms   | 2025-10-20 20:00:28,377 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,389 - MSP_Protocol - DEBUG - Encoded message: 244d3c006e6e
+1|fc_comms   | 2025-10-20 20:00:28,401 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,404 - MSP_Protocol - DEBUG - Encoded message: 244d3c006868
+1|fc_comms   | 2025-10-20 20:00:28,417 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,429 - MSP_Protocol - DEBUG - Encoded message: 244d3c006666
+1|fc_comms   | 2025-10-20 20:00:28,442 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,445 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ANALOG (code=110), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:28,447 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+1|fc_comms   | 2025-10-20 20:00:28,459 - MSP_Protocol - DEBUG - Encoded message: 244d3c006a6a
+1|fc_comms   | 2025-10-20 20:00:28,469 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,481 - MSP_Protocol - DEBUG - Encoded message: 244d3c006c6c
+1|fc_comms   | 2025-10-20 20:00:28,493 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,505 - MSP_Protocol - DEBUG - Encoded message: 244d3c006565
+1|fc_comms   | 2025-10-20 20:00:28,517 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,529 - MSP_Protocol - DEBUG - Encoded message: 244d3c006e6e
+1|fc_comms   | 2025-10-20 20:00:28,541 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+1|fc_comms   | 2025-10-20 20:00:28,545 - MSP_Protocol - DEBUG - Creating MSP message: MSP_MOTOR (code=104), direction=REQ, size=0
+1|fc_comms   | 2025-10-20 20:00:28,546 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1

@@ -19,8 +19,6 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from std_msgs.msg import Bool, Float32MultiArray, String
 from sensor_msgs.msg import BatteryState
-from geometry_msgs.msg import Twist, PoseStamped
-from nav_msgs.msg import Odometry
 
 
 class SafetyMonitorNode(Node):
@@ -28,11 +26,10 @@ class SafetyMonitorNode(Node):
     Monitors drone safety and triggers failsafe procedures when necessary.
 
     Subscribers:
-        /ai/observation (std_msgs/Float32MultiArray): Current observation data
-        /ai/action (geometry_msgs/Twist): AI control commands
-        /battery_state (sensor_msgs/BatteryState): Battery status
-        /drone/pose (geometry_msgs/PoseStamped): Current drone position
-        /drone/velocity (geometry_msgs/Twist): Current drone velocity
+        /ai/observation (std_msgs/Float32MultiArray): 131-D observation data [pos, euler, vel, ang_vel, actions, lidar, goal]
+        /ai/observation_debug (std_msgs/Float32MultiArray): Debug data [E, N, U, yaw, down_lidar, used_action_flag]
+        /ai/action (std_msgs/Float32MultiArray): AI velocity commands [vx, vy, vz, speed]
+        /fc/battery (sensor_msgs/BatteryState): Battery status from flight controller
 
     Publishers:
         /safety/override (std_msgs/Bool): Safety override signal (hover mode)
@@ -50,6 +47,7 @@ class SafetyMonitorNode(Node):
         self.declare_parameter('min_battery_voltage', 14.0)  # volts
         self.declare_parameter('max_distance_from_home', 100.0)  # meters
         self.declare_parameter('obstacle_danger_distance', 1.0)  # meters
+        self.declare_parameter('max_ray_distance', 20.0)  # meters - MUST MATCH ai_adapter_node
         self.declare_parameter('communication_timeout', 2.0)  # seconds
 
         # Get parameters
@@ -59,6 +57,7 @@ class SafetyMonitorNode(Node):
         self.min_battery_voltage = self.get_parameter('min_battery_voltage').get_parameter_value().double_value
         self.max_distance_from_home = self.get_parameter('max_distance_from_home').get_parameter_value().double_value
         self.obstacle_danger_distance = self.get_parameter('obstacle_danger_distance').get_parameter_value().double_value
+        self.max_ray_distance = self.get_parameter('max_ray_distance').get_parameter_value().double_value
         self.communication_timeout = self.get_parameter('communication_timeout').get_parameter_value().double_value
 
         # State variables
@@ -102,14 +101,12 @@ class SafetyMonitorNode(Node):
         # Subscribers
         self.obs_sub = self.create_subscription(
             Float32MultiArray, '/ai/observation', self.observation_callback, reliable_qos)
+        self.obs_debug_sub = self.create_subscription(
+            Float32MultiArray, '/ai/observation_debug', self.observation_debug_callback, reliable_qos)
         self.action_sub = self.create_subscription(
-            Twist, '/ai/action', self.action_callback, reliable_qos)
+            Float32MultiArray, '/ai/action', self.action_callback, reliable_qos)
         self.battery_sub = self.create_subscription(
-            BatteryState, '/battery_state', self.battery_callback, sensor_qos)
-        self.pose_sub = self.create_subscription(
-            PoseStamped, '/drone/pose', self.pose_callback, reliable_qos)
-        self.velocity_sub = self.create_subscription(
-            Twist, '/drone/velocity', self.velocity_callback, reliable_qos)
+            BatteryState, '/fc/battery', self.battery_callback, sensor_qos)
 
         # Publishers
         self.override_pub = self.create_publisher(
@@ -125,46 +122,48 @@ class SafetyMonitorNode(Node):
         self.get_logger().info('Safety Monitor Node initialized')
 
     def observation_callback(self, msg: Float32MultiArray):
-        """Process observation data for safety monitoring"""
+        """
+        Process 131-D observation data for safety monitoring.
+        Observation layout: [0:3] pos, [3:6] euler, [6:9] vel, [9:12] ang_vel,
+                           [12:112] actions (25×4), [112:128] lidar (16 rays), [128:131] goal
+        """
         self.last_observation_time = time.time()
 
         if len(msg.data) >= 131:
-            # Extract position from observation (first 3 elements)
+            # Extract position from observation (first 3 elements: E, N, U)
             self.current_position = np.array(msg.data[:3])
 
-            # Extract LiDAR distances (elements 112-128)
-            if len(msg.data) >= 128:
-                self.obstacle_distances = np.array(msg.data[112:128])
+            # Extract velocity (elements 6-9: vx_east, vy_north, vz_up)
+            self.current_velocity = np.array(msg.data[6:9])
+
+            # Extract LiDAR distances (elements 112-128: 16 rays, normalized 0-1)
+            self.obstacle_distances = np.array(msg.data[112:128])
 
             # Set home position on first observation
             if self.home_position is None:
                 self.home_position = self.current_position.copy()
                 self.get_logger().info(f'Home position set: {self.home_position}')
 
-    def action_callback(self, msg: Twist):
-        """Monitor AI action commands"""
+    def observation_debug_callback(self, msg: Float32MultiArray):
+        """
+        Process debug observation data [E, N, U, yaw, down_lidar, used_action_flag].
+        Provides cleaner access to position and down lidar.
+        """
+        if len(msg.data) >= 6:
+            # Update position from debug (more direct than full observation)
+            self.current_position = np.array(msg.data[:3])
+
+    def action_callback(self, msg: Float32MultiArray):
+        """
+        Monitor AI action commands [vx, vy, vz, speed].
+        Actions are in ENU frame (vx=East, vy=North, vz=Up).
+        """
         self.last_action_time = time.time()
 
     def battery_callback(self, msg: BatteryState):
         """Monitor battery state"""
         self.battery_voltage = msg.voltage
         self.last_battery_time = time.time()
-
-    def pose_callback(self, msg: PoseStamped):
-        """Monitor drone position"""
-        self.current_position = np.array([
-            msg.pose.position.x,
-            msg.pose.position.y,
-            msg.pose.position.z
-        ])
-
-    def velocity_callback(self, msg: Twist):
-        """Monitor drone velocity"""
-        self.current_velocity = np.array([
-            msg.linear.x,
-            msg.linear.y,
-            msg.linear.z
-        ])
 
     def monitor_safety(self):
         """Main safety monitoring function"""
@@ -196,7 +195,9 @@ class SafetyMonitorNode(Node):
             self.safety_violations['distance_far'] = distance_from_home > self.max_distance_from_home
 
         # Check obstacle proximity
-        min_obstacle_distance = np.min(self.obstacle_distances)
+        # Lidar values are normalized (0-1), denormalize to actual meters
+        actual_obstacle_distances = self.obstacle_distances * self.max_ray_distance
+        min_obstacle_distance = np.min(actual_obstacle_distances)
         self.safety_violations['obstacle_close'] = min_obstacle_distance < self.obstacle_danger_distance
 
         # Determine if safety override is needed
@@ -285,11 +286,13 @@ class SafetyMonitorNode(Node):
             status_parts.append(f"VIOLATIONS:{','.join(active_violations)}")
 
         # Add numerical status
+        # Denormalize lidar for display
+        actual_obstacle_distances = self.obstacle_distances * self.max_ray_distance
         status_parts.extend([
             f"ALT:{self.current_position[2]:.1f}m",
             f"VEL:{np.linalg.norm(self.current_velocity):.1f}m/s",
             f"BAT:{self.battery_voltage:.1f}V",
-            f"OBS:{np.min(self.obstacle_distances):.1f}m"
+            f"OBS:{np.min(actual_obstacle_distances):.1f}m"
         ])
 
         if self.home_position is not None:
