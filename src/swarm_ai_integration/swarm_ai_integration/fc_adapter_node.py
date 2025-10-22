@@ -25,11 +25,9 @@ from std_msgs.msg import Float32MultiArray, Bool, String
 from geometry_msgs.msg import Vector3Stamped
 
 import serial
+import struct
 
 from swarm_ai_integration.pid_controller import VelocityPIDController
-from swarm_ai_integration.msp_protocol import (
-    MSPMessage, MSPCommand, MSPDirection, MSPDataTypes
-)
 
 
 class FCAdapterVelocityNode(Node):
@@ -124,9 +122,6 @@ class FCAdapterVelocityNode(Node):
         # Warm-up state
         self.warmup_complete = False
         self.warmup_frames_sent = 0
-
-        # Safety RTH override
-        self.safety_rth_requested = False
 
         # Safety RTH override
         self.safety_rth_requested = False
@@ -234,12 +229,23 @@ class FCAdapterVelocityNode(Node):
         data = list(msg.data)
         if len(data) < 3:
             return
-        vx, vy, vz = float(data[0]), float(data[1]), float(data[2])
+
+        # AI model outputs in ENU frame (vx=East, vy=North, vz=Up)
+        # This matches the simulator (ai_adapter_simulator_node.py:241-243)
+        vx_enu, vy_enu, vz_enu = float(data[0]), float(data[1]), float(data[2])
+
+        # Transform from ENU to body frame using current yaw
+        # Body frame: vx=forward, vy=right, vz=up
+        cy = math.cos(self.attitude_yaw)
+        sy = math.sin(self.attitude_yaw)
+        vx_body = vx_enu * cy + vy_enu * sy     # forward = E*cos(yaw) + N*sin(yaw)
+        vy_body = -vx_enu * sy + vy_enu * cy    # right = -E*sin(yaw) + N*cos(yaw)
+        vz_body = vz_enu                        # up = up
 
         # clamp for safety
-        self.velocity_cmd_body[0] = float(np.clip(vx, -self.max_velocity, self.max_velocity))
-        self.velocity_cmd_body[1] = float(np.clip(vy, -self.max_velocity, self.max_velocity))
-        self.velocity_cmd_body[2] = float(np.clip(vz, -self.max_velocity, self.max_velocity))
+        self.velocity_cmd_body[0] = float(np.clip(vx_body, -self.max_velocity, self.max_velocity))
+        self.velocity_cmd_body[1] = float(np.clip(vy_body, -self.max_velocity, self.max_velocity))
+        self.velocity_cmd_body[2] = float(np.clip(vz_body, -self.max_velocity, self.max_velocity))
 
         self.last_ai_speed_scalar = float(data[3]) if len(data) > 3 else None
         self.last_cmd_time = time.time()
@@ -378,15 +384,41 @@ class FCAdapterVelocityNode(Node):
         self.velocity_actual_body[1] = -vx_e * sy + vy_n * cy    # right
         self.velocity_actual_body[2] = vz_u                      # up
 
-    def _publish_msp_set_raw_rc(self, channels: list):
-        # Clamp and pad to 16 channels (INAV supports up to 18)
-        ch = [int(max(1000, min(2000, c))) for c in (channels + [1500]*16)[:16]]
-        msg = Float32MultiArray()
-        msg.data = [MSP_SET_RAW_RC_CODE] + [float(v) for v in ch]
-        self.msp_cmd_pub.publish(msg)
-        self.stats['msp_cmds'] += 1
+    def _send_msp_set_raw_rc(self, channels: list):
+        """
+        Send MSP_SET_RAW_RC command directly over serial.
+
+        MSP_SET_RAW_RC (code=200) expects 16 uint16 channel values in little-endian.
+        Format: $M<[size][cmd][...data...][crc]
+        """
+        if not (self.ser and self.ser.is_open):
+            return
+
+        try:
+            # Clamp and pad to 16 channels
+            ch = [int(max(1000, min(2000, c))) for c in (channels + [1500]*16)[:16]]
+
+            # MSP v1 format
+            MSP_SET_RAW_RC = 200
+            payload = struct.pack('<' + 'H' * 16, *ch)  # 16 uint16_t values
+            payload_size = len(payload)
+
+            # Calculate checksum
+            checksum = payload_size ^ MSP_SET_RAW_RC
+            for byte in payload:
+                checksum ^= byte
+
+            # Build frame: $M<[size][cmd][payload][checksum]
+            frame = b'$M<' + bytes([payload_size, MSP_SET_RAW_RC]) + payload + bytes([checksum])
+
+            self.ser.write(frame)
+            self.stats['msp_cmds'] += 1
+
+        except Exception as e:
+            self.get_logger().error(f'MSP send error: {e}', throttle_duration_sec=1.0)
 
     def send_hover_command(self, reason: str):
+        """Send hover command (neutral RC with modes enabled)."""
         channels = [1500] * 16
         channels[0] = 1500  # Roll (neutral)
         channels[1] = 1500  # Pitch (neutral)
@@ -397,7 +429,7 @@ class FCAdapterVelocityNode(Node):
         channels[6] = 1800 if self.althold_enabled else 1000     # CH7: ALT HOLD (AUX3)
         channels[7] = 1800                                       # CH8: MSP RC OVERRIDE (AUX4)
         channels[8] = 1800 if (self.nav_rth_enabled or self.safety_rth_requested) else 1000  # CH9: NAV RTH (AUX5)
-        self._publish_msp_set_raw_rc(channels)
+        self._send_msp_set_raw_rc(channels)
         self.get_logger().warn(f"Hover command sent ({reason}); RC[R,P,T,Y]=[{channels[0]},{channels[1]},{channels[2]},{channels[3]}]")
         self.stats['failsafes'] += 1
 

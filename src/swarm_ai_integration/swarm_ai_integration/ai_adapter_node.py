@@ -393,6 +393,46 @@ class AIAdapterNode(Node):
     # Observation Computation
     # ═══════════════════════════════════════════════════════════════════
 
+    def _update_tilted_lidar_rays(self):
+        """
+        Update tilted-down lidar rays based on altitude from the pure down ray.
+
+        The pure down ray (ray 1) gives us altitude. Using this, we calculate
+        the ground distance for tilted-down rays (30° angle):
+        - Ray 11: Forward-down (30° tilt)
+        - Ray 13: Back-down (30° tilt)
+        - Ray 14: Right-down (30° tilt)
+        - Ray 15: Left-down (30° tilt)
+
+        For a ray tilted 30° down, hitting the ground:
+        distance = altitude / sin(30°) = altitude / 0.5 = 2 * altitude
+        """
+        # Get current lidar distances
+        lidar_distances = self.sensor_manager.get_lidar_distances()
+
+        # Ray 1 is the pure down ray (normalized). Denormalize to get actual altitude.
+        normalized_down = lidar_distances[1]
+        max_ray_distance = self.obs_builder.max_ray_distance
+
+        # Denormalize: actual_distance = normalized * max_distance
+        actual_altitude = normalized_down * max_ray_distance
+
+        # Calculate distance for 30° tilted rays
+        sin_30 = 0.5
+        tilted_distance = actual_altitude / sin_30 if actual_altitude > 0 else max_ray_distance
+
+        # Clamp to max range
+        tilted_distance = min(max_ray_distance, tilted_distance)
+
+        # Normalize for observation
+        normalized_tilted = self.obs_builder.normalize_lidar_distance(tilted_distance)
+
+        # Update the 4 tilted-down rays
+        self.sensor_manager.update_lidar_ray(11, normalized_tilted)  # forward-down
+        self.sensor_manager.update_lidar_ray(13, normalized_tilted)  # back-down
+        self.sensor_manager.update_lidar_ray(14, normalized_tilted)  # right-down
+        self.sensor_manager.update_lidar_ray(15, normalized_tilted)  # left-down
+
     def compute_observation(self):
         """Compute and publish 131-D observation."""
         # Check GPS quality first
@@ -427,6 +467,10 @@ class AIAdapterNode(Node):
             return
 
         try:
+            # Update tilted-down lidar rays based on altitude from down ray
+            # Ray 1 is the pure down ray from the actual sensor
+            # We need to calculate rays 11, 13, 14, 15 (forward/back/right/left tilted 30° down)
+            self._update_tilted_lidar_rays()
             # Prepare action for this observation tick
             last_action = self.obs_builder.prepare_action_for_observation()
 

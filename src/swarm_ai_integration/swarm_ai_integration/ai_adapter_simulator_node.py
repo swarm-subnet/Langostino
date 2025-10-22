@@ -339,9 +339,12 @@ class AIAdapterSimulatedNode(Node):
         # back-down
         dist_13 = min(self.lidar_max, altitude / sin_30 if altitude > 0 else self.lidar_max)
         self.sensor_manager.update_lidar_ray(13, self.obs_builder.normalize_lidar_distance(dist_13))
-        # right-up & left-up open
-        self.sensor_manager.update_lidar_ray(14, 1.0)
-        self.sensor_manager.update_lidar_ray(15, 1.0)
+        # right-down (tilted 30° down, hits ground)
+        dist_14 = min(self.lidar_max, altitude / sin_30 if altitude > 0 else self.lidar_max)
+        self.sensor_manager.update_lidar_ray(14, self.obs_builder.normalize_lidar_distance(dist_14))
+        # left-down (tilted 30° down, hits ground)
+        dist_15 = min(self.lidar_max, altitude / sin_30 if altitude > 0 else self.lidar_max)
+        self.sensor_manager.update_lidar_ray(15, self.obs_builder.normalize_lidar_distance(dist_15))
 
         # Update sensor manager (same as real callbacks)
         first_fix = self.sensor_manager.update_gps_position(self.cur_lat, self.cur_lon, self.cur_alt)
@@ -380,7 +383,7 @@ class AIAdapterSimulatedNode(Node):
         self.pub_imu.publish(imu)
 
         rng = Range()
-        rng.header = qs.header
+        rng.header = fix.header
         rng.header.frame_id = self.lidar_frame
         rng.radiation_type = Range.INFRARED
         rng.field_of_view = self.lidar_fov
