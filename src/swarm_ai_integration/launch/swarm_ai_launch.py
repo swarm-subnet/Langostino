@@ -159,19 +159,14 @@ def generate_launch_description():
         name='lidar_reader_down',
         namespace='down_lidar',
         output='screen',
-        parameters=[{
-            'i2c_bus': LaunchConfiguration('down_lidar_i2c_bus'),
-            'i2c_address': LaunchConfiguration('down_lidar_i2c_address'),
-            'distance_register': 0x24,
-            'publish_rate': 100.0,
-            'frame_id': 'down_lidar_link',
-            'sensor_position': 'down',
-            'max_range': 50.0,
-            'min_range': 0.05,
-            'field_of_view': 0.035,
-            'enable_filtering': True,
-            'filter_window_size': 5
-        }],
+        parameters=[
+            params_file,  # Load all parameters from YAML
+            {
+                # Override with launch arguments
+                'i2c_bus': LaunchConfiguration('down_lidar_i2c_bus'),
+                'i2c_address': LaunchConfiguration('down_lidar_i2c_address')
+            }
+        ],
         remappings=[
             ('lidar_distance', 'lidar_distance_down'),
             ('lidar_raw', 'lidar_raw_down'),
@@ -187,14 +182,14 @@ def generate_launch_description():
         executable='fc_comms_node.py',
         name='fc_comms_node',
         output='screen',
-        parameters=[{
-            'serial_port': LaunchConfiguration('serial_port'),
-            'baud_rate': LaunchConfiguration('baud_rate'),
-            'timeout': 1.0,
-            'reconnect_interval': 5.0,
-            'telemetry_rate': 10.0,
-            'heartbeat_rate': 1.0
-        }],
+        parameters=[
+            params_file,  # Load all parameters from YAML
+            {
+                # Override with launch arguments
+                'serial_port': LaunchConfiguration('serial_port'),
+                'baud_rate': LaunchConfiguration('baud_rate')
+            }
+        ],
         remappings=[
             ('/fc/imu_raw', '/imu/data'),
             ('/fc/gps_fix', '/gps/fix'),
@@ -211,11 +206,13 @@ def generate_launch_description():
         executable='ai_adapter_node.py',
         name='ai_adapter_node',
         output='screen',
-        parameters=[{
-            'max_ray_distance': 10.0,
-            'update_rate': 30.0,
-            'debug_mode': LaunchConfiguration('debug_mode')
-        }],
+        parameters=[
+            params_file,  # Load all parameters from YAML
+            {
+                # Override with launch arguments
+                'debug_mode': LaunchConfiguration('debug_mode')
+            }
+        ],
         remappings=[
             ('/lidar_scan', '/lidar/scan'),
             ('/imu/data', '/imu/data'),
@@ -228,19 +225,22 @@ def generate_launch_description():
         ]
     )
 
-    # AI Flight Node - executes the AI model
+    # AI Flight Node - executes the AI model (runs in Python venv via wrapper)
     ai_flight_node = Node(
         package='swarm_ai_integration',
-        executable='ai_flight_node.py',
+        executable='ai_flight_node_wrapper.sh',
         name='ai_flight_node',
         output='screen',
-        parameters=[{
-            'model_path': LaunchConfiguration('model_path'),
-            'device': LaunchConfiguration('device'),
-            'prediction_timeout': 0.1,
-            'max_velocity': LaunchConfiguration('max_velocity'),
-            'safety_enabled': LaunchConfiguration('enable_safety')
-        }]
+        parameters=[
+            params_file,  # Load all parameters from YAML
+            {
+                # Override with launch arguments
+                'model_path': LaunchConfiguration('model_path'),
+                'device': LaunchConfiguration('device'),
+                'max_velocity': LaunchConfiguration('max_velocity'),
+                'safety_enabled': LaunchConfiguration('enable_safety')
+            }
+        ]
     )
 
     # FC Adapter Node - VEL to MSP command translation
@@ -249,17 +249,14 @@ def generate_launch_description():
         executable='fc_adapter_node.py',
         name='fc_adapter_node',
         output='screen',
-        parameters=[{
-            'max_velocity': LaunchConfiguration('max_velocity'),
-            'max_yaw_rate': 180.0,
-            'max_acceleration': 3.0,
-            'command_timeout': 1.0,
-            'rate_limit_enabled': True,
-            'smooth_commands': True,
-            'safety_checks_enabled': LaunchConfiguration('enable_safety'),
-            'auto_arm': False,
-            'failsafe_mode': 'hover'
-        }]
+        parameters=[
+            params_file,  # Load all parameters from YAML
+            {
+                # Override with launch arguments
+                'max_velocity': LaunchConfiguration('max_velocity'),
+                'safety_checks_enabled': LaunchConfiguration('enable_safety')
+            }
+        ]
     )
 
     # Safety Monitor Node - monitors system safety
@@ -269,15 +266,14 @@ def generate_launch_description():
         name='safety_monitor_node',
         output='screen',
         condition=IfCondition(LaunchConfiguration('enable_safety')),
-        parameters=[{
-            'max_altitude': LaunchConfiguration('max_altitude'),
-            'min_altitude': 0.5,
-            'max_velocity': LaunchConfiguration('max_velocity'),
-            'min_battery_voltage': 14.0,
-            'max_distance_from_home': 100.0,
-            'obstacle_danger_distance': 1.0,
-            'communication_timeout': 2.0
-        }],
+        parameters=[
+            params_file,  # Load all parameters from YAML
+            {
+                # Override with launch arguments
+                'max_altitude': LaunchConfiguration('max_altitude'),
+                'max_velocity': LaunchConfiguration('max_velocity')
+            }
+        ],
         remappings=[
             ('/drone/pose', '/mavros/local_position/pose'),
             ('/drone/velocity', '/mavros/local_position/velocity_local'),
@@ -291,15 +287,13 @@ def generate_launch_description():
         executable='black_box_recorder_node.py',
         name='black_box_recorder',
         output='screen',
-        parameters=[{
-            'log_directory': LaunchConfiguration('log_directory'),
-            'max_file_size_mb': 100,
-            'max_files_per_session': 20,
-            'compress_old_files': True,
-            'log_level': 'INFO',
-            'buffer_size': 1000,
-            'flush_interval': 5.0
-        }],
+        parameters=[
+            params_file,  # Load all parameters from YAML
+            {
+                # Override with launch arguments
+                'log_directory': LaunchConfiguration('log_directory')
+            }
+        ],
         condition=IfCondition(LaunchConfiguration('enable_blackbox'))
     )
 

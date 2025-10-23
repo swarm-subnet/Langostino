@@ -36,7 +36,7 @@ ai_adapter_node:
 ai_flight_node:
   ros__parameters:
     # Model settings
-    model_path: "/home/pi/swarm-ros/model/UID_117.zip"  # Path to trained AI model
+    model_path: "/home/pi/swarm-ros/model/UID_203.zip"  # Path to trained AI model
     device: "cpu"                       # Computation device (cpu/cuda)
     observation_dim: 131                # Observation vector dimension
     action_dim: 4                       # Action vector dimension
