@@ -2,7 +2,7 @@
 # Wrapper script to run ai_flight_node.py with Python virtual environment
 
 # Path to your virtual environment (adjust this to your venv location)
-VENV_PATH="${HOME}/pi/ai_flight_node_env"  # Change this to your actual venv path
+VENV_PATH="${HOME}/ai_flight_node_env"  # Change this to your actual venv path
 
 # Activate the virtual environment
 source "${VENV_PATH}/bin/activate"
