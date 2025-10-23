@@ -245,7 +245,7 @@ down_lidar/lidar_reader_down:
   ros__parameters:
     # I2C communication
     i2c_bus: 1                          # I2C bus number
-    i2c_address: 0x09                   # I2C device address
+    i2c_address: 0x08                   # I2C device address
     distance_register: 0x24             # Distance data register address
 
     # Sensor configuration

@@ -193,7 +193,6 @@ def generate_launch_description():
         remappings=[
             ('/fc/imu_raw', '/imu/data'),
             ('/fc/gps_fix', '/gps/fix'),
-            ('/fc/attitude', '/fc/attitude'),
             ('/fc/status', '/fc/status'),
             ('/fc/battery', '/mavros/battery'),
             ('/fc/motor_rpm', '/fc/motor_rpm')
@@ -220,7 +219,7 @@ def generate_launch_description():
             ('/fc/state', '/mavros/local_position/velocity_local'),
             ('/fc/rpm', '/fc/motor_rpm'),
             ('/goal_pose', '/move_base_simple/goal'),
-            ('/front_lidar/lidar_distance_front', '/front_lidar/lidar_distance_front'),
+            # ('/front_lidar/lidar_distance_front', '/front_lidar/lidar_distance_front'),
             ('/down_lidar/lidar_distance_down', '/down_lidar/lidar_distance_down')
         ]
     )
