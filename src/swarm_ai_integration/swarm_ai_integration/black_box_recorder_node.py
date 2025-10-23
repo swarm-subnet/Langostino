@@ -65,7 +65,8 @@ class BlackBoxRecorderNode(Node):
         self.declare_parameter('flush_interval', 5.0)  # Seconds between forced flushes
 
         # Get parameters
-        self.log_directory = Path(self.get_parameter('log_directory').get_parameter_value().string_value)
+        log_dir_str = self.get_parameter('log_directory').get_parameter_value().string_value
+        self.log_directory = Path(os.path.expanduser(log_dir_str))  # Expand ~ to home directory
         self.max_file_size_mb = self.get_parameter('max_file_size_mb').get_parameter_value().integer_value
         self.max_files_per_session = self.get_parameter('max_files_per_session').get_parameter_value().integer_value
         self.compress_old_files = self.get_parameter('compress_old_files').get_parameter_value().bool_value

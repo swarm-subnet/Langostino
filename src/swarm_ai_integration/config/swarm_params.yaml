@@ -215,7 +215,7 @@ fc_adapter_node:
 black_box_recorder_node:
   ros__parameters:
     # Storage settings
-    log_directory: "/var/log/swarm_blackbox"  # Directory for log files
+    log_directory: "~/swarm-ros/flight-logs"  # Directory for log files (expands to home directory)
     max_log_file_size_mb: 100           # Maximum log file size (MB)
     max_files_per_session: 10           # Maximum files per session
 
