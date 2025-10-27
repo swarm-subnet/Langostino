@@ -18,7 +18,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from std_msgs.msg import Bool, Float32MultiArray, String
-from sensor_msgs.msg import BatteryState
+from sensor_msgs.msg import BatteryState, NavSatFix
 
 
 class SafetyMonitorNode(Node):
@@ -41,9 +41,9 @@ class SafetyMonitorNode(Node):
         super().__init__('safety_monitor_node')
 
         # Declare parameters
-        self.declare_parameter('max_altitude', 50.0)  # meters
-        self.declare_parameter('min_altitude', 0.5)   # meters
-        self.declare_parameter('max_velocity', 5.0)   # m/s
+        self.declare_parameter('max_altitude', 10.0)  # meters
+        self.declare_parameter('min_altitude', 0.0)   # meters
+        self.declare_parameter('max_velocity', 1.0)   # m/s
         self.declare_parameter('min_battery_voltage', 14.0)  # volts
         self.declare_parameter('max_distance_from_home', 100.0)  # meters
         self.declare_parameter('obstacle_danger_distance', 1.0)  # meters
@@ -63,11 +63,25 @@ class SafetyMonitorNode(Node):
         # State variables
         self.current_position = np.zeros(3)
         self.current_velocity = np.zeros(3)
-        self.home_position = None
+        self.home_position = None  # Home position in ENU coordinates [E, N, U]
+        self.home_position_geodetic = None  # Home position in geodetic [lat, lon, alt]
         self.battery_voltage = 16.0  # Default safe voltage
         self.obstacle_distances = np.full(16, 10.0)  # Default safe distances
         self.safety_override_active = False
         self.rth_active = False
+        self.custom_rth_active = False  # Custom RTH using goal waypoint
+
+        # Waypoint tracking
+        self.current_waypoint_number = None
+        self.waypoints_completed = False
+        self.last_waypoint_time = time.time()
+
+        # Landing state
+        self.landing_initiated = False
+        self.landing_altitude_target = 0.0  # Target altitude for landing (ground level)
+        self.landing_complete = False
+        self.lidar_landing_threshold = 0.3  # LiDAR distance threshold for landing completion (meters)
+        self.lidar_transition_altitude = 5.0  # Altitude to switch from GPS to LiDAR (meters)
 
         # Timing
         self.last_observation_time = time.time()
@@ -107,12 +121,18 @@ class SafetyMonitorNode(Node):
             Float32MultiArray, '/ai/action', self.action_callback, reliable_qos)
         self.battery_sub = self.create_subscription(
             BatteryState, '/fc/battery', self.battery_callback, sensor_qos)
+        self.gps_sub = self.create_subscription(
+            NavSatFix, '/fc/gps_fix', self.gps_callback, sensor_qos)
+        self.waypoint_sub = self.create_subscription(
+            Float32MultiArray, '/fc/waypoint', self.waypoint_callback, reliable_qos)
 
         # Publishers
         self.override_pub = self.create_publisher(
             Bool, '/safety/override', reliable_qos)
         self.rth_command_pub = self.create_publisher(
             Bool, '/safety/rth_command', reliable_qos)
+        self.custom_goal_pub = self.create_publisher(
+            Float32MultiArray, '/safety/custom_goal_geodetic', reliable_qos)
         self.status_pub = self.create_publisher(
             String, '/safety/status', reliable_qos)
 
@@ -140,9 +160,16 @@ class SafetyMonitorNode(Node):
             self.obstacle_distances = np.array(msg.data[112:128])
 
             # Set home position on first observation
+            # NOTE: The coordinate system is set up so that the origin is at the takeoff point.
+            # The drone starts at approximately [0, 0, 3] in ENU coordinates (3m altitude).
+            # For custom RTH, we want to return to ground level at the origin, which is [0, 0, 0].
             if self.home_position is None:
-                self.home_position = self.current_position.copy()
-                self.get_logger().info(f'Home position set: {self.home_position}')
+                # Set home to [0, 0, 0] - the origin at ground level
+                self.home_position = np.array([0.0, 0.0, 0.0])
+                self.get_logger().info(
+                    f'Home position set to origin: {self.home_position}\n'
+                    f'   (Current position at startup: {self.current_position})'
+                )
 
     def observation_debug_callback(self, msg: Float32MultiArray):
         """
@@ -164,6 +191,64 @@ class SafetyMonitorNode(Node):
         """Monitor battery state"""
         self.battery_voltage = msg.voltage
         self.last_battery_time = time.time()
+
+    def gps_callback(self, msg: NavSatFix):
+        """
+        Monitor GPS position and save home position in geodetic coordinates.
+
+        IMPORTANT: The coordinate system is configured so that the initial GPS position
+        maps to ENU coordinates [0, 0, 3] (3 meters altitude). For custom RTH to ground
+        level [0, 0, 0], we need to store the geodetic coordinates that correspond to
+        3 meters lower altitude than the initial GPS position.
+        """
+        # Save home position in geodetic coordinates on first GPS fix
+        if self.home_position_geodetic is None:
+            # Subtract 3 meters from altitude to get ground level coordinates
+            # This is because the drone starts at [0, 0, 3] in ENU, and we want
+            # to return to [0, 0, 0] which is 3 meters lower
+            home_altitude_ground_level = msg.altitude - 3.0
+
+            self.home_position_geodetic = np.array([
+                msg.latitude,
+                msg.longitude,
+                home_altitude_ground_level
+            ])
+
+            self.get_logger().info(
+                f'Home position (geodetic) set:\n'
+                f'   Latitude: {msg.latitude:.7f}\n'
+                f'   Longitude: {msg.longitude:.7f}\n'
+                f'   Initial GPS altitude: {msg.altitude:.2f}m\n'
+                f'   Ground level altitude (RTH target): {home_altitude_ground_level:.2f}m'
+            )
+
+    def waypoint_callback(self, msg: Float32MultiArray):
+        """
+        Monitor current waypoint from INAV mission.
+        Format: [wp_no, lat, lon, alt, heading, stay_time, navflag]
+
+        Detects when waypoints are completed:
+        - Waypoint #0 indicates no active waypoint
+        - Mission completion should trigger custom RTH
+        """
+        if len(msg.data) < 4:
+            return
+
+        wp_number = int(msg.data[0])
+        self.last_waypoint_time = time.time()
+
+        # Track waypoint changes
+        if self.current_waypoint_number != wp_number:
+            prev_wp = self.current_waypoint_number
+            self.current_waypoint_number = wp_number
+
+            # Waypoint #0 typically means no active waypoint
+            if wp_number == 0 and prev_wp is not None and prev_wp > 0:
+                self.waypoints_completed = True
+                self.get_logger().info('🎯 Waypoint mission completed - activating custom RTH')
+            elif wp_number > 0:
+                self.waypoints_completed = False
+                self.get_logger().info(f'📍 Current waypoint: #{wp_number}')
 
     def monitor_safety(self):
         """Main safety monitoring function"""
@@ -215,6 +300,19 @@ class SafetyMonitorNode(Node):
             'communication_lost'
         ]
 
+        # Check if custom RTH should be activated
+        # Conditions: critical violations OR waypoints completed
+        should_activate_custom_rth = (
+            any(self.safety_violations[v] for v in critical_violations) or
+            self.waypoints_completed
+        )
+
+        if should_activate_custom_rth:
+            self.activate_custom_rth()
+        elif not any_violation and not self.waypoints_completed and self.custom_rth_active:
+            self.deactivate_custom_rth()
+
+        # Keep old RTH functionality for backward compatibility (can be disabled if needed)
         if any(self.safety_violations[v] for v in critical_violations):
             self.activate_rth()
         elif not any_violation and self.rth_active:
@@ -271,9 +369,180 @@ class SafetyMonitorNode(Node):
 
             self.get_logger().info('✓ RTH deactivated - resuming normal operation')
 
+    def activate_custom_rth(self):
+        """
+        Activate Custom Return to Home by publishing home position as goal waypoint.
+
+        Instead of using INAV's built-in RTH (CH9), this publishes the home position
+        as a custom goal point that the AI will navigate towards.
+        """
+        if not self.custom_rth_active:
+            self.custom_rth_active = True
+
+            # Check if we have home position saved
+            if self.home_position_geodetic is None:
+                self.get_logger().error('🚨 CUSTOM RTH: Home position not set! Cannot activate custom RTH.')
+                return
+
+            if self.home_position is None:
+                self.get_logger().error('🚨 CUSTOM RTH: Home position (ENU) not set! Cannot activate custom RTH.')
+                return
+
+            # Publish home position as custom goal in geodetic coordinates
+            # Format: [lat, lon, alt]
+            goal_msg = Float32MultiArray()
+
+            # For landing, we want to go to home at ground level (altitude 0 in ENU)
+            # The home_position_geodetic has the original altitude, but we want to land
+            # So we can either:
+            # 1. Keep the same altitude initially, then descend
+            # 2. Set altitude to ground level immediately
+            # Let's start by going to home at the same altitude, then initiate landing
+            goal_msg.data = [
+                float(self.home_position_geodetic[0]),  # latitude
+                float(self.home_position_geodetic[1]),  # longitude
+                float(self.home_position_geodetic[2])   # altitude (original home altitude)
+            ]
+            self.custom_goal_pub.publish(goal_msg)
+
+            violations = [k for k, v in self.safety_violations.items() if v]
+            reason = f"violations: {violations}" if violations else "waypoints completed"
+            self.get_logger().error(
+                f'🚨 CUSTOM RTH ACTIVATED - Publishing home goal waypoint!\n'
+                f'   Reason: {reason}\n'
+                f'   Home (geodetic): lat={self.home_position_geodetic[0]:.7f}, '
+                f'lon={self.home_position_geodetic[1]:.7f}, alt={self.home_position_geodetic[2]:.2f}m\n'
+                f'   Home (ENU): E={self.home_position[0]:.2f}, N={self.home_position[1]:.2f}, U={self.home_position[2]:.2f}m\n'
+                f'   Current (ENU): E={self.current_position[0]:.2f}, N={self.current_position[1]:.2f}, U={self.current_position[2]:.2f}m'
+            )
+
+        # Check if drone is close to home and initiate landing
+        if self.home_position is not None and not self.landing_complete:
+            distance_to_home = np.linalg.norm(self.current_position[:2] - self.home_position[:2])
+
+            # Get current altitude using appropriate sensor
+            # Denormalize LiDAR distance to actual meters
+            lidar_altitude = self.obstacle_distances[1] * self.max_ray_distance
+            gps_altitude = self.current_position[2]
+
+            # Determine which altitude reference to use
+            if lidar_altitude < self.lidar_transition_altitude:
+                # Use LiDAR when below transition altitude and reading is valid
+                current_altitude = lidar_altitude
+                altitude_reference = "LIDAR"
+            else:
+                # Use GPS for higher altitudes
+                current_altitude = gps_altitude
+                altitude_reference = "GPS"
+
+            # Phase 1: If within 2 meters horizontally and at reasonable altitude, initiate landing
+            if distance_to_home < 2.0 and gps_altitude < 5.0 and not self.landing_initiated:
+                self.initiate_landing()
+
+            # Phase 2: Check if landing is complete using LiDAR
+            if self.landing_initiated:
+                # Landing complete when LiDAR shows we're very close to ground
+                if altitude_reference == "LIDAR" and current_altitude < self.lidar_landing_threshold:
+                    self.landing_complete = True
+                    self.get_logger().info(
+                        f'✅ LANDING COMPLETE!\n'
+                        f'   LiDAR altitude: {current_altitude:.2f}m\n'
+                        f'   Position: E={self.current_position[0]:.2f}, N={self.current_position[1]:.2f}'
+                    )
+
+        # Continue publishing goal to ensure AI navigates towards home
+        if self.custom_rth_active and self.home_position_geodetic is not None and not self.landing_complete:
+            goal_msg = Float32MultiArray()
+
+            # If landing initiated, publish descending altitude
+            if self.landing_initiated:
+                # Get LiDAR altitude for landing guidance
+                lidar_altitude = self.obstacle_distances[1] * self.max_ray_distance
+
+                # Two-phase landing:
+                # Phase 1 (GPS): Descend to ~3m using GPS
+                # Phase 2 (LiDAR): Final descent using LiDAR when < 5m
+                if lidar_altitude < self.lidar_transition_altitude:
+                    # Phase 2: LiDAR-guided final landing
+                    # Target 0.5m above ground (will complete at 0.3m threshold)
+                    target_altitude_geodetic = self.home_position_geodetic[2] + 0.5
+                    landing_phase = "LIDAR-GUIDED"
+                else:
+                    # Phase 1: GPS-guided descent to transition altitude
+                    target_altitude_geodetic = self.home_position_geodetic[2] + 3.0
+                    landing_phase = "GPS-GUIDED"
+
+                goal_msg.data = [
+                    float(self.home_position_geodetic[0]),  # latitude
+                    float(self.home_position_geodetic[1]),  # longitude
+                    float(target_altitude_geodetic)         # descending altitude
+                ]
+
+                # Log landing progress
+                self.get_logger().info(
+                    f'🛬 Landing in progress [{landing_phase}]: '
+                    f'LiDAR={lidar_altitude:.2f}m, GPS_alt={self.current_position[2]:.2f}m, '
+                    f'Target={target_altitude_geodetic:.2f}m',
+                    throttle_duration_sec=2.0
+                )
+            else:
+                # Navigate to home at original altitude
+                goal_msg.data = [
+                    float(self.home_position_geodetic[0]),
+                    float(self.home_position_geodetic[1]),
+                    float(self.home_position_geodetic[2])
+                ]
+
+            self.custom_goal_pub.publish(goal_msg)
+
+    def deactivate_custom_rth(self):
+        """Deactivate Custom Return to Home"""
+        if self.custom_rth_active:
+            self.custom_rth_active = False
+            self.landing_initiated = False
+            self.landing_complete = False
+            self.get_logger().info('✓ Custom RTH deactivated - resuming normal operation')
+
+    def initiate_landing(self):
+        """
+        Initiate two-phase landing sequence:
+        Phase 1 (GPS): Descend to ~3m using GPS guidance
+        Phase 2 (LiDAR): Final descent using LiDAR when < 5m, complete at < 0.3m
+
+        This approach ensures accurate landing by using LiDAR for the final approach.
+        """
+        if not self.landing_initiated:
+            self.landing_initiated = True
+            self.landing_altitude_target = 0.0  # Target ground level
+
+            lidar_altitude = self.obstacle_distances[1] * self.max_ray_distance
+            gps_altitude = self.current_position[2]
+
+            self.get_logger().warn(
+                f'🛬 LANDING INITIATED - Two-Phase Landing Sequence\n'
+                f'   Current GPS altitude: {gps_altitude:.2f}m\n'
+                f'   Current LiDAR altitude: {lidar_altitude:.2f}m\n'
+                f'   Phase 1: GPS-guided descent to ~3m\n'
+                f'   Phase 2: LiDAR-guided final landing (< {self.lidar_landing_threshold:.1f}m)\n'
+                f'   Home position: E={self.home_position[0]:.2f}, N={self.home_position[1]:.2f}'
+            )
+
     def publish_safety_status(self):
         """Publish safety status message"""
         status_parts = []
+
+        if self.custom_rth_active:
+            if self.landing_complete:
+                status_parts.append("✅ LANDING_COMPLETE")
+            elif self.landing_initiated:
+                # Determine landing phase
+                lidar_altitude = self.obstacle_distances[1] * self.max_ray_distance
+                if lidar_altitude < self.lidar_transition_altitude:
+                    status_parts.append("🛬 LANDING_LIDAR")
+                else:
+                    status_parts.append("🛬 LANDING_GPS")
+            else:
+                status_parts.append("🚨 CUSTOM_RTH_ACTIVE")
 
         if self.rth_active:
             status_parts.append("🚨 RTH_ACTIVE")
@@ -288,8 +557,11 @@ class SafetyMonitorNode(Node):
         # Add numerical status
         # Denormalize lidar for display
         actual_obstacle_distances = self.obstacle_distances * self.max_ray_distance
+        lidar_down_altitude = actual_obstacle_distances[1]  # Ray 1 is down-facing
+
         status_parts.extend([
-            f"ALT:{self.current_position[2]:.1f}m",
+            f"GPS_ALT:{self.current_position[2]:.1f}m",
+            f"LIDAR_ALT:{lidar_down_altitude:.1f}m",
             f"VEL:{np.linalg.norm(self.current_velocity):.1f}m/s",
             f"BAT:{self.battery_voltage:.1f}V",
             f"OBS:{np.min(actual_obstacle_distances):.1f}m"
@@ -298,6 +570,13 @@ class SafetyMonitorNode(Node):
         if self.home_position is not None:
             distance_from_home = np.linalg.norm(self.current_position[:2] - self.home_position[:2])
             status_parts.append(f"HOME_DIST:{distance_from_home:.1f}m")
+
+        # Add waypoint status
+        if self.current_waypoint_number is not None:
+            if self.waypoints_completed:
+                status_parts.append("WP:COMPLETED")
+            else:
+                status_parts.append(f"WP:#{self.current_waypoint_number}")
 
         status_str = " | ".join(status_parts) if status_parts else "✓ NORMAL"
 

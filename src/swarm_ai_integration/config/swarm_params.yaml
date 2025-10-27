@@ -64,12 +64,12 @@ ai_flight_node:
 safety_monitor_node:
   ros__parameters:
     # Altitude limits
-    max_altitude: 50.0                  # Maximum flight altitude (meters)
-    min_altitude: 0.5                   # Minimum flight altitude (meters)
+    max_altitude: 10.0                  # Maximum flight altitude (meters)
+    min_altitude: 0.0                   # Minimum flight altitude (meters)
 
     # Velocity limits
-    max_velocity: 5.0                   # Maximum velocity before override (m/s)
-    max_acceleration: 5.0               # Maximum acceleration (m/s²)
+    max_velocity: 1.0                   # Maximum velocity before override (m/s)
+    max_acceleration: 1.0               # Maximum acceleration (m/s²)
 
     # Battery monitoring
     min_battery_voltage: 14.0           # Minimum battery voltage (volts)
