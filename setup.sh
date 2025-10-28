@@ -198,6 +198,7 @@ install_system_dependencies() {
         git \
         python3-pip \
         python3-dev \
+        python3-venv \
         libi2c-dev \
         i2c-tools \
         python3-smbus \
@@ -220,17 +221,54 @@ install_python_dependencies() {
     print_info "Upgrading pip..."
     python3 -m pip install --upgrade pip
 
-    print_info "Installing Python packages..."
+    # Install system-wide packages for ROS nodes (non-AI)
+    print_info "Installing system Python packages (ROS nodes)..."
     python3 -m pip install \
         numpy \
         scipy \
         pyserial \
-        smbus2 \
+        smbus2
+
+    print_success "System Python dependencies installed"
+
+    # Create virtual environment for AI Flight Node
+    print_info "Creating virtual environment for AI Flight Node..."
+
+    local VENV_PATH="${HOME}/ai_flight_node_env"
+
+    if [[ -d "$VENV_PATH" ]]; then
+        print_warning "Virtual environment already exists at $VENV_PATH"
+        read -p "Recreate virtual environment? (y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            rm -rf "$VENV_PATH"
+            print_info "Removed existing virtual environment"
+        else
+            print_info "Keeping existing virtual environment"
+            print_success "Python dependencies configured"
+            return
+        fi
+    fi
+
+    # Create venv
+    python3 -m venv "$VENV_PATH"
+    print_success "Virtual environment created at $VENV_PATH"
+
+    # Activate venv and install AI packages
+    print_info "Installing AI packages in virtual environment..."
+
+    # Use venv's pip directly
+    "$VENV_PATH/bin/pip" install --upgrade pip
+    "$VENV_PATH/bin/pip" install \
+        numpy \
+        scipy \
         torch \
         stable-baselines3 \
         gym
 
-    print_success "Python dependencies installed"
+    print_success "AI packages installed in virtual environment"
+    print_info "Virtual environment location: $VENV_PATH"
+    print_info "Used by: scripts/ai_flight_node_wrapper.sh"
 }
 
 ################################################################################
@@ -611,6 +649,12 @@ print_summary() {
     print_info "Configuration files:"
     echo "  - ROS2 parameters: $WORKSPACE_DIR/src/swarm_ai_integration/config/swarm_params.yaml"
     echo "  - Launch script: $WORKSPACE_DIR/launch.sh"
+    echo ""
+
+    print_info "Python Virtual Environment:"
+    echo "  - Location: ${HOME}/ai_flight_node_env"
+    echo "  - Used by: AI Flight Node (ai_flight_node_wrapper.sh)"
+    echo "  - Packages: torch, stable-baselines3, gym, numpy, scipy"
     echo ""
 
     if [[ "$INSTALL_PM2" = true ]]; then

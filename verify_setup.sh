@@ -108,26 +108,67 @@ check_ros2() {
 check_python_packages() {
     print_header "Python Dependencies"
 
-    local packages=(
+    echo "System Python Packages (for ROS nodes):"
+    echo ""
+
+    local system_packages=(
         "numpy"
         "scipy"
         "serial:pyserial"
         "smbus2"
-        "torch"
-        "stable_baselines3"
-        "gym"
     )
 
-    for pkg_spec in "${packages[@]}"; do
+    for pkg_spec in "${system_packages[@]}"; do
         # Split on : to get import name and display name
         IFS=':' read -r import_name display_name <<< "$pkg_spec"
         display_name=${display_name:-$import_name}
 
         if python3 -c "import $import_name" 2>/dev/null; then
             version=$(python3 -c "import $import_name; print(getattr($import_name, '__version__', 'unknown'))" 2>/dev/null)
-            check_pass "$display_name ($version)"
+            check_pass "$display_name ($version) [system]"
         else
-            check_fail "$display_name not installed"
+            check_fail "$display_name not installed [system]"
+        fi
+    done
+
+    echo ""
+    echo "AI Flight Node Virtual Environment:"
+    echo ""
+
+    local VENV_PATH="${HOME}/ai_flight_node_env"
+
+    if [[ ! -d "$VENV_PATH" ]]; then
+        check_fail "Virtual environment not found at $VENV_PATH"
+        print_info "Run setup.sh to create the virtual environment"
+        return
+    fi
+
+    check_pass "Virtual environment exists at $VENV_PATH"
+
+    # Check if venv has Python
+    if [[ ! -f "$VENV_PATH/bin/python3" ]]; then
+        check_fail "Python not found in virtual environment"
+        return
+    fi
+
+    local ai_packages=(
+        "numpy"
+        "scipy"
+        "torch"
+        "stable_baselines3"
+        "gym"
+    )
+
+    for pkg_spec in "${ai_packages[@]}"; do
+        # Split on : to get import name and display name
+        IFS=':' read -r import_name display_name <<< "$pkg_spec"
+        display_name=${display_name:-$import_name}
+
+        if "$VENV_PATH/bin/python3" -c "import $import_name" 2>/dev/null; then
+            version=$("$VENV_PATH/bin/python3" -c "import $import_name; print(getattr($import_name, '__version__', 'unknown'))" 2>/dev/null)
+            check_pass "$display_name ($version) [venv]"
+        else
+            check_fail "$display_name not installed [venv]"
         fi
     done
 }

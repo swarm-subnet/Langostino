@@ -139,6 +139,7 @@ sudo apt install -y \
     git \
     python3-pip \
     python3-dev \
+    python3-venv \
     libi2c-dev \
     i2c-tools \
     python3-smbus \
