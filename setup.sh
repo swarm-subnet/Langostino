@@ -235,6 +235,13 @@ install_python_dependencies() {
     print_info "Creating virtual environment for AI Flight Node..."
 
     local VENV_PATH="${HOME}/ai_flight_node_env"
+    local REQUIREMENTS_FILE="$WORKSPACE_DIR/ai_model_requirements.txt"
+
+    # Check if requirements file exists
+    if [[ ! -f "$REQUIREMENTS_FILE" ]]; then
+        print_error "Requirements file not found: $REQUIREMENTS_FILE"
+        exit 1
+    fi
 
     if [[ -d "$VENV_PATH" ]]; then
         print_warning "Virtual environment already exists at $VENV_PATH"
@@ -254,20 +261,17 @@ install_python_dependencies() {
     python3 -m venv "$VENV_PATH"
     print_success "Virtual environment created at $VENV_PATH"
 
-    # Activate venv and install AI packages
-    print_info "Installing AI packages in virtual environment..."
+    # Activate venv and install AI packages from requirements file
+    print_info "Installing AI packages from requirements file..."
+    print_info "Using: $REQUIREMENTS_FILE"
 
     # Use venv's pip directly
     "$VENV_PATH/bin/pip" install --upgrade pip
-    "$VENV_PATH/bin/pip" install \
-        numpy \
-        scipy \
-        torch \
-        stable-baselines3 \
-        gym
+    "$VENV_PATH/bin/pip" install -r "$REQUIREMENTS_FILE"
 
     print_success "AI packages installed in virtual environment"
     print_info "Virtual environment location: $VENV_PATH"
+    print_info "Requirements file: $REQUIREMENTS_FILE"
     print_info "Used by: scripts/ai_flight_node_wrapper.sh"
 }
 
@@ -654,7 +658,8 @@ print_summary() {
     print_info "Python Virtual Environment:"
     echo "  - Location: ${HOME}/ai_flight_node_env"
     echo "  - Used by: AI Flight Node (ai_flight_node_wrapper.sh)"
-    echo "  - Packages: torch, stable-baselines3, gym, numpy, scipy"
+    echo "  - Requirements: $WORKSPACE_DIR/ai_model_requirements.txt"
+    echo "  - Packages: numpy, typing-extensions, gymnasium, stable-baselines3, torch"
     echo ""
 
     if [[ "$INSTALL_PM2" = true ]]; then

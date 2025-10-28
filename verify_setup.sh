@@ -153,10 +153,10 @@ check_python_packages() {
 
     local ai_packages=(
         "numpy"
-        "scipy"
-        "torch"
+        "typing_extensions:typing-extensions"
+        "gymnasium"
         "stable_baselines3"
-        "gym"
+        "torch"
     )
 
     for pkg_spec in "${ai_packages[@]}"; do

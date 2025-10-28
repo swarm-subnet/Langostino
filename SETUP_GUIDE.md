@@ -150,17 +150,35 @@ sudo apt install -y \
 
 ### Step 3: Install Python Dependencies
 
+**System packages (for ROS nodes):**
 ```bash
 pip3 install --upgrade pip
-pip3 install \
-    numpy \
-    scipy \
-    pyserial \
-    smbus2 \
-    torch \
-    stable-baselines3 \
-    gym
+pip3 install numpy scipy pyserial smbus2
 ```
+
+**Virtual environment for AI Flight Node:**
+```bash
+# Create virtual environment
+python3 -m venv ~/ai_flight_node_env
+
+# Activate virtual environment
+source ~/ai_flight_node_env/bin/activate
+
+# Install AI packages from requirements file
+cd ~/swarm-ros
+pip install --upgrade pip
+pip install -r ai_model_requirements.txt
+
+# Deactivate (optional)
+deactivate
+```
+
+The `ai_model_requirements.txt` file contains:
+- numpy>=1.24,<2.0
+- typing-extensions
+- gymnasium
+- stable-baselines3
+- torch
 
 ### Step 4: Configure I2C (for LiDAR)
 
@@ -428,10 +446,14 @@ colcon build --symlink-install
 
 **Solution**:
 ```bash
-# Reinstall Python dependencies
-pip3 install --upgrade \
-    numpy scipy pyserial smbus2 \
-    torch stable-baselines3 gym
+# Reinstall system Python dependencies
+pip3 install --upgrade numpy scipy pyserial smbus2
+
+# Reinstall AI packages in virtual environment
+source ~/ai_flight_node_env/bin/activate
+pip install --upgrade pip
+pip install -r ~/swarm-ros/ai_model_requirements.txt
+deactivate
 ```
 
 ### Runtime Issues
