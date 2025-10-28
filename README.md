@@ -2,25 +2,60 @@
 
 **Version:** 1.0.0
 **Status:** Active Development
-**Last Updated:** October 2025
+**Last Updated:** October 2024
 
 ROS2 integration package for real-world deployment of Swarm AI flight control system with INAV 7 flight controller. This package enables autonomous flight using trained PPO models with real sensor data from I2C LiDAR, GPS, IMU, and MSP telemetry.
 
-## Project Status
+---
 
-**Current Focus:** Closed-loop velocity control with PID-based MSP RC command generation
+## 🚀 Quick Start
 
-**Recent Updates:**
+```bash
+# 1. Clone repository
+cd ~
+git clone <your-repo-url> swarm-ros
+cd swarm-ros
+
+# 2. Run automated setup (Ubuntu 22.04)
+sudo ./setup.sh --install-pm2
+
+# 3. Log out and back in for group changes
+logout
+
+# 4. Verify installation
+./verify_setup.sh
+
+# 5. Launch system
+./launch.sh  # or: ros2 launch swarm_ai_integration swarm_ai_launch.py
+```
+
+See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed installation instructions.
+
+---
+
+## 🎯 Project Status
+
+### Current Focus
+**Autonomous mission execution with intelligent return-to-home and precision landing**
+
+### Recent Updates (v1.0.0)
+- ✅ **Custom RTH System**: Intelligent waypoint-based return to home (replaces INAV RTH)
+- ✅ **LiDAR-Guided Landing**: Two-phase landing with GPS approach + LiDAR precision descent
+- ✅ **Mission Completion Detection**: Automatic RTH activation when waypoints are completed
+- ✅ **Automated Setup**: One-command installation for Ubuntu 22.04 servers
+- ✅ **Hardware Verification**: Comprehensive I2C and UART connectivity checks
+- ✅ **Coordinate System Enhancement**: Home position at [0,0,0] with ground-level targeting
 - ✅ Implemented direct MSP serial communication with INAV 7
 - ✅ Added pre-arm streaming protocol (30s arming sequence)
 - ✅ Integrated PID velocity controller (vx, vy, vz → RC channels)
 - ✅ Waypoint-based goal tracking with ENU coordinate conversion
 - ✅ Relative positioning system with configurable initial offset
-- ✅ Return to Home (RTH) safety integration via INAV CH9
 - ✅ Black box flight data recorder
 - ✅ I2C-based LiDAR sensor support (front & down)
 
-**Architecture Overview:**
+---
+
+## 🏗️ Architecture Overview
 
 ```
 ┌─────────────────┐      ┌──────────────────┐      ┌─────────────────┐
@@ -31,110 +66,204 @@ ROS2 integration package for real-world deployment of Swarm AI flight control sy
          │ /ai/action             │ /ai/observation          │ /fc/* topics
          ↓                        ↓                          ↓
 ┌─────────────────────────────────────────────────────────────────────┐
+│                   Safety Monitor Node (NEW!)                        │
+│  • Monitors: altitude, velocity, battery, distance, obstacles       │
+│  • Mission Tracking: Detects waypoint completion                    │
+│  • Custom RTH: Publishes home as goal waypoint                      │
+│  • Landing: Two-phase GPS+LiDAR precision descent                   │
+└─────────────────────────────────────────────────────────────────────┘
+         │                                                     │
+         │ /safety/custom_goal_geodetic                       │
+         ↓                                                     ↓
+┌─────────────────────────────────────────────────────────────────────┐
 │                        FC Adapter Node                               │
 │            (Velocity PID → MSP RC Commands)                          │
 └─────────────────────────────────────────────────────────────────────┘
-         │                                                     │
-         │ MSP_SET_RAW_RC (Direct Serial)                    │
-         ↓                                                     ↓
-┌──────────────────┐                              ┌───────────────────┐
-│  INAV 7 FC       │                              │  Safety Monitor   │
-│  (Hardware)      │                              │  (RTH, Override)  │
-└──────────────────┘                              └───────────────────┘
+         │
+         │ MSP_SET_RAW_RC (Direct Serial)
+         ↓
+┌──────────────────┐
+│  INAV 7 FC       │
+│  (Hardware)      │
+└──────────────────┘
 ```
 
-## Core Components
+---
 
-The system consists of seven main nodes:
+## 🎮 Core Features
+
+### 🏠 Custom Return to Home (RTH)
+**Intelligent mission completion and emergency RTH system**
+
+**Key Features:**
+- **Waypoint Mission Tracking**: Monitors INAV waypoint progress via `/fc/waypoint`
+- **Automatic RTH Activation**: Triggers when mission completes or critical safety violations occur
+- **Custom Goal Waypoints**: Publishes home position as AI navigation goal (bypasses INAV RTH)
+- **Home Position Storage**: Maintains both ENU [0,0,0] and geodetic coordinates
+
+**Activation Triggers:**
+- Mission waypoint completion (waypoint #0 detected)
+- Battery critically low (< 14V)
+- Distance from home exceeded (> 100m)
+- Communication timeout (> 2s)
+
+**RTH Sequence:**
+1. Safety monitor detects trigger condition
+2. Publishes home position to `/safety/custom_goal_geodetic` [lat, lon, alt]
+3. AI adapter overrides mission waypoint with home goal
+4. AI navigates drone back to home position
+5. Landing sequence activates when within 2m horizontally
+
+### 🛬 LiDAR-Guided Precision Landing
+**Two-phase landing system for safe ground touchdown**
+
+**Phase 1: GPS-Guided Approach (Above 5m)**
+- Uses GPS altitude for navigation
+- Descends to ~3m above ground level
+- Initiates when within 2m horizontal distance of home
+
+**Phase 2: LiDAR-Guided Final Descent (Below 5m)**
+- Switches to down-facing LiDAR when altitude < 5m
+- Targets 0.5m above ground using precise LiDAR measurements
+- Landing complete when LiDAR reads < 0.3m
+- Prevents GPS altitude errors from causing hard landings
+
+**Status Indicators:**
+- `🛬 LANDING_GPS`: GPS-guided approach phase
+- `🛬 LANDING_LIDAR`: LiDAR-guided final descent
+- `✅ LANDING_COMPLETE`: Successfully landed
+
+**Why LiDAR?**
+- GPS altitude error: ±5-10m
+- LiDAR altitude error: ±0.05m
+- Handles terrain variations and prevents crashes
+
+---
+
+## 🧩 Core Components
 
 ### 1. AI Adapter Node (`ai_adapter_node.py`)
 **Purpose:** Converts real sensor data into the 131-dimensional observation array for the PPO model
 
 **Key Features:**
-- **Relative ENU Positioning:** Initial position set to [0, 0, 3]m, configurable via `RELATIVE_START_ENU`
+- **Relative ENU Positioning:** Origin at [0, 0, 3]m (3m initial altitude)
+- **Home Position:** Ground level at [0, 0, 0]m for RTH targeting
 - **Waypoint Goal Tracking:** Converts geodetic waypoints to local ENU offsets
-- **Action Buffer:** Maintains 20-step action history for temporal awareness
-- **Zero-Filling:** Automatically fills with zeros when no new action messages arrive
-- **Observation Structure (131-D):**
-  - [0:3] Relative position (E, N, U) in meters
-  - [3:7] Orientation quaternion (from `/fc/attitude`)
-  - [7:10] Orientation Euler angles (roll, pitch, yaw) in radians
-  - [10:13] Velocity ENU (from GPS speed/course)
-  - [13:16] Angular velocity (from IMU)
-  - [16:20] Last action received
-  - [20:100] Action buffer (20 × 4)
-  - [100:112] Padding (12 zeros)
-  - [112:128] LiDAR distances (16 rays, normalized)
-  - [128:131] Goal vector (ENU, scaled by 10m)
+- **Custom Goal Override**: Supports `/safety/custom_goal_geodetic` for RTH (NEW!)
+- **Action Buffer:** Maintains 25-step action history for temporal awareness
+- **GPS Quality Validation**: Requires 6+ satellites and HDOP < 4.0
+- **Tiered Averaging**: 30-sample GPS averaging for stable origin
+
+**Observation Structure (131-D):**
+- [0:3] Relative position (E, N, U) in meters
+- [3:6] Orientation Euler angles (roll, pitch, yaw) in radians
+- [6:9] Velocity ENU (from GPS speed/course)
+- [9:12] Angular velocity (from IMU)
+- [12:112] Action buffer (25 steps × 4 actions)
+- [112:128] LiDAR distances (16 rays, normalized 0-1)
+- [128:131] Goal vector (ENU, normalized by 10m)
 
 **Subscribed Topics:**
-- `/fc/gps_fix` (sensor_msgs/NavSatFix) - GPS position (lat, lon, alt)
-- `/fc/attitude` (geometry_msgs/QuaternionStamped) - Orientation quaternion
+- `/fc/gps_fix` (sensor_msgs/NavSatFix) - GPS position
+- `/fc/gps_satellites` (std_msgs/Int32) - Satellite count
+- `/fc/gps_hdop` (std_msgs/Float32) - Horizontal dilution of precision
 - `/fc/attitude_euler` (geometry_msgs/Vector3Stamped) - Euler angles [rad]
-- `/fc/imu_raw` (sensor_msgs/Imu) - Angular velocity only
+- `/fc/imu_raw` (sensor_msgs/Imu) - Angular velocity
 - `/fc/gps_speed_course` (std_msgs/Float32MultiArray) - [speed_mps, course_deg]
-- `/fc/waypoint` (std_msgs/Float32MultiArray) - Current goal waypoint
+- `/fc/waypoint` (std_msgs/Float32MultiArray) - Current mission waypoint
+- `/safety/custom_goal_geodetic` (std_msgs/Float32MultiArray) - Custom RTH goal (NEW!)
 - `/lidar_distance` (sensor_msgs/Range) - Down-facing LiDAR
 - `/ai/action` (std_msgs/Float32MultiArray) - AI commands for action buffer
 
 **Published Topics:**
-- `/ai/observation` (std_msgs/Float32MultiArray) - 131-D observation array @ 30 Hz
-- `/ai/observation_debug` (std_msgs/Float32MultiArray) - Debug vector [E, N, U, yaw, lidar, action_flag]
+- `/ai/observation` (std_msgs/Float32MultiArray) - 131-D observation @ 30 Hz
+- `/ai/observation_debug` (std_msgs/Float32MultiArray) - [E, N, U, yaw, down_lidar, action_flag]
+
+**Integration Note:** To enable custom RTH, add subscription to `/safety/custom_goal_geodetic` and override goal when received.
+
+---
 
 ### 2. AI Flight Node (`ai_flight_node.py`)
 **Purpose:** Executes PPO policy inference for autonomous flight control
 
 **Key Features:**
-- **Secure Model Loading:** `weights_only=True` PyTorch loading, no pickle exploits
-- **Safe Metadata:** Reads network architecture from `safe_policy_meta.json` in model zip
-- **No Training Environment:** Uses static dummy env, only policy weights loaded
-- **Hardcoded Model Path:** `/home/pi/swarm-ros/model/UID_117.zip`
-- **Fixed Inference Rate:** 10 Hz prediction cycle
+- **Secure Model Loading:** `weights_only=True` PyTorch loading
+- **Safe Metadata:** Reads architecture from `safe_policy_meta.json`
+- **Model Path:** Configurable in `swarm_params.yaml`
+- **Inference Rate:** 10 Hz prediction cycle
 - **Deterministic Actions:** `predict(obs, deterministic=True)`
 - **NaN Safety:** Auto-replaces NaN/Inf with zeros
 
 **Model Format:**
 - Input: 131-D observation (float32)
-- Output: [vx, vy, vz, speed] (4-D action)
-- Architecture: PPO with MLP policy (configured via JSON metadata)
+- Output: [vx_east, vy_north, vz_up, speed] (4-D action in ENU frame)
 
 **Subscribed Topics:**
-- `/ai/observation` (std_msgs/Float32MultiArray) - 131-D observation from adapter
+- `/ai/observation` (std_msgs/Float32MultiArray) - 131-D from adapter
 
 **Published Topics:**
 - `/ai/action` (std_msgs/Float32MultiArray) - [vx, vy, vz, speed] @ 10 Hz
 
-### 3. Safety Monitor Node (`safety_monitor_node.py`)
-**Purpose:** Real-time safety monitoring with RTH integration
+---
+
+### 3. Safety Monitor Node (`safety_monitor_node.py`) 🆕
+**Purpose:** Comprehensive safety monitoring with intelligent RTH and precision landing
 
 **Safety Checks @ 10 Hz:**
-- **Altitude Limits:** Min/max bounds (default: 0.5m - 50m)
-- **Velocity Limits:** Max speed threshold (default: 5 m/s)
+- **Altitude Limits:** Min/max bounds (default: 0-10m)
+- **Velocity Limits:** Max speed threshold (default: 1 m/s)
 - **Battery Monitoring:** Low voltage detection (default: <14V)
-- **Geofencing:** Distance from home position (default: 100m)
-- **Obstacle Proximity:** LiDAR-based collision warning (default: <1m)
-- **Communication Timeout:** Detects lost telemetry (default: 2s)
+- **Geofencing:** Distance from home (default: 100m radius)
+- **Obstacle Proximity:** LiDAR collision warning (default: <1m)
+- **Communication Timeout:** Lost telemetry detection (default: 2s)
+- **Mission Progress:** Waypoint completion tracking (NEW!)
+
+**New Features:**
+- 🏠 **Home Position Tracking**: Stores both ENU [0,0,0] and geodetic coordinates
+- 📍 **Waypoint Mission Monitoring**: Tracks `/fc/waypoint` for completion detection
+- 🎯 **Custom RTH Publisher**: Publishes home to `/safety/custom_goal_geodetic`
+- 🛬 **Two-Phase Landing**: GPS approach + LiDAR final descent
+- 📊 **Dual Altitude Display**: Shows both GPS and LiDAR altitude in status
 
 **Failsafe Actions:**
-- **Hover Override:** Publishes `/safety/override` → FC Adapter sends neutral RC
-- **RTH Activation:** Publishes `/safety/rth_command` → FC Adapter sets CH9 = 1800 (INAV RTH mode)
+- **Hover Override:** `/safety/override` → FC Adapter sends neutral RC
+- **Custom RTH:** `/safety/custom_goal_geodetic` → Home position as AI goal (NEW!)
+- **INAV RTH (Backup):** `/safety/rth_command` → CH9 = 1800 (legacy mode)
 
 **Critical Violations Triggering RTH:**
-- Low battery
+- Low battery voltage
 - Excessive distance from home
 - Communication loss
+- Mission waypoint completion (NEW!)
+
+**Landing Logic:**
+1. Detect drone within 2m of home horizontally
+2. **Phase 1 (GPS)**: Descend to 3m using GPS altitude
+3. **Phase 2 (LiDAR)**: Switch to LiDAR when reading < 5m
+4. Target 0.5m above ground with LiDAR feedback
+5. Complete landing when LiDAR < 0.3m
 
 **Subscribed Topics:**
-- `/ai/observation` (std_msgs/Float32MultiArray) - Parsed for position & LiDAR
-- `/ai/action` (geometry_msgs/Twist) - AI command monitoring
-- `/battery_state` (sensor_msgs/BatteryState) - Battery voltage
-- `/drone/pose` (geometry_msgs/PoseStamped) - Current position
-- `/drone/velocity` (geometry_msgs/Twist) - Current velocity
+- `/ai/observation` (std_msgs/Float32MultiArray) - Position, velocity, LiDAR
+- `/ai/observation_debug` (std_msgs/Float32MultiArray) - Detailed state
+- `/ai/action` (std_msgs/Float32MultiArray) - AI command monitoring
+- `/fc/battery` (sensor_msgs/BatteryState) - Battery voltage
+- `/fc/gps_fix` (sensor_msgs/NavSatFix) - GPS for home geodetic storage (NEW!)
+- `/fc/waypoint` (std_msgs/Float32MultiArray) - Mission progress tracking (NEW!)
 
 **Published Topics:**
 - `/safety/override` (std_msgs/Bool) - Hover mode trigger
-- `/safety/rth_command` (std_msgs/Bool) - RTH activation (INAV CH9)
-- `/safety/status` (std_msgs/String) - Status summary
+- `/safety/rth_command` (std_msgs/Bool) - INAV RTH (backup)
+- `/safety/custom_goal_geodetic` (std_msgs/Float32MultiArray) - Custom RTH goal [lat, lon, alt] (NEW!)
+- `/safety/status` (std_msgs/String) - Comprehensive status with GPS_ALT and LIDAR_ALT (NEW!)
+
+**Status Message Format:**
+```
+🚨 CUSTOM_RTH_ACTIVE | 🛬 LANDING_LIDAR | GPS_ALT:2.1m | LIDAR_ALT:1.8m |
+VEL:0.3m/s | BAT:14.2V | OBS:1.8m | HOME_DIST:0.5m | WP:COMPLETED
+```
+
+---
 
 ### 4. FC Communications Node (`fc_comms_node.py`)
 **Purpose:** MSP protocol interface to INAV 7 flight controller
@@ -142,440 +271,602 @@ The system consists of seven main nodes:
 **Key Features:**
 - **Threaded Serial I/O:** Non-blocking read/write with command queue
 - **Auto-Reconnection:** 5-second retry interval on connection loss
-- **Telemetry Polling @ 10 Hz:** Rotates through MSP_RAW_IMU, MSP_RAW_GPS, MSP_ATTITUDE, MSP_STATUS, MSP_ANALOG, MSP_MOTOR
-- **Waypoint Polling:** Configurable modes:
-  - `first`: Poll WP #1 @ 10 Hz (first mission waypoint)
-  - `all`: Cycle WP #0 to #N @ 10 Hz (includes home/current)
-- **RC Echo:** Optional MSP_RC request after MSP_SET_RAW_RC for verification
-- **Derived Topics:** Publishes `/fc/gps_speed_course` [speed_mps, course_deg] and `/fc/msp_status` [cycle_time, i2c_errors, sensor_mask, box_flags, current_setting]
+- **Telemetry Polling @ 10 Hz:** Rotates through MSP commands
+- **Waypoint Polling:**
+  - `first`: Poll WP #1 @ 10 Hz (current mission waypoint)
+  - `all`: Cycle WP #0 to #N @ 10 Hz
+- **Derived Topics:** GPS speed/course, MSP status
 
-**MSP Commands Handled:**
-- **Outgoing:** MSP_SET_RAW_RC, MSP_IDENT (heartbeat), MSP_WP
-- **Incoming:** MSP_RAW_IMU, MSP_RAW_GPS, MSP_ATTITUDE, MSP_STATUS, MSP_ANALOG, MSP_MOTOR, MSP_WP, MSP_RC
-
-**Subscribed Topics:**
-- `/fc/msp_command` (std_msgs/Float32MultiArray) - Raw MSP command injection
-- `/fc/rc_override` (std_msgs/Float32MultiArray) - RC channels [AETR + AUX1..AUXn]
+**MSP Commands:**
+- **Outgoing:** MSP_SET_RAW_RC, MSP_WP
+- **Incoming:** MSP_RAW_IMU, MSP_RAW_GPS, MSP_ATTITUDE, MSP_STATUS, MSP_ANALOG, MSP_MOTOR, MSP_WP
 
 **Published Topics:**
-- `/fc/imu_raw` (sensor_msgs/Imu) - IMU data (accel, gyro; orientation = identity)
-- `/fc/gps_fix` (sensor_msgs/NavSatFix) - GPS position (lat, lon, alt, fix status)
-- `/fc/attitude` (geometry_msgs/QuaternionStamped) - Attitude quaternion (from Euler)
-- `/fc/attitude_euler` (geometry_msgs/Vector3Stamped) - Euler angles [roll, pitch, yaw] rad
+- `/fc/imu_raw` (sensor_msgs/Imu) - IMU data
+- `/fc/gps_fix` (sensor_msgs/NavSatFix) - GPS position
+- `/fc/gps_satellites` (std_msgs/Int32) - Satellite count (NEW!)
+- `/fc/gps_hdop` (std_msgs/Float32) - HDOP value (NEW!)
+- `/fc/attitude_euler` (geometry_msgs/Vector3Stamped) - [roll, pitch, yaw] rad
 - `/fc/status` (std_msgs/String) - Human-readable FC status
-- `/fc/msp_status` (std_msgs/Float32MultiArray) - Raw MSP_STATUS data
 - `/fc/battery` (sensor_msgs/BatteryState) - Battery voltage & current
-- `/fc/connected` (std_msgs/Bool) - Connection health
-- `/fc/motor_rpm` (std_msgs/Float32MultiArray) - Motor values (4 motors)
+- `/fc/motor_rpm` (std_msgs/Float32MultiArray) - Motor values
 - `/fc/gps_speed_course` (std_msgs/Float32MultiArray) - [speed_mps, course_deg]
 - `/fc/waypoint` (std_msgs/Float32MultiArray) - [wp_no, lat, lon, alt_m, heading, stay, navflag]
-- `/fc/altitude` (std_msgs/Float32MultiArray) - [baro_alt_m, vz_mps] (if implemented)
+
+---
 
 ### 5. FC Adapter Node (`fc_adapter_node.py`)
-**Purpose:** Closed-loop velocity control via PID → MSP RC commands with direct serial output
+**Purpose:** Closed-loop velocity control via PID → MSP RC commands
 
 **Control Flow:**
-1. **Pre-Arm Streaming (30s):** Sends ARM frame @ 40 Hz before accepting AI commands
-   - Channels: `[1500, 1500, 1000, 1500, 1800, 1500, 1500, 1800]`
-   - CH5 (ARM) = 1800, CH8 (MSP OVERRIDE) = 1800
-2. **Warm-Up (40 frames):** Sends neutral RC to stabilize before closed-loop
+1. **Pre-Arm Streaming (30s):** Sends ARM frame @ 40 Hz
+2. **Warm-Up (40 frames):** Sends neutral RC to stabilize
 3. **Closed-Loop Control @ 40 Hz:**
-   - Reads `/ai/action` [vx, vy, vz, speed]
+   - Reads `/ai/action` [vx, vy, vz, speed] in ENU frame
    - Converts GPS speed/course → ENU velocity
    - Transforms ENU → body frame using yaw
-   - PID computes (vx_err, vy_err, vz_err) → (pitch_dev, roll_dev, throttle_dev)
-   - Builds RC channels: `[1500+roll_dev, 1500+pitch_dev, 1500+throttle_dev, 1500, AUX...]`
-   - Direct MSP_SET_RAW_RC via serial (bypasses fc_comms_node)
+   - PID computes error → RC deviations
+   - Sends MSP_SET_RAW_RC via direct serial
 4. **Safety Modes:**
-   - **Timeout Hover:** No `/ai/action` for >1s → neutral RC
-   - **Safety Override:** `/safety/override` = True → neutral RC
-   - **RTH Mode:** `/safety/rth_command` = True → CH9 = 1800 (INAV RTH)
+   - Timeout Hover: No action for >1s
+   - Safety Override: `/safety/override` = True
+   - RTH Mode: `/safety/rth_command` = True → CH9 = 1800
 
 **PID Configuration:**
 - **XY (Roll/Pitch):** kp=150, ki=10, kd=20
 - **Z (Throttle):** kp=100, ki=5, kd=15
 - **Output:** RC deviations ±400 (1100-1900 range)
 
-**RC Channel Mapping (16 channels):**
-- CH1 (Roll), CH2 (Pitch), CH3 (Throttle), CH4 (Yaw)
-- CH5 (ARM): 1800 if `arm_aux_high`, else 1000
-- CH6 (ANGLE): 1800 if `enable_angle_mode`
-- CH7 (ALT HOLD): 1800 if `enable_althold_mode`
-- CH8 (MSP OVERRIDE): **MUST be 1800** for MSP RC control
+**RC Channel Mapping:**
+- CH1-4: Roll, Pitch, Throttle, Yaw
+- CH5 (ARM): 1800
+- CH6 (ANGLE): 1800
+- CH7 (ALT HOLD): 1800
+- CH8 (MSP OVERRIDE): 1800 (MUST be high)
 - CH9 (NAV RTH): 1800 if RTH active
 
 **Subscribed Topics:**
-- `/ai/action` (std_msgs/Float32MultiArray) - [vx, vy, vz, speed]
-- `/fc/gps_speed_course` (std_msgs/Float32MultiArray) - [speed_mps, course_deg]
-- `/fc/attitude_euler` (geometry_msgs/Vector3Stamped) - [roll, pitch, yaw] rad
-- `/fc/altitude` (std_msgs/Float32MultiArray) - [baro_alt_m, vz_mps]
-- `/safety/override` (std_msgs/Bool) - Hover trigger
-- `/safety/rth_command` (std_msgs/Bool) - RTH activation
+- `/ai/action` (std_msgs/Float32MultiArray)
+- `/fc/gps_speed_course`, `/fc/attitude_euler`, `/fc/altitude`
+- `/safety/override`, `/safety/rth_command`
 
 **Published Topics:**
-- `/fc_adapter/status` (std_msgs/String) - Operational status
-- `/fc_adapter/velocity_error` (geometry_msgs/Vector3Stamped) - [ex, ey, ez] body frame
+- `/fc_adapter/status` (std_msgs/String)
+- `/fc_adapter/velocity_error` (geometry_msgs/Vector3Stamped)
 
-**Direct MSP Serial:**
-- Port: `/dev/ttyAMA0` (configurable)
-- Baud: 115200
-- Writes MSP_SET_RAW_RC directly (no fc_comms_node dependency for RC commands)
+---
 
 ### 6. LiDAR Reader Node (`lidar_reader_node.py`)
-**Purpose:** I2C-based LiDAR sensor interface for front & down ranging
+**Purpose:** I2C-based LiDAR sensor interface for ranging
 
 **Key Features:**
-- **I2C Protocol:** Reads 4-byte little-endian uint32 from register 0x24 (distance in mm)
-- **Multi-Sensor Support:** Namespaced instances for different mounting positions
-- **Moving Average Filter:** Configurable window (default: 5 samples)
-- **Range Validation:** Min/max bounds (default: 0.05m - 50m)
-- **Auto-Reconnect:** 5s retry on I2C failure
-- **Health Monitoring:** Consecutive invalid reading threshold (default: 10)
-- **Publishing Rate:** Up to 100 Hz (sensor max spec)
+- **I2C Protocol:** Reads 4-byte distance from register 0x24
+- **Multi-Sensor Support:** Namespaced for down/front sensors
+- **Moving Average Filter:** 5-sample window for noise reduction
+- **Range Validation:** 0.05m - 50m bounds
+- **Auto-Reconnect:** 5s retry on failure
+- **Publishing Rate:** Up to 100 Hz
 
 **I2C Configuration:**
-- **Bus:** `/dev/i2c-1` (default)
-- **Front Sensor:** Address 0x08
-- **Down Sensor:** Address 0x09
-- **Register:** 0x24 (distance data)
+- **Bus:** `/dev/i2c-1`
+- **Down Sensor:** Address 0x08 (default)
+- **Register:** 0x24 (distance in mm)
 
-**Sensor Positions:**
-- `front`: Point along +X axis
-- `down`: Point along -Z axis
+**Published Topics (per instance):**
+- `lidar_distance` (sensor_msgs/Range) - Filtered measurement
+- `lidar_status` (std_msgs/String) - Health status
 
-**Published Topics (per sensor instance):**
-- `lidar_distance` (sensor_msgs/Range) - Filtered distance measurement
-- `lidar_raw` (std_msgs/Float32MultiArray) - [distance_m, timestamp]
-- `lidar_status` (std_msgs/String) - Health, position, I2C stats
-- `lidar_point` (geometry_msgs/PointStamped) - 3D point in sensor frame
-- `lidar_healthy` (std_msgs/Bool) - Connection health
-
-**Namespaced Instances:**
-- `front_lidar/lidar_reader_front` → `/front_lidar/lidar_distance_front`
-- `down_lidar/lidar_reader_down` → `/down_lidar/lidar_distance_down`
+---
 
 ### 7. Black Box Recorder Node (`black_box_recorder_node.py`)
-**Purpose:** Flight data logging for post-flight analysis and debugging
+**Purpose:** Flight data logging for analysis
 
 **Key Features:**
-- **Comprehensive Logging:** Records all critical topics (observations, actions, telemetry, safety)
-- **Timestamped CSV:** Human-readable format with nanosecond timestamps
-- **Auto-Rotation:** Creates new files when size limit reached (default: 100MB)
-- **Compression:** Optionally compresses old log files to save space
-- **Session Management:** Organizes logs by session with max file limits
-- **Buffered Writes:** Batched I/O with configurable flush interval (default: 5s)
+- **Comprehensive Logging:** All critical topics
+- **Timestamped CSV:** Nanosecond precision
+- **Auto-Rotation:** 100MB file size limit
+- **Buffered Writes:** 5s flush interval
 
-**Log Directory:** `/var/log/swarm_blackbox` (default)
+**Log Directory:** `~/swarm-ros/flight-logs/`
 
 **Logged Topics:**
-- `/ai/observation`, `/ai/action`, `/ai/observation_debug`
-- `/fc/gps_fix`, `/fc/attitude_euler`, `/fc/imu_raw`
-- `/fc/gps_speed_course`, `/fc/waypoint`, `/fc/battery`
-- `/safety/status`, `/safety/override`, `/safety/rth_command`
-- `/fc_adapter/status`, `/fc_adapter/velocity_error`
+- AI: `/ai/observation`, `/ai/action`, `/ai/observation_debug`
+- FC: `/fc/gps_fix`, `/fc/attitude_euler`, `/fc/imu_raw`, `/fc/battery`
+- Safety: `/safety/status`, `/safety/override`, `/safety/rth_command`
 
-See `README_BlackBox.md` for detailed logging format and analysis tools.
+---
 
-## Installation
+## 📦 Installation
+
+### Automated Setup (Recommended)
+
+**Ubuntu 22.04 Server:**
+
+```bash
+# 1. Clone repository
+cd ~
+git clone <your-repo-url> swarm-ros
+cd swarm-ros
+
+# 2. Run automated setup
+sudo ./setup.sh --install-pm2
+
+# 3. Log out and back in for group changes
+logout
+
+# 4. Verify installation
+./verify_setup.sh
+```
+
+**What `setup.sh` Does:**
+- ✅ Installs ROS2 Humble
+- ✅ Installs Python dependencies (PyTorch, stable-baselines3, smbus2, pyserial)
+- ✅ Configures I2C for LiDAR (module loading, permissions, udev rules)
+- ✅ Configures UART for flight controller (serial port, group permissions)
+- ✅ Checks hardware connectivity (scans I2C @ 0x08, verifies /dev/ttyAMA0)
+- ✅ Builds ROS2 workspace with colcon
+- ✅ Configures environment (.bashrc setup)
+- ✅ Optionally installs PM2 for process management
+
+**Setup Options:**
+```bash
+sudo ./setup.sh                      # Full installation
+sudo ./setup.sh --skip-ros           # Skip ROS2 if already installed
+sudo ./setup.sh --skip-hardware-check # Skip hardware verification
+sudo ./setup.sh --install-pm2        # Include PM2 for auto-start
+```
+
+See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed manual installation steps.
+
+---
 
 ### Prerequisites
-- **ROS 2 Humble** (or compatible distribution)
-- **Python 3.10+**
-- **Hardware:**
-  - Raspberry Pi 4 (recommended) or similar SBC
-  - INAV 7 flight controller with MSP support
-  - I2C LiDAR sensors (optional: front & down)
-  - GPS module
-  - IMU (typically integrated in flight controller)
 
-### System Dependencies
+**Hardware:**
+- Onboard computer: Raspberry Pi 4 or Ubuntu 22.04 server
+- Flight controller: INAV 7 compatible (connected via UART)
+- LiDAR: I2C-based distance sensor (address 0x08)
+- GPS: Connected to flight controller
+- IMU: Integrated in flight controller
 
-1. **Install I2C tools (for LiDAR):**
-   ```bash
-   sudo apt install i2c-tools python3-smbus2
-   sudo usermod -a -G i2c $USER  # Add user to i2c group
-   ```
+**Hardware Connections:**
+| Component | Interface | Device Path | Config |
+|-----------|-----------|-------------|--------|
+| Flight Controller | UART | `/dev/ttyAMA0` | 115200 baud |
+| LiDAR (Down) | I2C Bus 1 | Address `0x08` | 100Hz |
+| GPS | via FC | MSP protocol | - |
+| IMU | via FC | MSP protocol | - |
 
-2. **Install ROS 2 dependencies:**
-   ```bash
-   sudo apt install ros-humble-geometry-msgs ros-humble-sensor-msgs \
-                    ros-humble-nav-msgs ros-humble-tf2-ros
-   ```
+**Software:**
+- OS: Ubuntu 22.04 LTS
+- ROS2: Humble
+- Python: 3.10+
 
-### Package Setup
+---
 
-1. **Clone the repository:**
-   ```bash
-   cd ~/ros2_ws/src
-   git clone https://github.com/your-org/swarm-ros.git swarm-ros
-   ```
+### Manual Installation
 
-2. **Install Python dependencies:**
-   ```bash
-   cd ~/ros2_ws/src/swarm-ros/src/swarm_ai_integration
-   pip install -r ai_model_requirements.txt
-   ```
+See [SETUP_GUIDE.md](SETUP_GUIDE.md) for step-by-step manual installation instructions including:
+- ROS2 Humble installation
+- System dependency installation
+- Python package installation
+- I2C configuration for LiDAR
+- UART configuration for flight controller
+- ROS2 workspace build
+- Environment configuration
 
-   Dependencies: `numpy`, `torch`, `stable-baselines3`, `gymnasium`, `typing-extensions`, `pyserial`, `smbus2`
+---
 
-3. **Build the package:**
-   ```bash
-   cd ~/ros2_ws
-   colcon build --packages-select swarm_ai_integration
-   source install/setup.bash
-   ```
+## 🚀 Usage
 
-4. **Verify serial permissions:**
-   ```bash
-   sudo usermod -a -G dialout $USER
-   sudo chmod 666 /dev/ttyAMA0  # Or your FC serial port
-   ```
+### Hardware Verification
 
-## Usage
+After installation, verify hardware connections:
 
-### Pre-Flight Checks
-
-1. **Verify I2C LiDAR sensors:**
-   ```bash
-   i2cdetect -y 1  # Should show devices at 0x08 and 0x09
-   ```
-
-2. **Test MSP connection:**
-   ```bash
-   ros2 run swarm_ai_integration fc_comms_node.py --ros-args \
-       -p serial_port:=/dev/ttyAMA0 -p baud_rate:=115200
-   # Check for telemetry output
-   ```
-
-3. **Place AI model:**
-   ```bash
-   mkdir -p /home/pi/swarm-ros/model
-   # Copy UID_117.zip to /home/pi/swarm-ros/model/
-   ```
-
-### Full System Launch
-
-**Standard launch (all nodes):**
 ```bash
-ros2 launch swarm_ai_integration swarm_ai_launch.py \
-    serial_port:=/dev/ttyAMA0 \
-    baud_rate:=115200 \
-    max_velocity:=3.0 \
-    max_altitude:=50.0 \
-    enable_safety:=true \
-    enable_blackbox:=true \
-    log_directory:=/var/log/swarm_blackbox
+# Check I2C LiDAR
+i2cdetect -y 1  # Should show device at 0x08
+
+# Check UART flight controller
+ls -l /dev/ttyAMA0  # Should be readable/writable
+
+# Run full verification
+./verify_setup.sh
 ```
 
-**Production deployment with PM2 (process monitoring and auto-restart):**
+---
+
+### System Launch
+
+**Using PM2 (Recommended for Production):**
+
 ```bash
-pm2 start "ros2 launch swarm_ai_integration swarm_ai_launch.py" --name swarm_ai
+# Start system
+./launch.sh
+
+# Monitor status
+pm2 list
+pm2 logs swarm-ros-launched
+
+# Stop system
+pm2 stop swarm-ros-launched
 ```
 
-PM2 provides process monitoring, automatic restart on failure, and system startup integration. To enable auto-start on boot:
+**Direct ROS2 Launch:**
+
 ```bash
-pm2 save
-pm2 startup
+# Source environment
+source /opt/ros/humble/setup.bash
+source ~/swarm-ros/install/setup.bash
+
+# Launch all nodes
+ros2 launch swarm_ai_integration swarm_ai_launch.py
 ```
 
-**Minimal launch (testing without LiDAR):**
+**Testing Individual Nodes:**
+
 ```bash
-ros2 launch swarm_ai_integration swarm_ai_launch.py \
-    serial_port:=/dev/ttyAMA0 \
-    baud_rate:=115200 \
-    front_lidar_i2c_address:=999 \
-    down_lidar_i2c_address:=999  # Dummy addresses to skip LiDAR
+# Test LiDAR
+ros2 run swarm_ai_integration lidar_reader_node
+
+# Test FC comms
+ros2 run swarm_ai_integration fc_comms_node
+
+# Test safety monitor
+ros2 run swarm_ai_integration safety_monitor_node
 ```
 
-### Individual Node Testing
+---
 
-**FC Comms + Adapter only (MSP testing):**
+### Monitoring
+
+**Safety Status:**
 ```bash
-ros2 run swarm_ai_integration fc_comms_node.py --ros-args \
-    -p serial_port:=/dev/ttyAMA0 -p baud_rate:=115200 \
-    -p wp_poll_mode:=first
+ros2 topic echo /safety/status
 ```
 
-**AI Adapter (observation generation):**
-```bash
-ros2 run swarm_ai_integration ai_adapter_node.py
+**Sample output:**
+```
+🚨 CUSTOM_RTH_ACTIVE | 🛬 LANDING_LIDAR | GPS_ALT:2.1m | LIDAR_ALT:1.8m |
+VEL:0.3m/s | BAT:14.2V | OBS:1.8m | HOME_DIST:0.5m | WP:COMPLETED
 ```
 
-**FC Adapter (velocity control testing):**
+**AI Observation:**
 ```bash
-ros2 run swarm_ai_integration fc_adapter_node.py --ros-args \
-    -p msp_port:=/dev/ttyAMA0 -p msp_baudrate:=115200 \
-    -p prearm_enabled:=true -p prearm_seconds:=30.0 \
-    -p startup_delay_sec:=20.0
+ros2 topic echo /ai/observation_debug
 ```
 
-**Safety Monitor:**
+**Flight Controller Status:**
 ```bash
-ros2 run swarm_ai_integration safety_monitor_node.py --ros-args \
-    -p max_altitude:=50.0 -p min_altitude:=0.5 \
-    -p max_velocity:=5.0
+ros2 topic echo /fc/status
 ```
 
-## Configuration
+**View All Topics:**
+```bash
+ros2 topic list
+ros2 topic hz /ai/observation  # Check rate
+```
 
-### Parameter Files
+---
 
-**Main config:** `config/swarm_params.yaml`
+## ⚙️ Configuration
 
-Key parameters to adjust:
-- **AI Adapter:**
-  - `MAX_RAY_DISTANCE`: LiDAR normalization scale (default: 10.0m)
-  - `RELATIVE_START_ENU`: Initial relative position [E, N, U] (default: [0, 0, 3])
-- **FC Adapter (PID):**
-  - `kp_xy`, `ki_xy`, `kd_xy`: Roll/Pitch PID gains (default: 150, 10, 20)
-  - `kp_z`, `ki_z`, `kd_z`: Throttle PID gains (default: 100, 5, 15)
-  - `prearm_seconds`: Arming duration (default: 30.0s)
-  - `startup_delay_sec`: Operator setup window (default: 20.0s)
-- **Safety Monitor:**
-  - `max_altitude`, `min_altitude`: Altitude bounds (50.0m, 0.5m)
-  - `max_velocity`: Speed limit (5.0 m/s)
-  - `min_battery_voltage`: Low battery threshold (14.0V)
-  - `max_distance_from_home`: Geofence radius (100.0m)
-- **FC Comms:**
-  - `wp_poll_mode`: Waypoint polling (`first` or `all`)
-  - `telemetry_rate`: MSP polling frequency (10.0 Hz)
+### Main Configuration File
+
+**Location:** `src/swarm_ai_integration/config/swarm_params.yaml`
+
+**Key Parameters:**
+
+```yaml
+ai_adapter_node:
+  ros__parameters:
+    max_ray_distance: 20.0           # LiDAR normalization (meters)
+    relative_start_enu: [0.0, 0.0, 3.0]  # Initial position [E, N, U]
+    min_gps_satellites: 6            # Minimum for GPS lock
+
+ai_flight_node:
+  ros__parameters:
+    model_path: "/home/pi/swarm-ros/model/UID_203.zip"
+    prediction_rate: 10.0            # AI inference rate (Hz)
+
+safety_monitor_node:
+  ros__parameters:
+    max_altitude: 10.0               # Maximum flight altitude (m)
+    min_altitude: 0.0                # Minimum altitude (m)
+    max_velocity: 1.0                # Speed limit (m/s)
+    min_battery_voltage: 14.0        # Low battery threshold (V)
+    max_distance_from_home: 100.0    # Geofence radius (m)
+    obstacle_danger_distance: 1.0    # Collision warning (m)
+
+fc_adapter_node:
+  ros__parameters:
+    kp_xy: 150.0                     # Roll/Pitch P gain
+    ki_xy: 10.0                      # Roll/Pitch I gain
+    kd_xy: 20.0                      # Roll/Pitch D gain
+    kp_z: 100.0                      # Throttle P gain
+    ki_z: 5.0                        # Throttle I gain
+    kd_z: 15.0                       # Throttle D gain
+    prearm_duration_sec: 30.0        # Arming sequence time
+    startup_delay_sec: 20.0          # Operator setup window
+
+fc_comms_node:
+  ros__parameters:
+    serial_port: "/dev/ttyAMA0"      # UART device
+    baud_rate: 115200                # Serial baud rate
+    waypoint_poll_mode: "first"      # WP polling: first/all/none
+
+down_lidar/lidar_reader_down:
+  ros__parameters:
+    i2c_bus: 1                       # I2C bus number
+    i2c_address: 0x08                # LiDAR I2C address
+    publish_rate: 100.0              # Sensor rate (Hz)
+```
+
+---
 
 ### INAV Flight Controller Setup
 
-**Required INAV Settings:**
+**Required INAV Configuration:**
+
 1. **Enable MSP RC Override:**
    - Configure CH8 as MSP RC Override mode (range 1700-2100)
+
 2. **Set Flight Modes:**
+   - CH5: ARM switch (1700-2100)
    - CH6: ANGLE mode
-   - CH7: ALT HOLD mode (or POS HOLD for GPS stabilization)
-   - CH9: NAV RTH (Return to Home)
-3. **Configure Arming:**
-   - CH5 as ARM switch (range 1700-2100)
-   - Set prearm checks as needed
-4. **GPS Settings:**
-   - Enable GPS and set home position
-   - Configure RTH altitude and behavior
-5. **Serial Port:**
-   - Enable MSP on UART that connects to Pi (typically UART1)
+   - CH7: ALT HOLD mode (or POS HOLD)
+   - CH9: NAV RTH (backup RTH mode)
+
+3. **GPS Settings:**
+   - Enable GPS and wait for fix
+   - Configure RTH altitude and behavior (backup)
+
+4. **Serial Port:**
+   - Enable MSP on UART connected to Pi
    - Set baud rate to 115200
 
-### Hardware Wiring
+5. **Arming:**
+   - Configure prearm checks
+   - Set switch on CH5 (range 1700-2100)
 
-**Flight Controller ↔ Raspberry Pi:**
-- UART TX → Pi RX (GPIO 15 / `/dev/ttyAMA0`)
-- UART RX → Pi TX (GPIO 14)
-- GND → GND
+---
 
-**I2C LiDAR Sensors:**
-- SDA → Pi GPIO 2 (I2C1 SDA)
-- SCL → Pi GPIO 3 (I2C1 SCL)
-- VCC → 3.3V or 5V (sensor dependent)
-- GND → GND
+## 🛡️ Safety Features
 
-## Safety Features
+### Comprehensive Safety System
 
-The system includes comprehensive safety monitoring:
-
-1. **Altitude Limits**: Prevents flying too high or low
+1. **Altitude Limits**: Prevents flying too high or too low
 2. **Velocity Limits**: Limits maximum speed
 3. **Geofencing**: Prevents flying too far from home
-4. **Obstacle Avoidance**: Monitors LiDAR for close obstacles
-5. **Battery Monitoring**: Triggers emergency landing on low battery
-6. **Communication Timeout**: Activates failsafe on lost communication
-7. **Emergency Landing**: Automated emergency landing procedures
+4. **Obstacle Avoidance**: Monitors LiDAR for collision warning
+5. **Battery Monitoring**: Triggers RTH on low battery
+6. **Communication Timeout**: Activates failsafe on lost telemetry
+7. **Mission Monitoring**: Tracks waypoint completion (NEW!)
+8. **Custom RTH**: Intelligent return to home navigation (NEW!)
+9. **Precision Landing**: LiDAR-guided ground touchdown (NEW!)
 
-### Safety Override
+### Safety Sequence
 
-When safety violations are detected:
-1. AI control is immediately disabled
-2. Failsafe actions are activated
-3. Emergency procedures may be triggered
-4. System status is logged and published
-
-## Monitoring and Debugging
-
-### Status Topics
-
-Monitor system status using these topics:
-- `/ai/status` - AI system status and performance
-- `/safety/status` - Safety monitoring status
-- `/ai/observation_debug` - Debug information about observations
-
-### Logging
-
-Enable debug logging:
-```bash
-ros2 launch swarm_ai_integration swarm_ai_launch.py debug_mode:=true
+**Normal Operation:**
+```
+Mission Waypoint → AI Navigation → Velocity Control → Flight
 ```
 
-### Visualization
-
-Use RViz2 to visualize system state:
-```bash
-ros2 run rviz2 rviz2 -d config/swarm_visualization.rviz
+**Safety Violation Detected:**
+```
+Violation → Hover Override → Safety Monitor Active
 ```
 
-## Troubleshooting
+**Critical Violation (RTH Required):**
+```
+Critical Violation → Custom RTH Activated →
+Navigate to Home → GPS Approach → LiDAR Landing → Complete
+```
 
-### Common Issues
+**Landing Sequence:**
+```
+Phase 1 (GPS): Descend to 3m using GPS altitude
+Phase 2 (LiDAR): Switch to LiDAR < 5m, target 0.5m
+Complete: LiDAR reads < 0.3m, motors stop
+```
 
-1. **Model Loading Failed**
-   - Check model path is correct
-   - Ensure Swarm package is in Python path
-   - Verify model file format
+---
 
-2. **No Observation Data**
-   - Check sensor topic names and data rates
-   - Verify coordinate frame transformations
-   - Check GPS origin configuration
+## 🔧 Troubleshooting
 
-3. **Safety Override Active**
-   - Check safety parameter limits
-   - Monitor `/safety/status` for violation details
-   - Verify sensor data quality
+### Hardware Issues
 
-4. **Poor Control Performance**
-   - Check observation array construction
-   - Verify LiDAR ray mapping
-   - Monitor prediction timing
+**I2C LiDAR Not Detected:**
+```bash
+# Check I2C is enabled
+ls -l /dev/i2c-1
+
+# Scan for devices
+i2cdetect -y 1  # Should show 08
+
+# Check permissions
+groups  # Should include 'i2c'
+
+# Fix: Re-run setup
+sudo ./setup.sh
+```
+
+**UART Flight Controller Not Accessible:**
+```bash
+# Check device exists
+ls -l /dev/ttyAMA0
+
+# Check permissions
+groups  # Should include 'dialout'
+
+# Fix: Add user to group
+sudo usermod -a -G dialout $USER
+logout  # Must log out and back in
+```
+
+---
+
+### Software Issues
+
+**ROS2 Command Not Found:**
+```bash
+# Source environment
+source /opt/ros/humble/setup.bash
+source ~/swarm-ros/install/setup.bash
+
+# Add to .bashrc for persistence
+echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+echo "source ~/swarm-ros/install/setup.bash" >> ~/.bashrc
+```
+
+**Build Errors:**
+```bash
+# Clean and rebuild
+cd ~/swarm-ros
+rm -rf build install log
+colcon build --symlink-install
+source install/setup.bash
+```
+
+**GPS Not Getting Fix:**
+- Move to open sky location
+- Wait 30-60 seconds for satellite acquisition
+- Check `/fc/gps_satellites` topic (need 6+)
+- Check `/fc/gps_hdop` topic (should be < 4.0)
+
+---
+
+### Runtime Issues
+
+**Custom RTH Not Working:**
+
+Check AI adapter subscribes to `/safety/custom_goal_geodetic` and overrides mission waypoint when custom goal is published.
+
+**Landing Not Using LiDAR:**
+
+Check:
+- LiDAR is publishing to `/lidar_distance`
+- Safety monitor receives LiDAR data in observation
+- Status shows "LIDAR_ALT" values
+- LiDAR reading < 5m to trigger phase 2
+
+**Waypoint Mission Not Completing:**
+
+Check:
+- `/fc/waypoint` topic shows waypoint #0 when complete
+- Safety monitor logs "Waypoint mission completed"
+- Custom RTH activates after completion
+
+---
+
+## 📊 Monitoring and Debugging
 
 ### Debug Commands
 
 ```bash
 # Check topic rates
-ros2 topic hz /ai/observation
+ros2 topic hz /ai/observation          # Should be ~30 Hz
+ros2 topic hz /ai/action              # Should be ~10 Hz
+ros2 topic hz /fc/gps_fix             # Should be ~1-10 Hz
 
-# Monitor AI status
-ros2 topic echo /ai/status
-
-# Check safety status
+# Monitor safety
 ros2 topic echo /safety/status
 
-# View observation data
+# Check GPS quality
+ros2 topic echo /fc/gps_satellites    # Need 6+
+ros2 topic echo /fc/gps_hdop          # Should be < 4.0
+
+# View observation
 ros2 topic echo /ai/observation_debug
+
+# Check LiDAR
+ros2 topic echo /lidar_distance
+
+# View waypoints
+ros2 topic echo /fc/waypoint
 ```
 
-## Hardware Requirements
+### Log Files
 
-- **Compute**: CPU with 4+ cores (GPU recommended for larger models)
-- **Memory**: 8GB+ RAM
-- **Sensors**: LiDAR, IMU, GPS, flight controller with telemetry
-- **Communication**: Reliable low-latency connection to flight controller
+**Flight Logs:**
+```bash
+cd ~/swarm-ros/flight-logs
+# CSV files with timestamped flight data
+```
 
-## License
+**ROS Logs:**
+```bash
+ros2 topic echo /rosout  # All node logs
+```
+
+**PM2 Logs:**
+```bash
+pm2 logs swarm-ros-launched
+```
+
+---
+
+## 🚁 Pre-Flight Checklist
+
+Before first flight:
+
+- [ ] **Hardware verified**: Run `./verify_setup.sh` with all checks passing
+- [ ] **GPS lock obtained**: 6+ satellites, HDOP < 2.0
+- [ ] **LiDAR functional**: Reading correct distances
+- [ ] **Battery charged**: Voltage > 14.5V
+- [ ] **Home position set**: Check safety monitor logs
+- [ ] **Flight controller armed**: Test arming sequence
+- [ ] **Safety limits configured**: Review `swarm_params.yaml`
+- [ ] **Custom RTH tested**: Verify in simulation first
+- [ ] **Landing sequence tested**: Check LiDAR transition at 5m
+- [ ] **Emergency procedures**: Know how to stop system (PM2 or Ctrl+C)
+- [ ] **Clear flight area**: No obstacles within geofence
+
+---
+
+## 📚 Additional Documentation
+
+- **[SETUP_GUIDE.md](SETUP_GUIDE.md)**: Detailed installation instructions
+- **[PARAMETER_CONFIGURATION.md](PARAMETER_CONFIGURATION.md)**: Full parameter reference
+- **Launch Files**: `src/swarm_ai_integration/launch/`
+- **Configuration**: `src/swarm_ai_integration/config/swarm_params.yaml`
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
 
 MIT License - see LICENSE file for details.
 
-## Contributing
+---
 
-1. Fork the repository
-2. Create a feature branch
-3. Make changes and add tests
-4. Submit a pull request
+## 💬 Support
 
-## Support
-
-For issues and questions:
+**For issues and questions:**
 - Create an issue on GitHub
-- Check the troubleshooting section
-- Review system logs for error messages
+- Check [SETUP_GUIDE.md](SETUP_GUIDE.md) troubleshooting section
+- Run `./verify_setup.sh` for diagnostics
+- Review `/safety/status` for system health
+- Check flight logs in `flight-logs/` directory
+
+**System Health Check:**
+```bash
+# Quick health check
+ros2 topic list | grep -E "safety|fc|ai|lidar"
+ros2 topic hz /ai/observation
+ros2 topic echo /safety/status --once
+```
+
+---
+
+**Last Updated:** October 2024
+**Version:** 1.0.0

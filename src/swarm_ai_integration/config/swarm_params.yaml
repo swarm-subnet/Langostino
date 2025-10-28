@@ -36,7 +36,7 @@ ai_adapter_node:
 ai_flight_node:
   ros__parameters:
     # Model settings
-    model_path: "/home/pi/swarm-ros/model/UID_117.zip"  # Path to trained AI model
+    model_path: "/home/pi/swarm-ros/model/UID_203.zip"  # Path to trained AI model
     device: "cpu"                       # Computation device (cpu/cuda)
     observation_dim: 131                # Observation vector dimension
     action_dim: 4                       # Action vector dimension
@@ -64,12 +64,12 @@ ai_flight_node:
 safety_monitor_node:
   ros__parameters:
     # Altitude limits
-    max_altitude: 50.0                  # Maximum flight altitude (meters)
-    min_altitude: 0.5                   # Minimum flight altitude (meters)
+    max_altitude: 10.0                  # Maximum flight altitude (meters)
+    min_altitude: 0.0                   # Minimum flight altitude (meters)
 
     # Velocity limits
-    max_velocity: 5.0                   # Maximum velocity before override (m/s)
-    max_acceleration: 5.0               # Maximum acceleration (m/s²)
+    max_velocity: 1.0                   # Maximum velocity before override (m/s)
+    max_acceleration: 1.0               # Maximum acceleration (m/s²)
 
     # Battery monitoring
     min_battery_voltage: 14.0           # Minimum battery voltage (volts)
@@ -215,7 +215,7 @@ fc_adapter_node:
 black_box_recorder_node:
   ros__parameters:
     # Storage settings
-    log_directory: "/var/log/swarm_blackbox"  # Directory for log files
+    log_directory: "~/swarm-ros/flight-logs"  # Directory for log files (expands to home directory)
     max_log_file_size_mb: 100           # Maximum log file size (MB)
     max_files_per_session: 10           # Maximum files per session
 
@@ -245,7 +245,7 @@ down_lidar/lidar_reader_down:
   ros__parameters:
     # I2C communication
     i2c_bus: 1                          # I2C bus number
-    i2c_address: 0x09                   # I2C device address
+    i2c_address: 0x08                   # I2C device address
     distance_register: 0x24             # Distance data register address
 
     # Sensor configuration

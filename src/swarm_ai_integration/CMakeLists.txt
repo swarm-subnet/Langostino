@@ -33,6 +33,12 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# Install wrapper scripts
+install(PROGRAMS
+  scripts/ai_flight_node_wrapper.sh
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Install launch files
 install(DIRECTORY
   launch
