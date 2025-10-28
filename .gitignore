@@ -23,6 +23,7 @@ env/
 pip-wheel-metadata/
 *.manifest
 *.spec
+.claude/
 
 # ROS2 launch and config files (optional, if generated)
 *.launch.pyc
