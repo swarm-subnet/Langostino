@@ -204,6 +204,7 @@ install_system_dependencies() {
         python3-serial \
         python3-numpy \
         python3-scipy \
+        lsof \
         udev
 
     print_success "System dependencies installed"
@@ -290,14 +291,80 @@ configure_uart() {
         print_success "User $SUDO_USER added to dialout group"
     fi
 
-    # Disable serial console on Raspberry Pi (if applicable)
+    # Raspberry Pi specific: Disable Bluetooth to free up PL011 UART
     if [[ -f /boot/firmware/config.txt ]]; then
-        if ! grep -q "enable_uart=1" /boot/firmware/config.txt; then
+        print_info "Configuring Raspberry Pi UART (disabling Bluetooth for PL011)..."
+
+        # Disable Bluetooth services to free up hardware UART
+        if systemctl is-enabled hciuart &>/dev/null; then
+            systemctl disable hciuart
+            print_success "Disabled hciuart service"
+        else
+            print_info "hciuart service not found or already disabled"
+        fi
+
+        if systemctl is-enabled bluetooth &>/dev/null; then
+            systemctl disable bluetooth
+            print_success "Disabled bluetooth service"
+        else
+            print_info "bluetooth service not found or already disabled"
+        fi
+
+        # Add dtoverlay=disable-bt to config.txt
+        if ! grep -q "^dtoverlay=disable-bt" /boot/firmware/config.txt; then
+            echo "dtoverlay=disable-bt" >> /boot/firmware/config.txt
+            print_success "Added dtoverlay=disable-bt to config.txt"
+        else
+            print_info "dtoverlay=disable-bt already in config.txt"
+        fi
+
+        # Enable UART
+        if ! grep -q "^enable_uart=1" /boot/firmware/config.txt; then
             echo "enable_uart=1" >> /boot/firmware/config.txt
             print_success "UART enabled in config.txt"
         else
             print_info "UART already enabled in config.txt"
         fi
+
+        # CRITICAL: Remove serial console from cmdline.txt
+        # This prevents kernel/getty from using ttyAMA0 for console
+        if [[ -f /boot/firmware/cmdline.txt ]]; then
+            print_info "Removing serial console from cmdline.txt..."
+
+            # Backup original cmdline.txt
+            if [[ ! -f /boot/firmware/cmdline.txt.backup ]]; then
+                cp /boot/firmware/cmdline.txt /boot/firmware/cmdline.txt.backup
+                print_info "Backed up original cmdline.txt"
+            fi
+
+            # Remove console=serial0,115200 and console=ttyAMA0,115200
+            if grep -q "console=serial0" /boot/firmware/cmdline.txt || grep -q "console=ttyAMA0" /boot/firmware/cmdline.txt; then
+                sed -i 's/console=serial0,[0-9]\+ //g' /boot/firmware/cmdline.txt
+                sed -i 's/console=ttyAMA0,[0-9]\+ //g' /boot/firmware/cmdline.txt
+                print_success "Removed serial console from cmdline.txt"
+                print_info "Original saved as cmdline.txt.backup"
+            else
+                print_info "Serial console not found in cmdline.txt (already removed)"
+            fi
+        fi
+
+        # Disable serial-getty service (will be stopped after reboot)
+        if systemctl is-enabled serial-getty@ttyAMA0.service &>/dev/null; then
+            systemctl disable serial-getty@ttyAMA0.service
+            print_success "Disabled serial-getty@ttyAMA0.service"
+        else
+            print_info "serial-getty@ttyAMA0 not enabled"
+        fi
+
+        # Stop serial-getty service if currently running
+        if systemctl is-active serial-getty@ttyAMA0.service &>/dev/null; then
+            systemctl stop serial-getty@ttyAMA0.service
+            print_success "Stopped serial-getty@ttyAMA0.service"
+        fi
+
+        print_warning "Bluetooth and serial console disabled to free PL011 UART for flight controller"
+        print_info "This ensures reliable serial communication at 115200 baud"
+        print_info "Serial console will no longer be available on ttyAMA0"
     fi
 
     # Set UART permissions
@@ -510,15 +577,32 @@ print_summary() {
 
     echo -e "${GREEN}✓ Setup completed successfully!${NC}\n"
 
+    # Check if Bluetooth was disabled (Raspberry Pi specific)
+    local reboot_required=false
+    if [[ -f /boot/firmware/config.txt ]]; then
+        if grep -q "^dtoverlay=disable-bt" /boot/firmware/config.txt; then
+            reboot_required=true
+        fi
+    fi
+
     echo "Next steps:"
-    echo "  1. Log out and log back in for group changes to take effect"
-    echo "  2. Source the environment:"
-    echo "     ${BLUE}source /opt/ros/humble/setup.bash${NC}"
-    echo "     ${BLUE}source $WORKSPACE_DIR/install/setup.bash${NC}"
-    echo "  3. Verify hardware connections:"
-    echo "     ${BLUE}i2cdetect -y 1${NC}  (check LiDAR at 0x08)"
-    echo "     ${BLUE}ls -l /dev/ttyAMA0${NC}  (check flight controller)"
-    echo "  4. Launch the system:"
+    if [[ "$reboot_required" = true ]]; then
+        echo "  ${RED}1. REBOOT THE SYSTEM to apply UART/Bluetooth changes${NC}"
+        echo "     ${BLUE}sudo reboot${NC}"
+        echo "  2. After reboot, verify hardware connections:"
+        echo "     ${BLUE}i2cdetect -y 1${NC}  (check LiDAR at 0x08)"
+        echo "     ${BLUE}ls -l /dev/ttyAMA0${NC}  (check flight controller UART)"
+        echo "  3. Launch the system:"
+    else
+        echo "  1. Log out and log back in for group changes to take effect"
+        echo "  2. Source the environment:"
+        echo "     ${BLUE}source /opt/ros/humble/setup.bash${NC}"
+        echo "     ${BLUE}source $WORKSPACE_DIR/install/setup.bash${NC}"
+        echo "  3. Verify hardware connections:"
+        echo "     ${BLUE}i2cdetect -y 1${NC}  (check LiDAR at 0x08)"
+        echo "     ${BLUE}ls -l /dev/ttyAMA0${NC}  (check flight controller)"
+        echo "  4. Launch the system:"
+    fi
     echo "     ${BLUE}./launch.sh${NC}  (if using PM2)"
     echo "     or"
     echo "     ${BLUE}ros2 launch swarm_ai_integration swarm_ai_launch.py${NC}"
@@ -538,7 +622,16 @@ print_summary() {
         echo ""
     fi
 
-    print_warning "IMPORTANT: You must log out and log back in for group changes to take effect!"
+    if [[ "$reboot_required" = true ]]; then
+        print_warning "╔════════════════════════════════════════════════════════════════════╗"
+        print_warning "║  REBOOT REQUIRED!                                                  ║"
+        print_warning "║  Bluetooth has been disabled to free the PL011 UART.              ║"
+        print_warning "║  You must reboot for these changes to take effect.                ║"
+        print_warning "║  Command: sudo reboot                                              ║"
+        print_warning "╚════════════════════════════════════════════════════════════════════╝"
+    else
+        print_warning "IMPORTANT: You must log out and log back in for group changes to take effect!"
+    fi
 }
 
 ################################################################################

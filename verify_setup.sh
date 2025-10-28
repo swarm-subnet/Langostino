@@ -199,6 +199,59 @@ check_uart() {
                 check_warn "$device exists but may not be accessible"
                 print_info "Current user may need to be in 'dialout' group"
             fi
+
+            # CRITICAL: Check if ttyAMA0 is being used by serial console or getty
+            if [[ "$device" == "/dev/ttyAMA0" ]]; then
+                # Check cmdline.txt for serial console
+                if [[ -f /boot/firmware/cmdline.txt ]]; then
+                    if grep -q "console=serial0" /boot/firmware/cmdline.txt || grep -q "console=ttyAMA0" /boot/firmware/cmdline.txt; then
+                        check_fail "Serial console still enabled in cmdline.txt"
+                        print_info "This will interfere with flight controller communication!"
+                        print_info "Remove console=serial0 or console=ttyAMA0 from /boot/firmware/cmdline.txt"
+                    else
+                        check_pass "Serial console removed from cmdline.txt"
+                    fi
+                fi
+
+                # Check if serial-getty service is disabled
+                if systemctl is-enabled serial-getty@ttyAMA0.service &>/dev/null; then
+                    check_fail "serial-getty@ttyAMA0.service is enabled"
+                    print_info "Run: sudo systemctl disable serial-getty@ttyAMA0.service"
+                else
+                    check_pass "serial-getty@ttyAMA0.service is disabled"
+                fi
+
+                # Check if serial-getty service is running
+                if systemctl is-active serial-getty@ttyAMA0.service &>/dev/null; then
+                    check_fail "serial-getty@ttyAMA0.service is running"
+                    print_info "Run: sudo systemctl stop serial-getty@ttyAMA0.service"
+                else
+                    check_pass "serial-getty@ttyAMA0.service is not running"
+                fi
+
+                # Check if anything is using the UART (requires lsof)
+                if command -v lsof &> /dev/null; then
+                    local lsof_output=$(sudo lsof /dev/ttyAMA0 2>/dev/null)
+                    if [[ -n "$lsof_output" ]]; then
+                        check_warn "Something is using /dev/ttyAMA0"
+                        echo -e "\n  Processes using ttyAMA0:"
+                        echo "$lsof_output" | sed 's/^/    /'
+                        print_info "This may interfere with flight controller communication"
+                    else
+                        check_pass "/dev/ttyAMA0 is not in use (ready for FC)"
+                    fi
+                else
+                    check_warn "lsof not available (cannot check if ttyAMA0 is in use)"
+                    print_info "Install with: sudo apt install lsof"
+                fi
+
+                # Check dmesg for PL011 confirmation
+                if dmesg | grep -q "ttyAMA0.*PL011"; then
+                    check_pass "ttyAMA0 is using PL011 hardware UART"
+                else
+                    check_warn "Cannot confirm PL011 UART (check dmesg | grep tty)"
+                fi
+            fi
         fi
     done
 
@@ -213,6 +266,16 @@ check_uart() {
     else
         check_warn "User is not in 'dialout' group"
         print_info "Run: sudo usermod -a -G dialout $USER (requires re-login)"
+    fi
+
+    # Raspberry Pi specific: Check Bluetooth is disabled
+    if [[ -f /boot/firmware/config.txt ]]; then
+        if grep -q "^dtoverlay=disable-bt" /boot/firmware/config.txt; then
+            check_pass "Bluetooth disabled (dtoverlay=disable-bt)"
+        else
+            check_warn "Bluetooth not disabled in config.txt"
+            print_info "Add 'dtoverlay=disable-bt' to /boot/firmware/config.txt"
+        fi
     fi
 }
 
