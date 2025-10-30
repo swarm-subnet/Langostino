@@ -4,7 +4,9 @@ FC Adapter Velocity Node (Closed-Loop, DIRECT MSP with pre-arm)
 - Arms the FC for N seconds by streaming an ARM frame over MSP (like arm_only_simple.py).
 - Then subscribes to /ai/action (Float32MultiArray: [vx, vy, vz, speed]) and flies closed-loop.
 - Uses GPS speed/course + yaw to estimate actual velocity in body frame.
-- PID (vx, vy, vz) -> RC deviations -> MSP_SET_RAW_RC sent over MSP serial (no fc_comms_node).
+- PID (vx, vy) -> RC deviations (roll, pitch) for horizontal control.
+- Direct mapping (vz) -> throttle with rate limiting for altitude control (INAV ALT HOLD interprets as climb rate).
+- MSP_SET_RAW_RC sent over MSP serial (no fc_comms_node).
 - Logs every action it sends to the FC.
 
 Safety:
@@ -63,9 +65,13 @@ class FCAdapterVelocityNode(Node):
         self.declare_parameter('kp_xy', 150.0)
         self.declare_parameter('ki_xy', 10.0)
         self.declare_parameter('kd_xy', 20.0)
-        self.declare_parameter('kp_z', 100.0)
-        self.declare_parameter('ki_z', 5.0)
-        self.declare_parameter('kd_z', 15.0)
+        self.declare_parameter('kp_z', 100.0)  # Not used - keeping for compatibility
+        self.declare_parameter('ki_z', 5.0)    # Not used
+        self.declare_parameter('kd_z', 15.0)   # Not used
+
+        # Z-axis direct mapping (no PID)
+        self.declare_parameter('vz_to_throttle_scale', 100.0)  # vz (m/s) → throttle RC units
+        self.declare_parameter('throttle_rate_limit', 200.0)   # Max change per second (units/s)
 
         # MSP serial (DIRECT) like arm_only_simple.py
         self.declare_parameter('msp_port', '/dev/ttyAMA0')
@@ -94,9 +100,13 @@ class FCAdapterVelocityNode(Node):
         self.kp_xy = float(self.get_parameter('kp_xy').value)
         self.ki_xy = float(self.get_parameter('ki_xy').value)
         self.kd_xy = float(self.get_parameter('kd_xy').value)
-        self.kp_z = float(self.get_parameter('kp_z').value)
-        self.ki_z = float(self.get_parameter('ki_z').value)
-        self.kd_z = float(self.get_parameter('kd_z').value)
+        self.kp_z = float(self.get_parameter('kp_z').value)  # Not used
+        self.ki_z = float(self.get_parameter('ki_z').value)  # Not used
+        self.kd_z = float(self.get_parameter('kd_z').value)  # Not used
+
+        # Z-axis control parameters
+        self.vz_scale = float(self.get_parameter('vz_to_throttle_scale').value)
+        self.throttle_rate_limit = float(self.get_parameter('throttle_rate_limit').value)
 
         self.msp_port = str(self.get_parameter('msp_port').value)
         self.msp_baudrate = int(self.get_parameter('msp_baudrate').value)
@@ -122,6 +132,10 @@ class FCAdapterVelocityNode(Node):
         # Warm-up state
         self.warmup_complete = False
         self.warmup_frames_sent = 0
+
+        # Throttle rate limiting state
+        self.last_throttle = 1500  # Start at neutral
+        self.throttle_target = 1500
 
         # Safety RTH override
         self.safety_rth_requested = False
@@ -178,6 +192,7 @@ class FCAdapterVelocityNode(Node):
         # Pubs
         self.status_pub = self.create_publisher(String, '/fc_adapter/status', control_qos)
         self.vel_error_pub = self.create_publisher(Vector3Stamped, '/fc_adapter/velocity_error', control_qos)
+        self.rc_override_pub = self.create_publisher(Float32MultiArray, '/fc/rc_override', control_qos)
 
         # Timers (start AFTER pre-arm so nothing else transmits during arming)
         self.control_period = 1.0 / max(1.0, self.control_rate)
@@ -242,10 +257,10 @@ class FCAdapterVelocityNode(Node):
         vy_body = -vx_enu * sy + vy_enu * cy    # right = -E*sin(yaw) + N*cos(yaw)
         vz_body = vz_enu                        # up = up
 
-        # clamp for safety
+        # clamp for safety (vz used for throttle mapping with rate limiting)
         self.velocity_cmd_body[0] = float(np.clip(vx_body, -self.max_velocity, self.max_velocity))
         self.velocity_cmd_body[1] = float(np.clip(vy_body, -self.max_velocity, self.max_velocity))
-        self.velocity_cmd_body[2] = float(np.clip(vz_body, -self.max_velocity, self.max_velocity))
+        self.velocity_cmd_body[2] = float(np.clip(vz_body, -self.max_velocity, self.max_velocity))  # Used for throttle mapping
 
         self.last_ai_speed_scalar = float(data[3]) if len(data) > 3 else None
         self.last_cmd_time = time.time()
@@ -312,27 +327,43 @@ class FCAdapterVelocityNode(Node):
         # Earth (ENU) -> Body (Fwd/Right/Up) using yaw
         self._earth_to_body_velocity()
 
-        # PID: (vx,vy,vz) error -> RC deviations (pitch, roll, throttle)
-        pitch_dev, roll_dev, throttle_dev = self.velocity_controller.compute(
+        # PID: (vx,vy) error -> RC deviations (pitch, roll)
+        # NOTE: Z-axis uses direct mapping, not PID (vz → throttle with rate limiting)
+        pitch_dev, roll_dev, _ = self.velocity_controller.compute(
             vel_cmd_x=self.velocity_cmd_body[0],
             vel_cmd_y=self.velocity_cmd_body[1],
-            vel_cmd_z=self.velocity_cmd_body[2],
+            vel_cmd_z=0.0,  # Not used - Z uses direct mapping instead of PID
             vel_actual_x=self.velocity_actual_body[0],
             vel_actual_y=self.velocity_actual_body[1],
-            vel_actual_z=self.velocity_actual_body[2],
+            vel_actual_z=0.0,  # Not used - Z uses direct mapping instead of PID
             dt=dt
         )
 
         # Deviations around 1500
         roll_rc = int(1500 + roll_dev)         # ch1
         pitch_rc = int(1500 + pitch_dev)       # ch2
-        throttle_rc = int(1500 + throttle_dev) # ch3
         yaw_rc = 1500                          # ch4 (hold)
 
-        # Clamp (gentle authority)
+        # Z-axis: Direct vz command → throttle mapping with rate limiting
+        # INAV ALT HOLD interprets throttle as climb rate command
+        vz_command = self.velocity_cmd_body[2]
+        self.throttle_target = int(1500 + (vz_command * self.vz_scale))
+        self.throttle_target = max(self.rc_min, min(self.rc_max, self.throttle_target))
+
+        # Rate limit throttle change (smooth ramping)
+        max_change_per_iteration = int(self.throttle_rate_limit * dt)
+        if self.throttle_target > self.last_throttle:
+            throttle_rc = min(self.throttle_target, self.last_throttle + max_change_per_iteration)
+        elif self.throttle_target < self.last_throttle:
+            throttle_rc = max(self.throttle_target, self.last_throttle - max_change_per_iteration)
+        else:
+            throttle_rc = self.last_throttle
+
+        self.last_throttle = throttle_rc  # Store for next iteration
+
+        # Clamp roll/pitch (throttle already clamped during rate limiting)
         roll_rc = max(self.rc_min, min(self.rc_max, roll_rc))
         pitch_rc = max(self.rc_min, min(self.rc_max, pitch_rc))
-        throttle_rc = max(self.rc_min, min(self.rc_max, throttle_rc))
 
         # Compose 16 channels (INAV supports up to 18, we use 9 for RTH)
         channels = [1500] * 16
@@ -349,30 +380,35 @@ class FCAdapterVelocityNode(Node):
         # Direct MSP send
         self._send_msp_set_raw_rc(channels)
 
-        # Log every action
+        # Publish RC channels for black box logging
+        rc_msg = Float32MultiArray()
+        rc_msg.data = [float(ch) for ch in channels[:9]]  # First 9 channels (important ones)
+        self.rc_override_pub.publish(rc_msg)
+
+        # Log every action (Z-axis now directly mapped to throttle with rate limiting)
         vx, vy, vz = self.velocity_cmd_body
         ex = vx - self.velocity_actual_body[0]
         ey = vy - self.velocity_actual_body[1]
-        ez = vz - self.velocity_actual_body[2]
         spd = self.last_ai_speed_scalar if self.last_ai_speed_scalar is not None else 0.0
 
         self.get_logger().info(
             f"[loop {self.stats['loops']+1:06d}] AI(vx,vy,vz,speed)=({vx:+.3f},{vy:+.3f},{vz:+.3f},{spd:+.3f})  "
             f"BodyVel=({self.velocity_actual_body[0]:+.3f},{self.velocity_actual_body[1]:+.3f},{self.velocity_actual_body[2]:+.3f})  "
-            f"Err=({ex:+.3f},{ey:+.3f},{ez:+.3f})  "
+            f"Err(xy)=({ex:+.3f},{ey:+.3f})  "
             f"RC[R,P,T,Y]=[{channels[0]},{channels[1]},{channels[2]},{channels[3]}]  "
+            f"Throttle(tgt→act)=[{self.throttle_target}→{throttle_rc}]  "
             f"AUX[5..7]=[{channels[4]},{channels[5]},{channels[6]}]"
         )
 
         self.stats['loops'] += 1
 
-        # Publish error vector for plotting
+        # Publish error vector for plotting (Z-axis uses direct mapping, no error tracking)
         err_msg = Vector3Stamped()
         err_msg.header.stamp = self.get_clock().now().to_msg()
         err_msg.header.frame_id = 'body'
         err_msg.vector.x = ex
         err_msg.vector.y = ey
-        err_msg.vector.z = ez
+        err_msg.vector.z = 0.0  # Z-axis uses direct mapping, not PID feedback
         self.vel_error_pub.publish(err_msg)
 
     # -------------------- Helpers --------------------
@@ -430,6 +466,12 @@ class FCAdapterVelocityNode(Node):
         channels[7] = 1800                                       # CH8: MSP RC OVERRIDE (AUX4)
         channels[8] = 1800 if (self.nav_rth_enabled or self.safety_rth_requested) else 1000  # CH9: NAV RTH (AUX5)
         self._send_msp_set_raw_rc(channels)
+
+        # Publish RC channels for black box logging
+        rc_msg = Float32MultiArray()
+        rc_msg.data = [float(ch) for ch in channels[:9]]
+        self.rc_override_pub.publish(rc_msg)
+
         self.get_logger().warn(f"Hover command sent ({reason}); RC[R,P,T,Y]=[{channels[0]},{channels[1]},{channels[2]},{channels[3]}]")
         self.stats['failsafes'] += 1
 

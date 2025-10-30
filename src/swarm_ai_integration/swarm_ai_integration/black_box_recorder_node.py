@@ -6,9 +6,9 @@ This node acts as a black box flight data recorder, logging all critical system 
 including sensor inputs, AI model outputs, flight controller communications, and
 safety system status. Data is persisted to files that survive system restarts.
 
-Data Logged (30 topics):
+Data Logged (31 topics):
 - AI System (5): observations, actions, status, model_ready, debug observations
-- Flight Controller (10): IMU, GPS, attitude (euler), battery, status,
+- Flight Controller (11): IMU, GPS, attitude (euler), altitude, battery, status,
   MSP status, connection, motors, GPS speed/course, waypoints
 - FC Commands (2): RC override, MSP commands
 - FC Adapter (2): status, velocity error
@@ -296,6 +296,10 @@ class BlackBoxRecorderNode(Node):
         self.fc_waypoint_sub = self.create_subscription(
             Float32MultiArray, '/fc/waypoint',
             lambda msg: self.log_message('FC_WAYPOINT', msg), reliable_qos)
+
+        self.fc_altitude_sub = self.create_subscription(
+            Float32MultiArray, '/fc/altitude',
+            lambda msg: self.log_message('FC_ALTITUDE', msg), sensor_qos)
 
         # FC Command Topics
         self.fc_rc_override_sub = self.create_subscription(
