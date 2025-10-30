@@ -112,10 +112,10 @@ def generate_launch_description():
         parameters=[config_file]
     )
 
-    # 3. AI Flight Node (PPO inference)
+    # 3. AI Flight Node (PPO inference - uses venv wrapper)
     ai_flight_node = Node(
         package='swarm_ai_integration',
-        executable='ai_flight_node.py',
+        executable='ai_flight_node_wrapper.sh',
         name='ai_flight_node',
         output='screen',
         parameters=[config_file]
