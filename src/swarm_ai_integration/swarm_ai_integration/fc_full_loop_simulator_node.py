@@ -477,9 +477,9 @@ class FCFullLoopSimulatorNode(Node):
         fix = NavSatFix()
         fix.header.stamp = self.get_clock().now().to_msg()
         fix.header.frame_id = self.gps_frame
-        fix.latitude = geo[0]
-        fix.longitude = geo[1]
-        fix.altitude = geo[2]
+        fix.latitude = float(geo[0])
+        fix.longitude = float(geo[1])
+        fix.altitude = float(geo[2])
         fix.status.status = fix.status.STATUS_FIX  # 3D fix
         self.pub_gps_fix.publish(fix)
 
