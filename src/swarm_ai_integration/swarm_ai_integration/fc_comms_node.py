@@ -82,6 +82,7 @@ class FCCommsNode(Node):
             MSPCommand.MSP_RAW_IMU,
             MSPCommand.MSP_RAW_GPS,
             MSPCommand.MSP_ATTITUDE,
+            MSPCommand.MSP_ALTITUDE,
             MSPCommand.MSP_STATUS,
             MSPCommand.MSP_ANALOG,
             MSPCommand.MSP_MOTOR
@@ -202,6 +203,9 @@ class FCCommsNode(Node):
             elif message.command == MSPCommand.MSP_ATTITUDE:
                 self._handle_attitude(message.data)
 
+            elif message.command == MSPCommand.MSP_ALTITUDE:
+                self._handle_altitude(message.data)
+
             elif message.command == MSPCommand.MSP_STATUS:
                 self._handle_status(message.data)
 
@@ -259,6 +263,12 @@ class FCCommsNode(Node):
         )
         if euler_msg:
             self.publisher.publish_attitude(euler_msg)
+
+    def _handle_altitude(self, data: bytes):
+        """Handle altitude data"""
+        altitude_msg = self.parser.parse_altitude_data(data)
+        if altitude_msg:
+            self.publisher.publish_altitude(altitude_msg)
 
     def _handle_status(self, data: bytes):
         """Handle status data"""

@@ -54,6 +54,7 @@ class TelemetryPublisher:
             'imu': None,
             'gps': None,
             'attitude_euler': None,
+            'altitude': None,
             'status': None,
             'battery': None
         }
@@ -85,6 +86,11 @@ class TelemetryPublisher:
         # Attitude data (Euler angles only)
         self.attitude_euler_pub = self.node.create_publisher(
             Vector3Stamped, '/fc/attitude_euler', self.reliable_qos
+        )
+
+        # Altitude data (barometer altitude + vertical velocity)
+        self.altitude_pub = self.node.create_publisher(
+            Float32MultiArray, '/fc/altitude', self.sensor_qos
         )
 
         # Status
@@ -175,6 +181,19 @@ class TelemetryPublisher:
             f'roll={np.degrees(euler_msg.vector.x):.1f}° | '
             f'pitch={np.degrees(euler_msg.vector.y):.1f}° | '
             f'yaw={np.degrees(euler_msg.vector.z):.1f}°'
+        )
+
+    def publish_altitude(self, altitude_msg: Float32MultiArray):
+        """Publish altitude data (barometer altitude + vertical velocity)"""
+        self.altitude_pub.publish(altitude_msg)
+        self.last_telemetry['altitude'] = altitude_msg
+
+        altitude_m = altitude_msg.data[0]
+        vario_mps = altitude_msg.data[1]
+        self.node.get_logger().info(
+            f'   ➜ Published to /fc/altitude | '
+            f'altitude={altitude_m:.2f}m | '
+            f'vario={vario_mps:+.2f}m/s'
         )
 
     def publish_status(self, status_msg: String, msp_status_msg: Optional[Float32MultiArray] = None):

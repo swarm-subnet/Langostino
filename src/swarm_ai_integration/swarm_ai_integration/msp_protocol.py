@@ -396,6 +396,39 @@ class MSPDataTypes:
         return struct.pack('<B', wp_no & 0xFF)
 
     @staticmethod
+    def unpack_altitude(data: bytes) -> Dict[str, float]:
+        """
+        Unpack MSP_ALTITUDE (code=109) data.
+
+        Layout (6 bytes):
+            0..3  : int32  estimated_altitude (cm)
+            4..5  : int16  vertical_velocity (cm/s)
+
+        Returns:
+            {
+                'altitude_m': float (meters),
+                'vario': float (m/s, vertical velocity)
+            }
+        """
+        if len(data) < 6:
+            logger.warning(f"Insufficient data for MSP_ALTITUDE: {len(data)} bytes (expected 6)")
+            return {'altitude_m': 0.0, 'vario': 0.0}
+
+        try:
+            altitude_cm, vario_cms = struct.unpack('<ih', data[:6])
+
+            result = {
+                'altitude_m': float(altitude_cm) / 100.0,  # cm to meters
+                'vario': float(vario_cms) / 100.0          # cm/s to m/s
+            }
+            logger.debug(f"Unpacked ALTITUDE: {result}")
+            return result
+
+        except struct.error as e:
+            logger.error(f"MSP_ALTITUDE unpack error: {e}; data={data.hex()}")
+            return {'altitude_m': 0.0, 'vario': 0.0}
+
+    @staticmethod
     def unpack_waypoint(data: bytes) -> Dict[str, Any]:
         """
         Unpack MSP_WP (code=118) payload.

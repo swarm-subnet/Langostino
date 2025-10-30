@@ -187,6 +187,35 @@ class MSPMessageParser:
         except Exception as e:
             return None
 
+    def parse_altitude_data(self, data: bytes) -> Optional[Float32MultiArray]:
+        """
+        Parse MSP_ALTITUDE data and create altitude message.
+
+        Args:
+            data: Raw MSP payload
+
+        Returns:
+            Float32MultiArray with [altitude_m, vario_m/s] or None
+        """
+        try:
+            altitude_data = MSPDataTypes.unpack_altitude(data)
+
+            if not altitude_data:
+                return None
+
+            # Create altitude message
+            # Format: [altitude_m, vertical_velocity_m/s]
+            altitude_msg = Float32MultiArray()
+            altitude_msg.data = [
+                float(altitude_data['altitude_m']),
+                float(altitude_data['vario'])
+            ]
+
+            return altitude_msg
+
+        except Exception as e:
+            return None
+
     def parse_status_data(
         self,
         data: bytes,
