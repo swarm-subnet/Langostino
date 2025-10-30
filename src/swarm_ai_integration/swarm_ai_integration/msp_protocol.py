@@ -410,6 +410,9 @@ class MSPDataTypes:
                 'vario': float (m/s, vertical velocity)
             }
         """
+        # DEBUG: Always log raw data
+        logger.info(f"🐛 MSP_ALTITUDE RAW: len={len(data)} bytes, hex={data.hex() if data else 'empty'}")
+
         if len(data) < 6:
             logger.warning(f"Insufficient data for MSP_ALTITUDE: {len(data)} bytes (expected 6)")
             return {'altitude_m': 0.0, 'vario': 0.0}
@@ -417,11 +420,14 @@ class MSPDataTypes:
         try:
             altitude_cm, vario_cms = struct.unpack('<ih', data[:6])
 
+            # DEBUG: Log unpacked values
+            logger.info(f"🐛 MSP_ALTITUDE UNPACKED: altitude_cm={altitude_cm}, vario_cms={vario_cms}")
+
             result = {
                 'altitude_m': float(altitude_cm) / 100.0,  # cm to meters
                 'vario': float(vario_cms) / 100.0          # cm/s to m/s
             }
-            logger.debug(f"Unpacked ALTITUDE: {result}")
+            logger.info(f"✓ MSP_ALTITUDE RESULT: altitude={result['altitude_m']:.2f}m, vario={result['vario']:+.2f}m/s")
             return result
 
         except struct.error as e:
