@@ -400,9 +400,10 @@ class MSPDataTypes:
         """
         Unpack MSP_ALTITUDE (code=109) data.
 
-        Layout (6 bytes):
-            0..3  : int32  estimated_altitude (cm)
-            4..5  : int16  vertical_velocity (cm/s)
+        INAV sends 10 bytes (extended format):
+            0..3  : int32  estimated_altitude (cm, relative to arming point)
+            4..5  : int16  vertical_velocity (cm/s, vario)
+            6..9  : int32  estimated_z_velocity (cm/s, possibly for navigation)
 
         Returns:
             {
@@ -414,14 +415,20 @@ class MSPDataTypes:
         logger.info(f"🐛 MSP_ALTITUDE RAW: len={len(data)} bytes, hex={data.hex() if data else 'empty'}")
 
         if len(data) < 6:
-            logger.warning(f"Insufficient data for MSP_ALTITUDE: {len(data)} bytes (expected 6)")
+            logger.warning(f"Insufficient data for MSP_ALTITUDE: {len(data)} bytes (expected 6-10)")
             return {'altitude_m': 0.0, 'vario': 0.0}
 
         try:
+            # Parse first 6 bytes (always present)
             altitude_cm, vario_cms = struct.unpack('<ih', data[:6])
 
-            # DEBUG: Log unpacked values
-            logger.info(f"🐛 MSP_ALTITUDE UNPACKED: altitude_cm={altitude_cm}, vario_cms={vario_cms}")
+            # Parse extended format if available (bytes 6-9)
+            z_vel_cms = 0
+            if len(data) >= 10:
+                z_vel_cms = struct.unpack('<i', data[6:10])[0]
+                logger.info(f"🐛 MSP_ALTITUDE EXTENDED: altitude_cm={altitude_cm}, vario_cms={vario_cms}, z_vel_cms={z_vel_cms}")
+            else:
+                logger.info(f"🐛 MSP_ALTITUDE UNPACKED: altitude_cm={altitude_cm}, vario_cms={vario_cms}")
 
             result = {
                 'altitude_m': float(altitude_cm) / 100.0,  # cm to meters
