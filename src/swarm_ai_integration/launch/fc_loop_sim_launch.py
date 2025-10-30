@@ -74,7 +74,7 @@ def generate_launch_description():
     # 1. FC Full Loop Simulator (replaces fc_comms)
     fc_simulator_node = Node(
         package='swarm_ai_integration',
-        executable='fc_full_loop_simulator_node',
+        executable='fc_full_loop_simulator_node.py',
         name='fc_full_loop_simulator',
         output='screen',
         parameters=[{
@@ -106,7 +106,7 @@ def generate_launch_description():
     # 2. AI Adapter Node (sensor fusion)
     ai_adapter_node = Node(
         package='swarm_ai_integration',
-        executable='ai_adapter_node',
+        executable='ai_adapter_node.py',
         name='ai_adapter_node',
         output='screen',
         parameters=[config_file]
@@ -115,7 +115,7 @@ def generate_launch_description():
     # 3. AI Flight Node (PPO inference)
     ai_flight_node = Node(
         package='swarm_ai_integration',
-        executable='ai_flight_node',
+        executable='ai_flight_node.py',
         name='ai_flight_node',
         output='screen',
         parameters=[config_file]
@@ -124,7 +124,7 @@ def generate_launch_description():
     # 4. FC Adapter Node (PID velocity control)
     fc_adapter_node = Node(
         package='swarm_ai_integration',
-        executable='fc_adapter_node',
+        executable='fc_adapter_node.py',
         name='fc_adapter_node',
         output='screen',
         parameters=[
