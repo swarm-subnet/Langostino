@@ -309,8 +309,10 @@ class FCFullLoopSimulatorNode(Node):
     # ────────────────────────────────────────────────────────────────
     def cb_rc_override(self, msg: Float32MultiArray):
         """Receive RC commands from fc_adapter_node."""
-        if len(msg.data) >= 16:
-            self.rc_channels = [int(x) for x in msg.data[:16]]
+        if len(msg.data) >= 9:
+            # Pad to 16 channels if less than 16 provided (fc_adapter sends 9)
+            channels = [int(x) for x in msg.data] + [1500] * (16 - len(msg.data))
+            self.rc_channels = channels[:16]
             if not self.rc_received:
                 self.rc_received = True
                 self.get_logger().info('✅ First RC command received from fc_adapter!')
