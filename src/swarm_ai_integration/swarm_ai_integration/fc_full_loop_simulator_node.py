@@ -111,7 +111,7 @@ class FCFullLoopSimulatorNode(Node):
         self.declare_parameter('enable_logging', True)
 
         # Goal
-        self.declare_parameter('goal_tolerance', 0.5)              # meters
+        self.declare_parameter('goal_tolerance', 1.0)              # meters
 
         # Read params
         physics_rate = float(self.get_parameter('physics_rate').value)
