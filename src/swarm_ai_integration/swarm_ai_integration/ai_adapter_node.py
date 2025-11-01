@@ -132,6 +132,9 @@ class AIAdapterNode(Node):
         self.waypoint_sub = self.create_subscription(
             Float32MultiArray, '/fc/waypoint', self.waypoint_callback, reliable_qos
         )
+        self.custom_goal_sub = self.create_subscription(
+            Float32MultiArray, '/safety/custom_goal_geodetic', self.custom_goal_callback, reliable_qos
+        )
         self.lidar_sub = self.create_subscription(
             Range, '/lidar_distance', self.lidar_callback, sensor_qos
         )
@@ -290,6 +293,37 @@ class AIAdapterNode(Node):
                 f'wp#{wp_no} (lat={lat:.7f}, lon={lon:.7f}, alt={alt:.2f} m)'
             )
             self.sensor_manager.data_received['waypoint'] = True
+
+    def custom_goal_callback(self, msg: Float32MultiArray):
+        """
+        Handle custom goal updates from safety_monitor (RTH, etc.).
+
+        This overrides the current waypoint goal when safety_monitor activates
+        Custom RTH or other safety-related goal changes.
+
+        Format: [wp_no, lat, lon, alt] (same as /fc/waypoint)
+        """
+        if len(msg.data) < 4:
+            self.get_logger().warn(
+                f'Invalid /safety/custom_goal_geodetic payload (expected ≥4, got {len(msg.data)})',
+                throttle_duration_sec=2.0
+            )
+            return
+
+        wp_no = int(msg.data[0])
+        lat = float(msg.data[1])
+        lon = float(msg.data[2])
+        alt = float(msg.data[3])
+
+        # Update goal (overrides current waypoint)
+        self.sensor_manager.update_goal(lat, lon, alt)
+
+        # Log custom goal override
+        self.get_logger().info(
+            f'🏠 Custom goal received from safety_monitor: '
+            f'wp#{wp_no} (lat={lat:.7f}, lon={lon:.7f}, alt={alt:.2f} m)',
+            throttle_duration_sec=1.0
+        )
 
     def att_euler_callback(self, msg: Vector3Stamped):
         """Handle attitude Euler angles updates."""
