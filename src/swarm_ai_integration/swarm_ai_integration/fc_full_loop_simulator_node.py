@@ -552,9 +552,21 @@ class FCFullLoopSimulatorNode(Node):
         self.pub_lidar.publish(rng)
 
     def _publish_waypoint(self):
-        """Publish waypoint at 1 Hz."""
+        """
+        Publish waypoint at 1 Hz.
+
+        Publishes waypoint #1 (active) until goal is reached, then switches to
+        waypoint #0 (no active waypoint) to signal mission completion to safety_monitor.
+        """
         wp = Float32MultiArray()
-        wp.data = [1.0, float(self.goal_lat), float(self.goal_lon), float(self.goal_alt)]
+
+        if self.goal_reached:
+            # Waypoint #0 signals "no active waypoint" / "mission complete"
+            wp.data = [0.0, float(self.goal_lat), float(self.goal_lon), float(self.goal_alt)]
+        else:
+            # Waypoint #1 (active waypoint)
+            wp.data = [1.0, float(self.goal_lat), float(self.goal_lon), float(self.goal_alt)]
+
         self.pub_wp.publish(wp)
 
     # ────────────────────────────────────────────────────────────────
@@ -590,6 +602,7 @@ class FCFullLoopSimulatorNode(Node):
         straight_line = float(np.linalg.norm(self.goal_rel_enu - self.relative_start_enu))
         efficiency = (straight_line / self.total_distance_traveled * 100.0) if self.total_distance_traveled > 0 else 0.0
         self.get_logger().info(f'   • Path efficiency: {efficiency:.1f}%')
+        self.get_logger().info('   • Waypoint cleared (wp#0) - safety_monitor will detect mission completion')
         self.get_logger().info('=' * 80)
 
     def destroy_node(self):
