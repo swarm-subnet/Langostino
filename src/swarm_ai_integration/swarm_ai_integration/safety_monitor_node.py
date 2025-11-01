@@ -389,7 +389,7 @@ class SafetyMonitorNode(Node):
                 return
 
             # Publish home position as custom goal in geodetic coordinates
-            # Format: [lat, lon, alt]
+            # Format: [wp_no, lat, lon, alt] (same as /fc/waypoint)
             goal_msg = Float32MultiArray()
 
             # For landing, we want to go to home at ground level (altitude 0 in ENU)
@@ -399,6 +399,7 @@ class SafetyMonitorNode(Node):
             # 2. Set altitude to ground level immediately
             # Let's start by going to home at the same altitude, then initiate landing
             goal_msg.data = [
+                0.0,  # waypoint number (0 = RTH/home)
                 float(self.home_position_geodetic[0]),  # latitude
                 float(self.home_position_geodetic[1]),  # longitude
                 float(self.home_position_geodetic[2])   # altitude (original home altitude)
@@ -473,6 +474,7 @@ class SafetyMonitorNode(Node):
                     landing_phase = "GPS-GUIDED"
 
                 goal_msg.data = [
+                    0.0,  # waypoint number (0 = RTH/home)
                     float(self.home_position_geodetic[0]),  # latitude
                     float(self.home_position_geodetic[1]),  # longitude
                     float(target_altitude_geodetic)         # descending altitude
@@ -488,6 +490,7 @@ class SafetyMonitorNode(Node):
             else:
                 # Navigate to home at original altitude
                 goal_msg.data = [
+                    0.0,  # waypoint number (0 = RTH/home)
                     float(self.home_position_geodetic[0]),
                     float(self.home_position_geodetic[1]),
                     float(self.home_position_geodetic[2])
