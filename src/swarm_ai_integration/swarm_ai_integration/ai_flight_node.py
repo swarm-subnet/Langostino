@@ -7,8 +7,9 @@ AI Flight Node (ROS 2)
 - Publishes [vx, vy, vz, speed] to /ai/action (std_msgs/Float32MultiArray)
 - Prints each action as it's published
 
-Hardcoded model path (per your requirement):
-    /home/pi/swarm-ros/modelUID_117.zip
+Model path configured via parameter:
+    Default: /home/pi/swarm-ros/model/UID_3.zip
+    Configure in: swarm_params.yaml (ai_flight_node.model_path)
 """
 
 from __future__ import annotations
@@ -216,14 +217,19 @@ class AIFlightNode(Node):
         - Logs every action line-by-line
     """
 
-    # Hard requirements from your request
-    MODEL_PATH = "/home/pi/swarm-ros/model/UID_203.zip"
+    # Constants
     OBS_DIM = 131
     ACT_DIM = 4
     PREDICT_HZ = 10.0  # infer 10 times per second
 
     def __init__(self):
         super().__init__("ai_flight_node")
+
+        # Declare parameters
+        self.declare_parameter('model_path', "/home/pi/swarm-ros/model/UID_3.zip")
+
+        # Read model path from parameter (configured in swarm_params.yaml)
+        self.MODEL_PATH = str(self.get_parameter('model_path').value)
 
         # QoS: reliable, keep last
         qos = QoSProfile(
