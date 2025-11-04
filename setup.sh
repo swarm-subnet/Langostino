@@ -14,7 +14,12 @@
 # - Hardware connectivity checks
 #
 # Usage:
-#   sudo ./setup.sh [--skip-ros] [--skip-hardware-check] [--install-pm2]
+#   sudo ./setup.sh [--skip-ros] [--skip-hardware-check] [--skip-pm2]
+#
+# Options:
+#   --skip-ros             Skip ROS2 installation (if already installed)
+#   --skip-hardware-check  Skip hardware connectivity checks
+#   --skip-pm2            Skip PM2 installation (installed by default)
 #
 # Author: Swarm Team
 # Date: 2024-10-27
@@ -32,7 +37,7 @@ NC='\033[0m' # No Color
 # Configuration
 SKIP_ROS=false
 SKIP_HARDWARE_CHECK=false
-INSTALL_PM2=false
+INSTALL_PM2=true  # Install PM2 by default for process management
 WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse arguments
@@ -50,9 +55,13 @@ while [[ $# -gt 0 ]]; do
             INSTALL_PM2=true
             shift
             ;;
+        --skip-pm2)
+            INSTALL_PM2=false
+            shift
+            ;;
         *)
             echo -e "${RED}Unknown option: $1${NC}"
-            echo "Usage: sudo ./setup.sh [--skip-ros] [--skip-hardware-check] [--install-pm2]"
+            echo "Usage: sudo ./setup.sh [--skip-ros] [--skip-hardware-check] [--install-pm2] [--skip-pm2]"
             exit 1
             ;;
     esac
@@ -234,7 +243,16 @@ install_python_dependencies() {
     # Create virtual environment for AI Flight Node
     print_info "Creating virtual environment for AI Flight Node..."
 
-    local VENV_PATH="${HOME}/ai_flight_node_env"
+    # Determine correct user's home directory
+    if [[ -n "$SUDO_USER" ]]; then
+        local USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+        local ACTUAL_USER="$SUDO_USER"
+    else
+        local USER_HOME="${HOME}"
+        local ACTUAL_USER="${USER}"
+    fi
+
+    local VENV_PATH="${USER_HOME}/ai_flight_node_env"
     local REQUIREMENTS_FILE="$WORKSPACE_DIR/ai_model_requirements.txt"
 
     # Check if requirements file exists
@@ -261,13 +279,24 @@ install_python_dependencies() {
     python3 -m venv "$VENV_PATH"
     print_success "Virtual environment created at $VENV_PATH"
 
+    # Ensure venv has correct ownership
+    if [[ -n "$SUDO_USER" ]] && [[ "$EUID" -eq 0 ]]; then
+        chown -R "$ACTUAL_USER:$ACTUAL_USER" "$VENV_PATH"
+        print_info "Set venv ownership to $ACTUAL_USER"
+    fi
+
     # Activate venv and install AI packages from requirements file
     print_info "Installing AI packages from requirements file..."
     print_info "Using: $REQUIREMENTS_FILE"
 
-    # Use venv's pip directly
-    "$VENV_PATH/bin/pip" install --upgrade pip
-    "$VENV_PATH/bin/pip" install -r "$REQUIREMENTS_FILE"
+    # Use venv's pip directly (run as actual user if using sudo)
+    if [[ -n "$SUDO_USER" ]] && [[ "$EUID" -eq 0 ]]; then
+        sudo -u "$ACTUAL_USER" "$VENV_PATH/bin/pip" install --upgrade pip
+        sudo -u "$ACTUAL_USER" "$VENV_PATH/bin/pip" install -r "$REQUIREMENTS_FILE"
+    else
+        "$VENV_PATH/bin/pip" install --upgrade pip
+        "$VENV_PATH/bin/pip" install -r "$REQUIREMENTS_FILE"
+    fi
 
     print_success "AI packages installed in virtual environment"
     print_info "Virtual environment location: $VENV_PATH"
@@ -497,6 +526,24 @@ setup_ros2_workspace() {
 
     cd "$WORKSPACE_DIR"
 
+    # Fix workspace ownership (in case script was run with sudo)
+    print_info "Ensuring correct workspace permissions..."
+    if [[ -n "$SUDO_USER" ]]; then
+        sudo chown -R "$SUDO_USER:$SUDO_USER" "$WORKSPACE_DIR"
+        print_success "Workspace ownership set to $SUDO_USER"
+    elif [[ "$EUID" -ne 0 ]]; then
+        # Running as normal user, ensure ownership
+        sudo chown -R "$USER:$USER" "$WORKSPACE_DIR"
+        print_success "Workspace ownership set to $USER"
+    fi
+
+    # Clean old build artifacts if they exist with wrong permissions
+    if [[ -d "log" ]] || [[ -d "build" ]] || [[ -d "install" ]]; then
+        print_info "Cleaning old build artifacts..."
+        rm -rf log build install
+        print_success "Old build artifacts removed"
+    fi
+
     print_info "Installing ROS2 dependencies..."
     source /opt/ros/humble/setup.bash
 
@@ -578,7 +625,7 @@ EOF
 
 install_pm2() {
     if [[ "$INSTALL_PM2" != true ]]; then
-        print_info "Skipping PM2 installation (use --install-pm2 to enable)"
+        print_info "Skipping PM2 installation (--skip-pm2 flag used)"
         return
     fi
 

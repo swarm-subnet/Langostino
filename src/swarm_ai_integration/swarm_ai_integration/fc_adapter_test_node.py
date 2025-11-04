@@ -56,25 +56,6 @@ class FCAdapterTestNode(Node):
         self.declare_parameter('sensor_rate_hz', 50.0)
         self.declare_parameter('max_velocity', 3.0)  # Must match fc_adapter's max_velocity
 
-        # Test sequence configuration
-        # NOTE: (vx, vy, vz) = direction vector (will be normalized)
-        #       speed ∈ [0, 1] = magnitude as fraction of max_velocity
-        #       Actual velocity = normalize(vx,vy,vz) * speed * max_velocity
-        self.declare_parameter('test_sequence', [
-            # Each test: [vx, vy, vz, speed, duration_sec, description]
-            # Descriptions will be updated dynamically based on max_velocity
-            [0.0, 0.0, 0.0, 0.0, 3.0, "Hover (zero speed)"],
-            [1.0, 0.0, 0.0, 1.0, 5.0, "East @ full speed"],
-            [1.0, 0.0, 0.0, 0.5, 5.0, "East @ half speed"],
-            [1.0, 0.0, 0.0, 0.3, 5.0, "East @ 30% speed"],
-            [0.0, 1.0, 0.0, 1.0, 5.0, "North @ full speed"],
-            [1.0, 1.0, 0.0, 1.0, 5.0, "Northeast @ full speed"],
-            [1.0, 1.0, 0.0, 0.5, 5.0, "Northeast @ half speed"],
-            [0.0, 0.0, 1.0, 0.5, 5.0, "Climb @ half speed"],
-            [-1.0, 0.0, 0.0, 1.0, 5.0, "West @ full speed"],
-            [0.0, 0.0, 0.0, 0.0, 3.0, "Return to hover"],
-        ])
-
         test_rate = float(self.get_parameter('test_rate_hz').value)
         sensor_rate = float(self.get_parameter('sensor_rate_hz').value)
         self.max_velocity = float(self.get_parameter('max_velocity').value)
@@ -86,7 +67,12 @@ class FCAdapterTestNode(Node):
         self.simulated_roll = 0.0
         self.simulated_pitch = 0.0
 
-        # Test sequence state
+        # Test sequence configuration
+        # Format: [vx, vy, vz, speed, duration_sec, description]
+        # - (vx, vy, vz) = direction vector (will be normalized)
+        # - speed ∈ [0, 1] = magnitude as fraction of max_velocity
+        # - Actual velocity = normalize(vx,vy,vz) * speed * max_velocity
+        # NOTE: Modify this list directly to add/change test scenarios
         self.test_sequence = [
             [0.0, 0.0, 0.0, 0.0, 3.0, "Hover (zero speed)"],
             [1.0, 0.0, 0.0, 1.0, 5.0, "East @ full speed"],

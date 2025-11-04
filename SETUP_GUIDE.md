@@ -53,15 +53,30 @@ cd swarm-ros
 sudo ./setup.sh
 ```
 
-**Options:**
+**What it does:**
+- ✅ Installs ROS2 Humble (if needed)
+- ✅ Installs all dependencies (Python, I2C, UART)
+- ✅ Creates Python virtual environment for AI packages
+- ✅ Configures hardware permissions (I2C, UART)
+- ✅ **Fixes workspace ownership** (prevents permission errors)
+- ✅ Builds ROS2 workspace
+- ✅ Installs PM2 process manager (auto-start on boot)
+
+**Available Options:**
 - `--skip-ros`: Skip ROS2 installation (if already installed)
 - `--skip-hardware-check`: Skip hardware connectivity checks
-- `--install-pm2`: Install PM2 process manager for auto-start
+- `--skip-pm2`: Skip PM2 installation (installed by default)
 
 **Example with options:**
 ```bash
-sudo ./setup.sh --install-pm2
+# Skip PM2 if you don't want process management
+sudo ./setup.sh --skip-pm2
+
+# Skip ROS2 install if already present
+sudo ./setup.sh --skip-ros
 ```
+
+> **Note**: The script automatically fixes workspace permissions and cleans old build artifacts, preventing common `colcon build` permission errors.
 
 ### 3. Log Out and Back In
 
@@ -82,17 +97,34 @@ cd ~/swarm-ros
 
 ### 5. Launch the System
 
+**Option A: Using PM2 (Recommended - Auto-installed)**
+
 ```bash
-# Source the environment
+# Launch with PM2 process manager
+./launch.sh
+
+# View status
+pm2 list
+
+# View logs in real-time
+pm2 logs
+
+# Stop the system
+pm2 stop swarm-ros-launched
+```
+
+**Option B: Direct ROS2 Launch**
+
+```bash
+# Source the environment (if not in .bashrc)
 source /opt/ros/humble/setup.bash
 source ~/swarm-ros/install/setup.bash
 
-# Launch using PM2 (if installed)
-./launch.sh
-
-# Or launch directly
+# Launch directly (runs in foreground)
 ros2 launch swarm_ai_integration swarm_ai_launch.py
 ```
+
+> **PM2 Benefits**: Auto-restart on crash, survives reboots, centralized logging, resource monitoring
 
 ---
 
@@ -429,6 +461,23 @@ sudo usermod -a -G dialout $USER
 
 ### Build Issues
 
+**Problem**: `Permission denied: 'log/build_XXXX'` when running `colcon build`
+
+**Solution**:
+```bash
+# Fix ownership of workspace (happens if you ran setup with sudo)
+cd ~/swarm-ros
+sudo chown -R $USER:$USER ~/swarm-ros
+
+# Clean old build artifacts
+rm -rf log build install
+
+# Rebuild
+colcon build --symlink-install
+```
+
+> **Note**: The latest setup.sh automatically fixes this, but if you encounter it, run the commands above.
+
 **Problem**: CMake or compilation errors
 
 **Solution**:
@@ -455,6 +504,21 @@ pip install --upgrade pip
 pip install -r ~/swarm-ros/ai_model_requirements.txt
 deactivate
 ```
+
+**Problem**: Virtual environment not found or in wrong location (`/root/ai_flight_node_env`)
+
+**Solution**:
+```bash
+# Remove incorrectly located venv
+sudo rm -rf /root/ai_flight_node_env
+
+# Create venv in correct location (as pi user)
+python3 -m venv ~/ai_flight_node_env
+~/ai_flight_node_env/bin/pip install --upgrade pip
+~/ai_flight_node_env/bin/pip install -r ~/swarm-ros/ai_model_requirements.txt
+```
+
+> **Note**: The latest setup.sh creates the venv in the correct user's home directory automatically.
 
 ### Runtime Issues
 
@@ -498,27 +562,111 @@ Modify to enable/disable nodes as needed.
 
 ## Process Management with PM2
 
-If PM2 is installed:
+PM2 is **installed by default** by the setup script and provides powerful process management features.
+
+### Quick Start
 
 ```bash
-# Start system
+# Start the ROS system with PM2
 ./launch.sh
 
-# View status
+# Check status
 pm2 list
+```
 
-# View logs
+### Common PM2 Commands
+
+```bash
+# View logs in real-time (all processes)
+pm2 logs
+
+# View logs for specific process
 pm2 logs swarm-ros-launched
 
-# Stop system
+# Monitor resource usage (CPU, memory)
+pm2 monit
+
+# Stop the system
 pm2 stop swarm-ros-launched
 
-# Restart system
+# Restart the system
 pm2 restart swarm-ros-launched
 
-# Setup auto-start on boot
+# Stop all PM2 processes
+pm2 stop all
+
+# Restart all PM2 processes
+pm2 restart all
+
+# Delete process from PM2
+pm2 delete swarm-ros-launched
+
+# Show detailed process info
+pm2 show swarm-ros-launched
+```
+
+### Auto-Start on Boot
+
+PM2 is **automatically configured** to start on boot by the setup script:
+
+```bash
+# Verify startup configuration
 pm2 startup
+
+# Save current process list (auto-start this on boot)
 pm2 save
+
+# List saved processes
+pm2 list
+```
+
+After running `pm2 save`, your ROS system will automatically start when the Raspberry Pi boots!
+
+### Disable Auto-Start
+
+If you don't want auto-start:
+
+```bash
+# Remove from startup
+pm2 unstartup systemd
+
+# Or delete specific process
+pm2 delete swarm-ros-launched
+pm2 save
+```
+
+### PM2 Log Files
+
+PM2 stores logs in `~/.pm2/logs/`:
+
+```bash
+# View log file locations
+ls -la ~/.pm2/logs/
+
+# Tail error logs
+tail -f ~/.pm2/logs/swarm-ros-launched-error.log
+
+# Tail output logs
+tail -f ~/.pm2/logs/swarm-ros-launched-out.log
+
+# Clear all logs
+pm2 flush
+```
+
+### Advanced PM2 Features
+
+```bash
+# Restart on file changes (development)
+pm2 start launch.sh --watch
+
+# Set environment variables
+pm2 start launch.sh --name swarm-ai --env production
+
+# Limit memory and restart on threshold
+pm2 start launch.sh --max-memory-restart 1G
+
+# Run multiple instances (if needed)
+pm2 scale swarm-ros-launched 2
 ```
 
 ---
@@ -562,4 +710,33 @@ After successful setup:
 
 ---
 
-**Last Updated**: 2024-10-27
+## Summary of Recent Improvements
+
+### Setup Script Enhancements (2024-11-04)
+
+The `setup.sh` script now includes:
+
+✅ **Automatic Permission Fixes**
+- Fixes workspace ownership if run with sudo
+- Prevents `colcon build` permission errors
+- Cleans old build artifacts automatically
+
+✅ **Python venv in Correct Location**
+- Creates venv in user's home directory (not `/root/`)
+- Properly handles sudo vs normal user execution
+- Ensures all packages installed with correct ownership
+
+✅ **PM2 Installed by Default**
+- Process management for auto-restart
+- Survives system reboots
+- Centralized logging
+- Use `--skip-pm2` to disable
+
+✅ **Smart User Detection**
+- Correctly identifies actual user even when run with sudo
+- Sets ownership appropriately
+- No more manual permission fixes needed
+
+---
+
+**Last Updated**: 2024-11-04
