@@ -29,6 +29,7 @@ install(PROGRAMS
   swarm_ai_integration/safety_monitor_node.py
   swarm_ai_integration/fc_comms_node.py
   swarm_ai_integration/fc_adapter_node.py
+  swarm_ai_integration/fc_adapter_test_node.py
   swarm_ai_integration/lidar_reader_node.py
   swarm_ai_integration/black_box_recorder_node.py
   DESTINATION lib/${PROJECT_NAME}

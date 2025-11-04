@@ -44,6 +44,7 @@ class FCAdapterVelocityNode(Node):
     Publications:
       /fc_adapter/status         (std_msgs/String)
       /fc_adapter/velocity_error (geometry_msgs/Vector3Stamped)
+      /fc/rc_override            (std_msgs/Float32MultiArray) : [ch1, ch2, ..., ch9]
     """
 
     def __init__(self):
@@ -61,6 +62,11 @@ class FCAdapterVelocityNode(Node):
         self.declare_parameter('enable_angle_mode', True)
         self.declare_parameter('enable_althold_mode', True)
         self.declare_parameter('enable_nav_rth', False)  # NAV RTH on CH9
+
+        # Yaw control
+        self.declare_parameter('enable_yaw_control', True)   # Enable dynamic yaw alignment
+        self.declare_parameter('yaw_kp', 200.0)              # Yaw P gain (RC units per radian)
+        self.declare_parameter('yaw_rate_limit', 300.0)      # Max yaw RC deviation
 
         self.declare_parameter('kp_xy', 150.0)
         self.declare_parameter('ki_xy', 10.0)
@@ -96,6 +102,12 @@ class FCAdapterVelocityNode(Node):
         self.angle_mode_enabled = bool(self.get_parameter('enable_angle_mode').value)
         self.althold_enabled = bool(self.get_parameter('enable_althold_mode').value)
         self.nav_rth_enabled = bool(self.get_parameter('enable_nav_rth').value)
+
+        # Yaw control parameters
+        self.enable_yaw_control = bool(self.get_parameter('enable_yaw_control').value)
+        self.yaw_kp = float(self.get_parameter('yaw_kp').value)
+        self.yaw_rate_limit = float(self.get_parameter('yaw_rate_limit').value)
+        self.desired_yaw = 0.0  # Target yaw angle (radians)
 
         self.kp_xy = float(self.get_parameter('kp_xy').value)
         self.ki_xy = float(self.get_parameter('ki_xy').value)
@@ -245,9 +257,40 @@ class FCAdapterVelocityNode(Node):
         if len(data) < 3:
             return
 
-        # AI model outputs in ENU frame (vx=East, vy=North, vz=Up)
+        # AI model outputs in ENU frame (vx=East, vy=North, vz=Up) + speed scalar
         # This matches the simulator (ai_adapter_simulator_node.py:241-243)
         vx_enu, vy_enu, vz_enu = float(data[0]), float(data[1]), float(data[2])
+
+        # Extract speed scalar (0-1 scale where 1 = max_velocity parameter)
+        speed_scalar = float(data[3]) if len(data) > 3 else 1.0
+        self.last_ai_speed_scalar = speed_scalar
+
+        # Speed scaling:
+        # - (vx, vy, vz) represents the direction vector
+        # - speed ∈ [0, 1] represents magnitude as fraction of max_velocity (configured)
+        # - Actual velocity = normalize(direction) * speed * max_velocity
+        direction_magnitude = math.sqrt(vx_enu**2 + vy_enu**2 + vz_enu**2)
+
+        if direction_magnitude > 1e-6:
+            # Normalize direction and scale by speed
+            direction_norm = np.array([vx_enu, vy_enu, vz_enu]) / direction_magnitude
+            target_speed = speed_scalar * self.max_velocity  # Scale by configured max velocity
+            vx_enu = direction_norm[0] * target_speed
+            vy_enu = direction_norm[1] * target_speed
+            vz_enu = direction_norm[2] * target_speed
+        else:
+            # No direction specified, command zero velocity
+            vx_enu = 0.0
+            vy_enu = 0.0
+            vz_enu = 0.0
+
+        # Calculate desired yaw from velocity direction (align heading with movement)
+        if self.enable_yaw_control:
+            velocity_magnitude_xy = math.sqrt(vx_enu**2 + vy_enu**2)
+            if velocity_magnitude_xy > 0.1:  # Only update yaw if moving significantly
+                # Desired yaw = direction of horizontal velocity in ENU
+                # atan2(East, North) gives bearing in radians
+                self.desired_yaw = math.atan2(vx_enu, vy_enu)
 
         # Transform from ENU to body frame using current yaw
         # Body frame: vx=forward, vy=right, vz=up
@@ -261,8 +304,6 @@ class FCAdapterVelocityNode(Node):
         self.velocity_cmd_body[0] = float(np.clip(vx_body, -self.max_velocity, self.max_velocity))
         self.velocity_cmd_body[1] = float(np.clip(vy_body, -self.max_velocity, self.max_velocity))
         self.velocity_cmd_body[2] = float(np.clip(vz_body, -self.max_velocity, self.max_velocity))  # Used for throttle mapping
-
-        self.last_ai_speed_scalar = float(data[3]) if len(data) > 3 else None
         self.last_cmd_time = time.time()
         self.ai_enabled = True
 
@@ -342,7 +383,20 @@ class FCAdapterVelocityNode(Node):
         # Deviations around 1500
         roll_rc = int(1500 + roll_dev)         # ch1
         pitch_rc = int(1500 + pitch_dev)       # ch2
-        yaw_rc = 1500                          # ch4 (hold)
+
+        # Yaw control: align heading with desired yaw
+        if self.enable_yaw_control:
+            # Calculate yaw error (shortest angular distance)
+            yaw_error = self.desired_yaw - self.attitude_yaw
+            # Normalize to [-pi, pi]
+            yaw_error = math.atan2(math.sin(yaw_error), math.cos(yaw_error))
+
+            # Proportional control: yaw error -> yaw rate command
+            yaw_dev = self.yaw_kp * yaw_error
+            yaw_dev = max(-self.yaw_rate_limit, min(self.yaw_rate_limit, yaw_dev))
+            yaw_rc = int(1500 + yaw_dev)       # ch4
+        else:
+            yaw_rc = 1500                      # ch4 (hold)
 
         # Z-axis: Direct vz command → throttle mapping with rate limiting
         # INAV ALT HOLD interprets throttle as climb rate command
@@ -386,18 +440,26 @@ class FCAdapterVelocityNode(Node):
         self.rc_override_pub.publish(rc_msg)
 
         # Log every action (Z-axis now directly mapped to throttle with rate limiting)
-        vx, vy, vz = self.velocity_cmd_body
-        ex = vx - self.velocity_actual_body[0]
-        ey = vy - self.velocity_actual_body[1]
+        vx_body, vy_body, vz_body = self.velocity_cmd_body
+        ex = vx_body - self.velocity_actual_body[0]
+        ey = vy_body - self.velocity_actual_body[1]
         spd = self.last_ai_speed_scalar if self.last_ai_speed_scalar is not None else 0.0
 
+        # Calculate actual commanded speed magnitude
+        cmd_speed_magnitude = math.sqrt(vx_body**2 + vy_body**2 + vz_body**2)
+
+        yaw_info = ""
+        if self.enable_yaw_control:
+            yaw_error = self.desired_yaw - self.attitude_yaw
+            yaw_error = math.atan2(math.sin(yaw_error), math.cos(yaw_error))
+            yaw_info = f"  Yaw(des,cur,err)=({math.degrees(self.desired_yaw):+.1f}°,{math.degrees(self.attitude_yaw):+.1f}°,{math.degrees(yaw_error):+.1f}°)"
+
         self.get_logger().info(
-            f"[loop {self.stats['loops']+1:06d}] AI(vx,vy,vz,speed)=({vx:+.3f},{vy:+.3f},{vz:+.3f},{spd:+.3f})  "
-            f"BodyVel=({self.velocity_actual_body[0]:+.3f},{self.velocity_actual_body[1]:+.3f},{self.velocity_actual_body[2]:+.3f})  "
-            f"Err(xy)=({ex:+.3f},{ey:+.3f})  "
-            f"RC[R,P,T,Y]=[{channels[0]},{channels[1]},{channels[2]},{channels[3]}]  "
-            f"Throttle(tgt→act)=[{self.throttle_target}→{throttle_rc}]  "
-            f"AUX[5..7]=[{channels[4]},{channels[5]},{channels[6]}]"
+            f"[loop {self.stats['loops']+1:06d}] AI(speed={spd:.2f}, |v|={cmd_speed_magnitude:.2f}m/s)  "
+            f"Cmd=({vx_body:+.2f},{vy_body:+.2f},{vz_body:+.2f})  "
+            f"Act=({self.velocity_actual_body[0]:+.2f},{self.velocity_actual_body[1]:+.2f},{self.velocity_actual_body[2]:+.2f})  "
+            f"Err=({ex:+.2f},{ey:+.2f})  "
+            f"RC[R,P,T,Y]=[{channels[0]},{channels[1]},{channels[2]},{channels[3]}]{yaw_info}"
         )
 
         self.stats['loops'] += 1

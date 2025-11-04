@@ -36,7 +36,7 @@ ai_adapter_node:
 ai_flight_node:
   ros__parameters:
     # Model settings
-    model_path: "/home/pi/swarm-ros/model/UID_3.zip"  # Path to trained AI model
+    model_path: "/home/pi/swarm-ros/model/UID_203.zip"  # Path to trained AI model
     device: "cpu"                       # Computation device (cpu/cuda)
     observation_dim: 131                # Observation vector dimension
     action_dim: 4                       # Action vector dimension
@@ -68,8 +68,8 @@ safety_monitor_node:
     min_altitude: 0.0                   # Minimum flight altitude (meters)
 
     # Velocity limits
-    max_velocity: 1.0                   # Maximum velocity before override (m/s)
-    max_acceleration: 1.0               # Maximum acceleration (m/s²)
+    max_velocity: 3.0                   # Maximum velocity before override (m/s)
+    max_acceleration: 3.0               # Maximum acceleration (m/s²)
 
     # Battery monitoring
     min_battery_voltage: 14.0           # Minimum battery voltage (volts)
