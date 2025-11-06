@@ -20,7 +20,7 @@ ai_adapter_node:
 
     # Data validation
     max_position_jump: 5.0              # Maximum allowed position change per update (meters)
-    max_velocity: 10.0                  # Maximum expected velocity (m/s)
+    max_velocity: 1                  # Maximum expected velocity (m/s)
 
     # QoS settings
     sensor_qos_depth: 1                 # QoS depth for sensor topics
@@ -47,7 +47,7 @@ ai_flight_node:
     prediction_queue_size: 1            # Size of prediction queue
 
     # Safety limits
-    max_velocity: 3.0                   # Maximum velocity command (m/s)
+    max_velocity: 1.0                   # Maximum velocity command (m/s)
     max_angular_velocity: 2.0           # Maximum yaw rate (rad/s)
     safety_enabled: true                # Enable built-in safety checks
 
@@ -68,8 +68,8 @@ safety_monitor_node:
     min_altitude: 0.0                   # Minimum flight altitude (meters)
 
     # Velocity limits
-    max_velocity: 3.0                   # Maximum velocity before override (m/s)
-    max_acceleration: 3.0               # Maximum acceleration (m/s²)
+    max_velocity: 1.0                   # Maximum velocity before override (m/s)
+    max_acceleration: 1.0               # Maximum acceleration (m/s²)
 
     # Battery monitoring
     min_battery_voltage: 14.0           # Minimum battery voltage (volts)
@@ -150,7 +150,7 @@ fc_adapter_node:
     prearm_rate_hz: 40                  # Pre-arm sequence rate (Hz)
 
     # Velocity limits
-    max_velocity: 3.0                   # Maximum velocity command (m/s)
+    max_velocity: 1                   # Maximum velocity command (m/s)
     max_yaw_rate: 180.0                 # Maximum yaw rate (deg/s)
     max_acceleration: 3.0               # Maximum acceleration (m/s²)
     absolute_max_velocity: 10.0         # Absolute maximum velocity (m/s)
