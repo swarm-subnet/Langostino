@@ -190,6 +190,11 @@ fc_adapter_node:
     # Pre-arm RC channel values [roll, pitch, throttle, yaw, arm, mode, aux1, aux2]
     prearm_rc_channels: [1500, 1500, 1000, 1500, 1800, 1500, 1500, 1800]
 
+    # Yaw control
+    enable_yaw_control: false           # Enable dynamic yaw alignment (false = fixed yaw like training)
+    yaw_kp: 200.0                       # Proportional gain for yaw control (only used if enable_yaw_control = true)
+    yaw_rate_limit: 300.0               # Maximum yaw rate change (deg/s, only used if enable_yaw_control = true)
+
     # PID Controller gains
     kp_xy: 150.0                        # Proportional gain for XY control
     ki_xy: 10.0                         # Integral gain for XY control

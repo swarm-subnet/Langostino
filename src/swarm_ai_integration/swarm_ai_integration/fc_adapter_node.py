@@ -64,7 +64,7 @@ class FCAdapterVelocityNode(Node):
         self.declare_parameter('enable_nav_rth', False)  # NAV RTH on CH9
 
         # Yaw control
-        self.declare_parameter('enable_yaw_control', True)   # Enable dynamic yaw alignment
+        self.declare_parameter('enable_yaw_control', False)   # Enable dynamic yaw alignment
         self.declare_parameter('yaw_kp', 200.0)              # Yaw P gain (RC units per radian)
         self.declare_parameter('yaw_rate_limit', 300.0)      # Max yaw RC deviation
 
