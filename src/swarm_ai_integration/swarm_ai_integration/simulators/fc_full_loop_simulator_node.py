@@ -70,8 +70,8 @@ class FCFullLoopSimulatorNode(Node):
         self.declare_parameter('lidar_publish_rate', 100.0)        # Hz
 
         # Start geodetic
-        self.declare_parameter('start_lat', 37.2486500)
-        self.declare_parameter('start_lon', -5.3724274)
+        self.declare_parameter('start_lat', 36.00000)
+        self.declare_parameter('start_lon', -5.00000)
         self.declare_parameter('start_alt', 182.0)
 
         # Desired initial REL ENU

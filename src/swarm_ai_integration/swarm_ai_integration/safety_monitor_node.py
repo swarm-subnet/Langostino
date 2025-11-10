@@ -43,30 +43,40 @@ class SafetyMonitorNode(Node):
         # Declare parameters
         self.declare_parameter('max_altitude', 10.0)  # meters
         self.declare_parameter('min_altitude', 0.0)   # meters
-        self.declare_parameter('max_velocity', 1.0)   # m/s
+        self.declare_parameter('max_velocity', 0.1)   # m/s
         self.declare_parameter('min_battery_voltage', 14.0)  # volts
+        self.declare_parameter('default_safe_battery_voltage', 16.0)  # volts
+        self.declare_parameter('battery_timeout_multiplier', 5)  # multiplier for battery timeout
         self.declare_parameter('max_distance_from_home', 100.0)  # meters
         self.declare_parameter('obstacle_danger_distance', 1.0)  # meters
+        self.declare_parameter('default_safe_lidar_distance', 10.0)  # meters
         self.declare_parameter('max_ray_distance', 20.0)  # meters - MUST MATCH ai_adapter_node
         self.declare_parameter('communication_timeout', 2.0)  # seconds
+        self.declare_parameter('monitor_rate', 10.0)  # Hz
+        self.declare_parameter('qos_depth', 1)  # QoS depth for topics
 
         # Get parameters
         self.max_altitude = self.get_parameter('max_altitude').get_parameter_value().double_value
         self.min_altitude = self.get_parameter('min_altitude').get_parameter_value().double_value
         self.max_velocity = self.get_parameter('max_velocity').get_parameter_value().double_value
         self.min_battery_voltage = self.get_parameter('min_battery_voltage').get_parameter_value().double_value
+        self.default_safe_battery_voltage = self.get_parameter('default_safe_battery_voltage').get_parameter_value().double_value
+        self.battery_timeout_multiplier = self.get_parameter('battery_timeout_multiplier').get_parameter_value().integer_value
         self.max_distance_from_home = self.get_parameter('max_distance_from_home').get_parameter_value().double_value
         self.obstacle_danger_distance = self.get_parameter('obstacle_danger_distance').get_parameter_value().double_value
+        self.default_safe_lidar_distance = self.get_parameter('default_safe_lidar_distance').get_parameter_value().double_value
         self.max_ray_distance = self.get_parameter('max_ray_distance').get_parameter_value().double_value
         self.communication_timeout = self.get_parameter('communication_timeout').get_parameter_value().double_value
+        self.monitor_rate = self.get_parameter('monitor_rate').get_parameter_value().double_value
+        self.qos_depth = self.get_parameter('qos_depth').get_parameter_value().integer_value
 
         # State variables
         self.current_position = np.zeros(3)
         self.current_velocity = np.zeros(3)
         self.home_position = None  # Home position in ENU coordinates [E, N, U]
         self.home_position_geodetic = None  # Home position in geodetic [lat, lon, alt]
-        self.battery_voltage = 16.0  # Default safe voltage
-        self.obstacle_distances = np.full(16, 10.0)  # Default safe distances
+        self.battery_voltage = self.default_safe_battery_voltage  # Default safe voltage (from params)
+        self.obstacle_distances = np.full(16, self.default_safe_lidar_distance)  # Default safe distances (from params)
         self.safety_override_active = False
         self.rth_active = False
         self.custom_rth_active = False  # Custom RTH using goal waypoint
@@ -103,13 +113,13 @@ class SafetyMonitorNode(Node):
         reliable_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1
+            depth=self.qos_depth
         )
 
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1
+            depth=self.qos_depth
         )
 
         # Subscribers
@@ -137,9 +147,10 @@ class SafetyMonitorNode(Node):
             String, '/safety/status', reliable_qos)
 
         # Timer for safety monitoring
-        self.monitor_timer = self.create_timer(0.1, self.monitor_safety)  # 10 Hz
+        monitor_period = 1.0 / self.monitor_rate
+        self.monitor_timer = self.create_timer(monitor_period, self.monitor_safety)
 
-        self.get_logger().info('Safety Monitor Node initialized')
+        self.get_logger().info(f'Safety Monitor Node initialized (monitoring at {self.monitor_rate} Hz)')
 
     def observation_callback(self, msg: Float32MultiArray):
         """
@@ -257,7 +268,7 @@ class SafetyMonitorNode(Node):
         # Check communication timeouts
         obs_timeout = (current_time - self.last_observation_time) > self.communication_timeout
         action_timeout = (current_time - self.last_action_time) > self.communication_timeout
-        battery_timeout = (current_time - self.last_battery_time) > (self.communication_timeout * 5)
+        battery_timeout = (current_time - self.last_battery_time) > (self.communication_timeout * self.battery_timeout_multiplier)
 
         self.safety_violations['communication_lost'] = obs_timeout or action_timeout
 

@@ -1,39 +1,33 @@
 #!/usr/bin/env python3
 """
-Black Box Recorder Node - Flight Data Recorder for Swarm AI System
+Black Box Recorder Node - Simplified Flight Data Recorder
 
-This node acts as a black box flight data recorder, logging all critical system data
-including sensor inputs, AI model outputs, flight controller communications, and
-safety system status. Data is persisted to files that survive system restarts.
+This node logs all critical system data every 0.1 seconds to JSON files.
+Each log entry contains a snapshot of the latest values from all topics.
 
-Data Logged (31 topics):
-- AI System (5): observations, actions, status, model_ready, debug observations
-- Flight Controller (11): IMU, GPS, attitude (euler), altitude, battery, status,
-  MSP status, connection, motors, GPS speed/course, waypoints
-- FC Commands (2): RC override, MSP commands
-- FC Adapter (2): status, velocity error
-- LiDAR (5): distance, raw, point, status, health
-- Safety System (3): override, RTH command, status
-- System Events: startup, shutdown, statistics, errors
+Structure:
+- observation_1:
+    timestamp: ...
+    ai_observation: [...]
+    ai_action: [...]
+    fc_gps: {...}
+    ...
+- observation_2:
+    ...
 
 Features:
-- Buffered writing with automatic flush
-- File rotation at 100MB (configurable)
-- Gzip compression of old files
-- Session-based organization
-- Data correlation (AI actions with observations)
-- Thread-safe operation
-- Graceful fallback to /tmp on permission errors
+- Time-based logging (10 Hz)
+- Simple JSON format (no compression)
+- Latest-value snapshot approach
+- File rotation at max size
 """
 
 import json
 import os
 import time
-import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional
-import gzip
 
 import rclpy
 from rclpy.node import Node
@@ -41,63 +35,48 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from std_msgs.msg import Bool, String, Float32MultiArray
 from sensor_msgs.msg import Imu, NavSatFix, BatteryState, Range
-from geometry_msgs.msg import PoseStamped, Vector3Stamped, PointStamped
+from geometry_msgs.msg import Vector3Stamped, PointStamped
 
 
 class BlackBoxRecorderNode(Node):
     """
-    Black Box Flight Data Recorder for comprehensive system logging.
-
-    This node subscribes to all critical topics in the swarm AI system and logs
-    the data to persistent JSON files with automatic rotation and compression.
+    Simplified Black Box Flight Data Recorder.
+    Logs system state snapshots every 0.1 seconds.
     """
 
     def __init__(self):
         super().__init__('black_box_recorder_node')
 
         # Declare parameters
-        self.declare_parameter('log_directory', '/var/log/swarm_blackbox')
-        self.declare_parameter('max_file_size_mb', 100)
-        self.declare_parameter('max_files_per_session', 10)
-        self.declare_parameter('compress_old_files', True)
-        self.declare_parameter('log_level', 'INFO')  # DEBUG, INFO, WARN, ERROR
-        self.declare_parameter('buffer_size', 1000)  # Messages to buffer before write
-        self.declare_parameter('flush_interval', 5.0)  # Seconds between forced flushes
+        self.declare_parameter('log_directory', '~/swarm-ros/flight-logs')
+        self.declare_parameter('max_log_file_size_mb', 100)
+        self.declare_parameter('log_rate_hz', 10.0)  # Logging frequency
+        self.declare_parameter('sensor_qos_depth', 1)
+        self.declare_parameter('reliable_qos_depth', 10)
 
         # Get parameters
         log_dir_str = self.get_parameter('log_directory').get_parameter_value().string_value
-        self.log_directory = Path(os.path.expanduser(log_dir_str))  # Expand ~ to home directory
-        self.max_file_size_mb = self.get_parameter('max_file_size_mb').get_parameter_value().integer_value
-        self.max_files_per_session = self.get_parameter('max_files_per_session').get_parameter_value().integer_value
-        self.compress_old_files = self.get_parameter('compress_old_files').get_parameter_value().bool_value
-        self.log_level = self.get_parameter('log_level').get_parameter_value().string_value
-        self.buffer_size = self.get_parameter('buffer_size').get_parameter_value().integer_value
-        self.flush_interval = self.get_parameter('flush_interval').get_parameter_value().double_value
+        self.log_directory = Path(os.path.expanduser(log_dir_str))
+        self.max_file_size_mb = self.get_parameter('max_log_file_size_mb').get_parameter_value().integer_value
+        self.log_rate = self.get_parameter('log_rate_hz').get_parameter_value().double_value
+        self.sensor_qos_depth = self.get_parameter('sensor_qos_depth').get_parameter_value().integer_value
+        self.reliable_qos_depth = self.get_parameter('reliable_qos_depth').get_parameter_value().integer_value
 
         # Initialize logging system
         self.session_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        self.log_buffer = []
-        self.buffer_lock = threading.Lock()
         self.file_handle = None
         self.current_file_size = 0
         self.file_counter = 0
+        self.observation_counter = 0
 
-        # Data caches for correlation
-        self.last_data = {
-            'ai_observation': None,
-            'ai_action': None,
-            'fc_attitude': None,
-            'fc_imu': None,
-            'lidar_distance': None,
-            'safety_status': None
-        }
+        # Storage for latest values from each topic
+        self.latest_data = {}
 
-        # Performance tracking - MUST be initialized before setup_logging()
+        # Performance tracking
         self.stats = {
-            'messages_logged': 0,
+            'observations_logged': 0,
             'bytes_written': 0,
             'files_created': 0,
-            'dropped_messages': 0,
             'errors': 0
         }
 
@@ -108,102 +87,84 @@ class BlackBoxRecorderNode(Node):
         reliable_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=10
+            depth=self.reliable_qos_depth
         )
 
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1
+            depth=self.sensor_qos_depth
         )
 
-        # Subscribe to all critical topics
+        # Subscribe to all topics and store latest values
         self._setup_subscriptions(reliable_qos, sensor_qos)
 
-        # Create timer for periodic flush
-        self.flush_timer = self.create_timer(self.flush_interval, self.flush_buffer)
+        # Create timer for periodic snapshot logging
+        log_period = 1.0 / self.log_rate
+        self.log_timer = self.create_timer(log_period, self.log_snapshot)
 
-        # Create timer for statistics logging
-        self.stats_timer = self.create_timer(60.0, self.log_statistics)  # Every minute
-
-        # Log system startup
-        self.log_system_event('SYSTEM_START', {
-            'session_id': self.session_id,
-            'node_name': self.get_name(),
-            'log_directory': str(self.log_directory),
-            'parameters': {
-                'max_file_size_mb': self.max_file_size_mb,
-                'max_files_per_session': self.max_files_per_session,
-                'compress_old_files': self.compress_old_files,
-                'log_level': self.log_level
-            }
-        })
+        # Create timer for statistics
+        self.stats_timer = self.create_timer(60.0, self.log_statistics)
 
         self.get_logger().info(f'Black Box Recorder initialized - Session: {self.session_id}')
         self.get_logger().info(f'Logging to: {self.log_directory}')
+        self.get_logger().info(f'Log rate: {self.log_rate} Hz')
 
     def setup_logging(self):
-        """Initialize the logging system with directory and file creation"""
+        """Initialize the logging system"""
         try:
-            # Create log directory if it doesn't exist
+            # Create log directory
             self.log_directory.mkdir(parents=True, exist_ok=True)
 
-            # Create session subdirectory
-            self.session_dir = self.log_directory / f"session_{self.session_id}"
-            self.session_dir.mkdir(exist_ok=True)
+            # Test write permissions
+            test_file = self.log_directory / '.write_test'
+            test_file.write_text('test')
+            test_file.unlink()
 
-            # Create initial log file
+            # Create first log file
             self.create_new_log_file()
 
-            self.get_logger().info(f'Log directory created: {self.session_dir}')
-
-        except Exception as e:
-            self.get_logger().error(f'Failed to setup logging directory: {e}')
-            # Fallback to /tmp
+        except PermissionError:
+            self.get_logger().warn(f'No write permission for {self.log_directory}, falling back to /tmp')
             self.log_directory = Path('/tmp/swarm_blackbox')
             self.log_directory.mkdir(parents=True, exist_ok=True)
-            self.session_dir = self.log_directory / f"session_{self.session_id}"
-            self.session_dir.mkdir(exist_ok=True)
             self.create_new_log_file()
 
+        except Exception as e:
+            self.get_logger().error(f'Failed to setup logging: {e}')
+            raise
+
     def create_new_log_file(self):
-        """Create a new log file with proper naming and headers"""
+        """Create a new log file"""
         try:
-            # Close existing file if open
+            # Close previous file if open
             if self.file_handle:
                 self.file_handle.close()
 
-            # Compress old file if enabled
-            if self.compress_old_files and self.file_counter > 0:
-                self.compress_previous_file()
-
             # Create new filename
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            filename = f"blackbox_{timestamp}_{self.file_counter:03d}.jsonl"
-            filepath = self.session_dir / filename
+            filename = f"blackbox_{self.session_id}_{self.file_counter:03d}.jsonl"
+            filepath = self.log_directory / filename
 
             # Open new file
-            self.file_handle = open(filepath, 'w', encoding='utf-8')
+            self.file_handle = open(filepath, 'w')
             self.current_file_size = 0
-            self.file_counter += 1
             self.stats['files_created'] += 1
 
-            # Write file header
+            # Write header
             header = {
-                'log_type': 'FILE_HEADER',
-                'timestamp': time.time(),
-                'utc_time': datetime.now(timezone.utc).isoformat(),
+                'type': 'HEADER',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'session_id': self.session_id,
                 'file_number': self.file_counter,
-                'node_name': self.get_name(),
-                'ros_version': 'ROS2',
+                'log_rate_hz': self.log_rate,
                 'system_info': {
                     'log_directory': str(self.log_directory),
                     'max_file_size_mb': self.max_file_size_mb
                 }
             }
 
-            self._write_log_entry(header)
+            self.file_handle.write(json.dumps(header) + '\n')
+            self.file_handle.flush()
 
             self.get_logger().info(f'Created new log file: {filename}')
 
@@ -211,417 +172,212 @@ class BlackBoxRecorderNode(Node):
             self.get_logger().error(f'Failed to create new log file: {e}')
             self.stats['errors'] += 1
 
-    def compress_previous_file(self):
-        """Compress the previous log file to save space"""
-        try:
-            if self.file_counter > 0:
-                # Find the previous file
-                pattern = f"blackbox_*_{self.file_counter-1:03d}.jsonl"
-                for filepath in self.session_dir.glob(pattern):
-                    compressed_path = filepath.with_suffix('.jsonl.gz')
-
-                    with open(filepath, 'rb') as f_in:
-                        with gzip.open(compressed_path, 'wb') as f_out:
-                            f_out.writelines(f_in)
-
-                    # Remove original file
-                    filepath.unlink()
-                    self.get_logger().debug(f'Compressed log file: {compressed_path.name}')
-                    break
-
-        except Exception as e:
-            self.get_logger().debug(f'Error compressing previous file: {e}')
-
     def _setup_subscriptions(self, reliable_qos, sensor_qos):
-        """Setup all topic subscriptions for data logging"""
+        """Setup all topic subscriptions - store latest values"""
 
         # AI System Topics
-        self.ai_obs_sub = self.create_subscription(
+        self.create_subscription(
             Float32MultiArray, '/ai/observation',
-            lambda msg: self.log_message('AI_OBSERVATION', msg, 'ai_observation'), reliable_qos)
+            lambda msg: self._update_latest('ai_observation', self._msg_to_dict(msg)), reliable_qos)
 
-        self.ai_action_sub = self.create_subscription(
+        self.create_subscription(
             Float32MultiArray, '/ai/action',
-            lambda msg: self.log_message('AI_ACTION', msg, 'ai_action'), reliable_qos)
+            lambda msg: self._update_latest('ai_action', self._msg_to_dict(msg)), reliable_qos)
 
-        self.ai_status_sub = self.create_subscription(
+        self.create_subscription(
             Float32MultiArray, '/ai/status',
-            lambda msg: self.log_message('AI_STATUS', msg), reliable_qos)
+            lambda msg: self._update_latest('ai_status', self._msg_to_dict(msg)), reliable_qos)
 
-        self.ai_ready_sub = self.create_subscription(
+        self.create_subscription(
             Bool, '/ai/model_ready',
-            lambda msg: self.log_message('AI_MODEL_READY', msg), reliable_qos)
-
-        self.ai_debug_sub = self.create_subscription(
-            Float32MultiArray, '/ai/observation_debug',
-            lambda msg: self.log_message('AI_OBSERVATION_DEBUG', msg), reliable_qos)
+            lambda msg: self._update_latest('ai_model_ready', msg.data), reliable_qos)
 
         # Flight Controller Topics
-        self.fc_imu_sub = self.create_subscription(
+        self.create_subscription(
             Imu, '/fc/imu_raw',
-            lambda msg: self.log_message('FC_IMU', msg, 'fc_imu'), sensor_qos)
+            lambda msg: self._update_latest('fc_imu', self._msg_to_dict(msg)), sensor_qos)
 
-        self.fc_gps_sub = self.create_subscription(
+        self.create_subscription(
             NavSatFix, '/fc/gps_fix',
-            lambda msg: self.log_message('FC_GPS', msg), sensor_qos)
+            lambda msg: self._update_latest('fc_gps', self._msg_to_dict(msg)), sensor_qos)
 
-        self.fc_attitude_euler_sub = self.create_subscription(
+        self.create_subscription(
             Vector3Stamped, '/fc/attitude_euler',
-            lambda msg: self.log_message('FC_ATTITUDE_EULER', msg, 'fc_attitude'), sensor_qos)
+            lambda msg: self._update_latest('fc_attitude', self._msg_to_dict(msg)), sensor_qos)
 
-        self.fc_battery_sub = self.create_subscription(
-            BatteryState, '/fc/battery',
-            lambda msg: self.log_message('FC_BATTERY', msg), sensor_qos)
-
-        self.fc_status_sub = self.create_subscription(
-            String, '/fc/status',
-            lambda msg: self.log_message('FC_STATUS', msg), reliable_qos)
-
-        self.fc_msp_status_sub = self.create_subscription(
-            Float32MultiArray, '/fc/msp_status',
-            lambda msg: self.log_message('FC_MSP_STATUS', msg), sensor_qos)
-
-        self.fc_connected_sub = self.create_subscription(
-            Bool, '/fc/connected',
-            lambda msg: self.log_message('FC_CONNECTED', msg), reliable_qos)
-
-        self.fc_motor_rpm_sub = self.create_subscription(
-            Float32MultiArray, '/fc/motor_rpm',
-            lambda msg: self.log_message('FC_MOTOR_RPM', msg), sensor_qos)
-
-        self.fc_gps_speed_course_sub = self.create_subscription(
-            Float32MultiArray, '/fc/gps_speed_course',
-            lambda msg: self.log_message('FC_GPS_SPEED_COURSE', msg), sensor_qos)
-
-        self.fc_waypoint_sub = self.create_subscription(
-            Float32MultiArray, '/fc/waypoint',
-            lambda msg: self.log_message('FC_WAYPOINT', msg), reliable_qos)
-
-        self.fc_altitude_sub = self.create_subscription(
+        self.create_subscription(
             Float32MultiArray, '/fc/altitude',
-            lambda msg: self.log_message('FC_ALTITUDE', msg), sensor_qos)
+            lambda msg: self._update_latest('fc_altitude', self._msg_to_dict(msg)), sensor_qos)
 
-        # FC Command Topics
-        self.fc_rc_override_sub = self.create_subscription(
-            Float32MultiArray, '/fc/rc_override',
-            lambda msg: self.log_message('FC_RC_OVERRIDE', msg), reliable_qos)
+        self.create_subscription(
+            BatteryState, '/fc/battery',
+            lambda msg: self._update_latest('fc_battery', self._msg_to_dict(msg)), sensor_qos)
 
-        self.fc_msp_command_sub = self.create_subscription(
-            Float32MultiArray, '/fc/msp_command',
-            lambda msg: self.log_message('FC_MSP_COMMAND', msg), reliable_qos)
+        self.create_subscription(
+            String, '/fc/status',
+            lambda msg: self._update_latest('fc_status', msg.data), reliable_qos)
+
+        self.create_subscription(
+            Float32MultiArray, '/fc/msp_status',
+            lambda msg: self._update_latest('fc_msp_status', self._msg_to_dict(msg)), sensor_qos)
+
+        self.create_subscription(
+            Bool, '/fc/connected',
+            lambda msg: self._update_latest('fc_connected', msg.data), reliable_qos)
+
+        self.create_subscription(
+            Float32MultiArray, '/fc/motor_rpm',
+            lambda msg: self._update_latest('fc_motor_rpm', self._msg_to_dict(msg)), sensor_qos)
+
+        self.create_subscription(
+            Float32MultiArray, '/fc/gps_speed_course',
+            lambda msg: self._update_latest('fc_gps_speed_course', self._msg_to_dict(msg)), sensor_qos)
+
+        self.create_subscription(
+            Float32MultiArray, '/fc/waypoint',
+            lambda msg: self._update_latest('fc_waypoint', self._msg_to_dict(msg)), reliable_qos)
 
         # FC Adapter Topics
-        self.fc_adapter_status_sub = self.create_subscription(
+        self.create_subscription(
             String, '/fc_adapter/status',
-            lambda msg: self.log_message('FC_ADAPTER_STATUS', msg), reliable_qos)
+            lambda msg: self._update_latest('fc_adapter_status', msg.data), reliable_qos)
 
-        self.fc_adapter_vel_error_sub = self.create_subscription(
+        self.create_subscription(
             Vector3Stamped, '/fc_adapter/velocity_error',
-            lambda msg: self.log_message('FC_ADAPTER_VELOCITY_ERROR', msg), sensor_qos)
+            lambda msg: self._update_latest('fc_adapter_velocity_error', self._msg_to_dict(msg)), sensor_qos)
 
         # LiDAR Topics
-        self.lidar_distance_sub = self.create_subscription(
-            Range, '/lidar_distance',
-            lambda msg: self.log_message('LIDAR_DISTANCE', msg, 'lidar_distance'), sensor_qos)
+        self.create_subscription(
+            Range, 'lidar_distance',
+            lambda msg: self._update_latest('lidar_distance', self._msg_to_dict(msg)), sensor_qos)
 
-        self.lidar_raw_sub = self.create_subscription(
-            Float32MultiArray, '/lidar_raw',
-            lambda msg: self.log_message('LIDAR_RAW', msg), sensor_qos)
+        self.create_subscription(
+            Float32MultiArray, 'lidar_raw',
+            lambda msg: self._update_latest('lidar_raw', self._msg_to_dict(msg)), sensor_qos)
 
-        self.lidar_point_sub = self.create_subscription(
-            PointStamped, '/lidar_point',
-            lambda msg: self.log_message('LIDAR_POINT', msg), sensor_qos)
+        self.create_subscription(
+            PointStamped, 'lidar_point',
+            lambda msg: self._update_latest('lidar_point', self._msg_to_dict(msg)), sensor_qos)
 
-        self.lidar_status_sub = self.create_subscription(
-            String, '/lidar_status',
-            lambda msg: self.log_message('LIDAR_STATUS', msg), reliable_qos)
+        self.create_subscription(
+            String, 'lidar_status',
+            lambda msg: self._update_latest('lidar_status', msg.data), reliable_qos)
 
-        self.lidar_healthy_sub = self.create_subscription(
-            Bool, '/lidar_healthy',
-            lambda msg: self.log_message('LIDAR_HEALTHY', msg), reliable_qos)
+        self.create_subscription(
+            Bool, 'lidar_health',
+            lambda msg: self._update_latest('lidar_health', msg.data), sensor_qos)
 
         # Safety System Topics
-        self.safety_override_sub = self.create_subscription(
+        self.create_subscription(
             Bool, '/safety/override',
-            lambda msg: self.log_message('SAFETY_OVERRIDE', msg, 'safety_status'), reliable_qos)
+            lambda msg: self._update_latest('safety_override', msg.data), reliable_qos)
 
-        self.safety_rth_sub = self.create_subscription(
+        self.create_subscription(
             Bool, '/safety/rth_command',
-            lambda msg: self.log_message('SAFETY_RTH_COMMAND', msg, 'safety_status'), reliable_qos)
+            lambda msg: self._update_latest('safety_rth_command', msg.data), reliable_qos)
 
-        self.safety_status_sub = self.create_subscription(
+        self.create_subscription(
             String, '/safety/status',
-            lambda msg: self.log_message('SAFETY_STATUS', msg, 'safety_status'), reliable_qos)
+            lambda msg: self._update_latest('safety_status', msg.data), reliable_qos)
 
-    def log_message(self, message_type: str, msg, cache_key: str = None):
-        """Log a ROS message with timestamp and metadata"""
+    def _update_latest(self, topic_name: str, value: Any):
+        """Update the latest value for a topic"""
+        self.latest_data[topic_name] = value
+
+    def _msg_to_dict(self, msg) -> Dict[str, Any]:
+        """Convert ROS message to dictionary"""
+        result = {}
+
+        # Handle Float32MultiArray
+        if hasattr(msg, 'data') and isinstance(msg.data, (list, tuple)):
+            return {'data': list(msg.data)}
+
+        # Handle other messages - extract all fields
+        if hasattr(msg, '__slots__'):
+            for slot in msg.__slots__:
+                if slot.startswith('_'):
+                    continue
+                value = getattr(msg, slot, None)
+                if hasattr(value, '__slots__'):  # Nested message
+                    result[slot] = self._msg_to_dict(value)
+                elif isinstance(value, (list, tuple)):
+                    result[slot] = list(value)
+                else:
+                    result[slot] = value
+
+        return result
+
+    def log_snapshot(self):
+        """Log a snapshot of all latest values (called every 0.1s)"""
         try:
-            # Create base log entry
-            log_entry = {
-                'log_type': message_type,
-                'timestamp': time.time(),
-                'utc_time': datetime.now(timezone.utc).isoformat(),
-                'ros_timestamp': self._get_ros_timestamp(msg),
-                'data': self._extract_message_data(msg)
+            self.observation_counter += 1
+
+            # Create snapshot entry
+            entry = {
+                'observation_number': self.observation_counter,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'data': dict(self.latest_data)  # Copy of all latest values
             }
 
-            # Cache data for correlation if requested
-            if cache_key:
-                self.last_data[cache_key] = log_entry['data']
+            # Write to file
+            line = json.dumps(entry) + '\n'
+            self.file_handle.write(line)
+            self.file_handle.flush()
 
-            # Add correlation data for key messages
-            if message_type == 'AI_ACTION' and self.last_data['ai_observation']:
-                log_entry['correlated_observation'] = self.last_data['ai_observation']
+            # Update stats
+            line_bytes = len(line.encode('utf-8'))
+            self.current_file_size += line_bytes
+            self.stats['observations_logged'] += 1
+            self.stats['bytes_written'] += line_bytes
 
-            # Buffer the log entry
-            with self.buffer_lock:
-                if len(self.log_buffer) < self.buffer_size:
-                    self.log_buffer.append(log_entry)
-                    self.stats['messages_logged'] += 1
-                else:
-                    self.stats['dropped_messages'] += 1
-                    if self.log_level == 'DEBUG':
-                        self.get_logger().debug('Log buffer full, dropping message')
-
-        except Exception as e:
-            self.get_logger().error(f'Error logging message {message_type}: {e}')
-            self.stats['errors'] += 1
-
-    def log_system_event(self, event_type: str, data: Dict[str, Any]):
-        """Log system-level events like startup, shutdown, errors"""
-        log_entry = {
-            'log_type': 'SYSTEM_EVENT',
-            'event_type': event_type,
-            'timestamp': time.time(),
-            'utc_time': datetime.now(timezone.utc).isoformat(),
-            'data': data
-        }
-
-        with self.buffer_lock:
-            self.log_buffer.append(log_entry)
-
-    def _extract_message_data(self, msg) -> Dict[str, Any]:
-        """Extract data from ROS message into JSON-serializable format"""
-        try:
-            # Check specific message types BEFORE generic .data attribute
-            # Order matters: check most specific types first
-
-            if hasattr(msg, 'orientation') and hasattr(msg, 'angular_velocity'):
-                # IMU messages
-                return {
-                    'orientation': {
-                        'x': msg.orientation.x, 'y': msg.orientation.y,
-                        'z': msg.orientation.z, 'w': msg.orientation.w
-                    },
-                    'angular_velocity': {
-                        'x': msg.angular_velocity.x, 'y': msg.angular_velocity.y,
-                        'z': msg.angular_velocity.z
-                    },
-                    'linear_acceleration': {
-                        'x': msg.linear_acceleration.x, 'y': msg.linear_acceleration.y,
-                        'z': msg.linear_acceleration.z
-                    }
-                }
-
-            elif hasattr(msg, 'latitude') and hasattr(msg, 'longitude'):
-                # GPS messages
-                return {
-                    'latitude': msg.latitude,
-                    'longitude': msg.longitude,
-                    'altitude': msg.altitude,
-                    'status': {'status': msg.status.status, 'service': msg.status.service}
-                }
-
-            elif hasattr(msg, 'voltage') and hasattr(msg, 'power_supply_status'):
-                # Battery messages (BatteryState)
-                return {
-                    'voltage': msg.voltage,
-                    'current': msg.current,
-                    'charge': msg.charge,
-                    'capacity': msg.capacity,
-                    'design_capacity': msg.design_capacity,
-                    'percentage': msg.percentage,
-                    'power_supply_status': msg.power_supply_status,
-                    'power_supply_health': msg.power_supply_health,
-                    'power_supply_technology': msg.power_supply_technology,
-                    'present': msg.present
-                }
-
-            elif hasattr(msg, 'range') and hasattr(msg, 'radiation_type'):
-                # Range sensor messages (Range)
-                return {
-                    'range': msg.range,
-                    'min_range': msg.min_range,
-                    'max_range': msg.max_range,
-                    'field_of_view': msg.field_of_view,
-                    'radiation_type': msg.radiation_type
-                }
-
-            elif hasattr(msg, 'point') and not hasattr(msg, 'data'):
-                # PointStamped messages
-                return {
-                    'point': {'x': msg.point.x, 'y': msg.point.y, 'z': msg.point.z}
-                }
-
-            elif hasattr(msg, 'quaternion') and not hasattr(msg, 'data'):
-                # QuaternionStamped messages
-                return {
-                    'quaternion': {
-                        'x': msg.quaternion.x,
-                        'y': msg.quaternion.y,
-                        'z': msg.quaternion.z,
-                        'w': msg.quaternion.w
-                    }
-                }
-
-            elif hasattr(msg, 'vector') and not hasattr(msg, 'data'):
-                # Vector3Stamped messages
-                return {
-                    'vector': {'x': msg.vector.x, 'y': msg.vector.y, 'z': msg.vector.z}
-                }
-
-            elif hasattr(msg, 'pose') and not hasattr(msg, 'data'):
-                # PoseStamped messages
-                return {
-                    'pose': {
-                        'position': {
-                            'x': msg.pose.position.x,
-                            'y': msg.pose.position.y,
-                            'z': msg.pose.position.z
-                        },
-                        'orientation': {
-                            'x': msg.pose.orientation.x,
-                            'y': msg.pose.orientation.y,
-                            'z': msg.pose.orientation.z,
-                            'w': msg.pose.orientation.w
-                        }
-                    }
-                }
-
-            elif hasattr(msg, 'linear') and hasattr(msg, 'angular'):
-                # Twist messages
-                return {
-                    'linear': {'x': msg.linear.x, 'y': msg.linear.y, 'z': msg.linear.z},
-                    'angular': {'x': msg.angular.x, 'y': msg.angular.y, 'z': msg.angular.z}
-                }
-
-            elif hasattr(msg, 'data'):
-                # Standard data messages (Bool, String, Float32MultiArray, etc.)
-                if isinstance(msg.data, (list, tuple)):
-                    return {'data': list(msg.data)}
-                else:
-                    return {'data': msg.data}
-
-            else:
-                # Fallback: try to convert to dict
-                return {'raw': str(msg)}
+            # Check if we need to rotate file
+            if self.current_file_size >= self.max_file_size_mb * 1024 * 1024:
+                self.get_logger().info(f'File size limit reached, rotating...')
+                self.file_counter += 1
+                self.create_new_log_file()
 
         except Exception as e:
-            self.get_logger().debug(f'Error extracting message data: {e}')
-            return {'error': f'Failed to extract data: {str(e)}'}
-
-    def _get_ros_timestamp(self, msg) -> Optional[float]:
-        """Extract ROS timestamp from message header if available"""
-        try:
-            if hasattr(msg, 'header') and hasattr(msg.header, 'stamp'):
-                return msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-            return None
-        except:
-            return None
-
-    def flush_buffer(self):
-        """Flush buffered log entries to file"""
-        try:
-            with self.buffer_lock:
-                if not self.log_buffer:
-                    return
-
-                entries_to_write = self.log_buffer.copy()
-                self.log_buffer.clear()
-
-            # Write entries to file
-            for entry in entries_to_write:
-                self._write_log_entry(entry)
-
-            # Flush file handle
-            if self.file_handle:
-                self.file_handle.flush()
-                os.fsync(self.file_handle.fileno())  # Force write to disk
-
-            # Check if file rotation is needed
-            if self.current_file_size > self.max_file_size_mb * 1024 * 1024:
-                if self.file_counter < self.max_files_per_session:
-                    self.create_new_log_file()
-                else:
-                    self.get_logger().warn('Maximum files per session reached, continuing with current file')
-
-        except Exception as e:
-            self.get_logger().error(f'Error flushing buffer: {e}')
-            self.stats['errors'] += 1
-
-    def _write_log_entry(self, entry: Dict[str, Any]):
-        """Write a single log entry to the current file"""
-        try:
-            if not self.file_handle:
-                return
-
-            # Convert to JSON and write
-            json_line = json.dumps(entry, default=str, separators=(',', ':')) + '\n'
-            self.file_handle.write(json_line)
-
-            # Update file size
-            self.current_file_size += len(json_line.encode('utf-8'))
-            self.stats['bytes_written'] += len(json_line.encode('utf-8'))
-
-        except Exception as e:
-            self.get_logger().error(f'Error writing log entry: {e}')
+            self.get_logger().error(f'Error logging snapshot: {e}')
             self.stats['errors'] += 1
 
     def log_statistics(self):
-        """Log periodic statistics about the recorder performance"""
-        stats_data = {
-            'messages_logged': self.stats['messages_logged'],
-            'bytes_written': self.stats['bytes_written'],
-            'files_created': self.stats['files_created'],
-            'dropped_messages': self.stats['dropped_messages'],
-            'errors': self.stats['errors'],
-            'current_file_size': self.current_file_size,
-            'buffer_size': len(self.log_buffer),
-            'uptime': time.time() - self.get_clock().now().seconds_nanoseconds()[0]
-        }
+        """Log periodic statistics"""
+        try:
+            stats_entry = {
+                'type': 'STATISTICS',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'stats': dict(self.stats),
+                'current_file_size_mb': self.current_file_size / (1024 * 1024),
+                'topics_tracked': len(self.latest_data)
+            }
 
-        self.log_system_event('STATISTICS', stats_data)
+            self.file_handle.write(json.dumps(stats_entry) + '\n')
+            self.file_handle.flush()
 
-        if self.log_level in ['DEBUG', 'INFO']:
             self.get_logger().info(
-                f'Black Box Stats - Messages: {self.stats["messages_logged"]}, '
-                f'Files: {self.stats["files_created"]}, '
-                f'Errors: {self.stats["errors"]}, '
-                f'Dropped: {self.stats["dropped_messages"]}'
+                f'Stats: {self.stats["observations_logged"]} observations, '
+                f'{self.stats["bytes_written"] / 1024 / 1024:.1f} MB written, '
+                f'{len(self.latest_data)} topics tracked'
             )
 
+        except Exception as e:
+            self.get_logger().error(f'Error logging statistics: {e}')
+
     def destroy_node(self):
-        """Clean shutdown with final log flush"""
+        """Cleanup when node is destroyed"""
         try:
-            self.get_logger().info('Black Box Recorder shutting down...')
-
-            # Log shutdown event
-            self.log_system_event('SYSTEM_SHUTDOWN', {
-                'final_stats': self.stats,
-                'session_duration': time.time() - self.get_clock().now().seconds_nanoseconds()[0]
-            })
-
-            # Final buffer flush
-            self.flush_buffer()
-
-            # Close file handle
             if self.file_handle:
+                # Write shutdown event
+                shutdown_entry = {
+                    'type': 'SYSTEM_SHUTDOWN',
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'final_stats': dict(self.stats)
+                }
+                self.file_handle.write(json.dumps(shutdown_entry) + '\n')
+                self.file_handle.flush()
                 self.file_handle.close()
-                self.get_logger().info('Log file closed successfully')
 
-            # Compress final file if enabled
-            if self.compress_old_files:
-                self.compress_previous_file()
+            self.get_logger().info('Black Box Recorder shutdown complete')
 
         except Exception as e:
             self.get_logger().error(f'Error during shutdown: {e}')
@@ -631,17 +387,14 @@ class BlackBoxRecorderNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+    node = BlackBoxRecorderNode()
 
     try:
-        node = BlackBoxRecorderNode()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
-    except Exception as e:
-        print(f'Black Box Recorder error: {e}')
     finally:
-        if 'node' in locals():
-            node.destroy_node()
+        node.destroy_node()
         rclpy.shutdown()
 
 

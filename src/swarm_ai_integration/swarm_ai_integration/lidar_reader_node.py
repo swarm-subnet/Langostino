@@ -50,18 +50,36 @@ class LidarReaderNode(Node):
         super().__init__('lidar_reader_node')
 
         # Declare parameters
+        # I2C communication
         self.declare_parameter('i2c_bus', 1)  # I2C bus number
         self.declare_parameter('i2c_address', 0x08)  # I2C device address
         self.declare_parameter('distance_register', 0x24)  # Distance data register
+
+        # Sensor configuration
         self.declare_parameter('publish_rate', 100.0)  # Hz (max 100Hz per specs)
         self.declare_parameter('frame_id', 'lidar_link')
         self.declare_parameter('sensor_position', 'front')  # front, down, etc.
+
+        # Range limits
         self.declare_parameter('max_range', 50.0)  # Maximum valid range (meters)
         self.declare_parameter('min_range', 0.05)  # Minimum valid range (meters)
         self.declare_parameter('field_of_view', 0.035)  # FOV in radians (~2 degrees)
+
+        # Data processing
         self.declare_parameter('enable_filtering', True)  # Enable distance filtering
         self.declare_parameter('filter_window_size', 5)  # Moving average filter size
         self.declare_parameter('max_invalid_readings', 10)  # Max consecutive invalid readings
+
+        # Timing
+        self.declare_parameter('status_publish_interval', 1.0)  # Status publishing interval (seconds)
+        self.declare_parameter('reconnect_interval', 5.0)  # I2C reconnection interval (seconds)
+
+        # QoS settings
+        self.declare_parameter('sensor_qos_depth', 1)  # QoS depth for sensor data
+        self.declare_parameter('reliable_qos_depth', 10)  # QoS depth for reliable data
+
+        # Conversion
+        self.declare_parameter('mm_to_m_divisor', 1000.0)  # Millimeter to meter conversion
 
         # Get parameters
         self.i2c_bus = self.get_parameter('i2c_bus').get_parameter_value().integer_value
@@ -76,6 +94,11 @@ class LidarReaderNode(Node):
         self.enable_filtering = self.get_parameter('enable_filtering').get_parameter_value().bool_value
         self.filter_window_size = self.get_parameter('filter_window_size').get_parameter_value().integer_value
         self.max_invalid_readings = self.get_parameter('max_invalid_readings').get_parameter_value().integer_value
+        self.status_publish_interval = self.get_parameter('status_publish_interval').get_parameter_value().double_value
+        self.reconnect_interval = self.get_parameter('reconnect_interval').get_parameter_value().double_value
+        self.sensor_qos_depth = self.get_parameter('sensor_qos_depth').get_parameter_value().integer_value
+        self.reliable_qos_depth = self.get_parameter('reliable_qos_depth').get_parameter_value().integer_value
+        self.mm_to_m_divisor = self.get_parameter('mm_to_m_divisor').get_parameter_value().double_value
 
         # I2C connection
         self.i2c_bus_conn: Optional[SMBus] = None
@@ -105,13 +128,13 @@ class LidarReaderNode(Node):
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1
+            depth=self.sensor_qos_depth
         )
 
         reliable_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=10
+            depth=self.reliable_qos_depth
         )
 
         # Publishers
@@ -196,7 +219,7 @@ class LidarReaderNode(Node):
 
                 # Convert to uint32 little-endian and then to meters
                 distance_mm = struct.unpack('<I', bytes(data))[0]
-                distance_m = distance_mm / 1000.0
+                distance_m = distance_mm / self.mm_to_m_divisor
 
                 print(f'📏 Raw I2C Reading: {distance_mm}mm ({distance_m:.3f}m)')
 

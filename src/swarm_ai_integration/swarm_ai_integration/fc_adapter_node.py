@@ -53,10 +53,14 @@ class FCAdapterVelocityNode(Node):
         # ------------ Parameters ------------
         self.declare_parameter('control_rate_hz', 40.0)
         self.declare_parameter('max_velocity', 3.0)
-        self.declare_parameter('command_timeout_sec', 1.0)
+        self.declare_parameter('command_timeout', 1.0)
         self.declare_parameter('warmup_frames', 40)
-        self.declare_parameter('rc_min', 1300)
-        self.declare_parameter('rc_max', 1700)
+
+        # RC channel settings
+        self.declare_parameter('rc_mid_value', 1500)
+        self.declare_parameter('rc_min_value', 1300)
+        self.declare_parameter('rc_max_value', 1700)
+        self.declare_parameter('rc_deviation_limit', 400.0)
 
         self.declare_parameter('arm_aux_high', True)
         self.declare_parameter('enable_angle_mode', True)
@@ -68,6 +72,7 @@ class FCAdapterVelocityNode(Node):
         self.declare_parameter('yaw_kp', 200.0)              # Yaw P gain (RC units per radian)
         self.declare_parameter('yaw_rate_limit', 300.0)      # Max yaw RC deviation
 
+        # PID gains
         self.declare_parameter('kp_xy', 150.0)
         self.declare_parameter('ki_xy', 10.0)
         self.declare_parameter('kd_xy', 20.0)
@@ -75,28 +80,39 @@ class FCAdapterVelocityNode(Node):
         self.declare_parameter('ki_z', 5.0)    # Not used
         self.declare_parameter('kd_z', 15.0)   # Not used
 
+        # PID limits
+        self.declare_parameter('pid_output_min', -400.0)
+        self.declare_parameter('pid_output_max', 400.0)
+        self.declare_parameter('pid_integral_max', 50.0)
+        self.declare_parameter('pid_derivative_filter_alpha', 0.1)
+        self.declare_parameter('pid_max_history_length', 100)
+
         # Z-axis direct mapping (no PID)
         self.declare_parameter('vz_to_throttle_scale', 100.0)  # vz (m/s) → throttle RC units
         self.declare_parameter('throttle_rate_limit', 200.0)   # Max change per second (units/s)
 
         # MSP serial (DIRECT) like arm_only_simple.py
-        self.declare_parameter('msp_port', '/dev/ttyAMA0')
-        self.declare_parameter('msp_baudrate', 115200)
-        self.declare_parameter('msp_write_timeout_sec', 0.05)
+        self.declare_parameter('msp_serial_port', '/dev/ttyAMA0')
+        self.declare_parameter('msp_baud_rate', 115200)
+        self.declare_parameter('msp_write_timeout', 0.05)
 
         # Pre-arm streaming (like your working script)
         self.declare_parameter('prearm_enabled', True)
-        self.declare_parameter('prearm_seconds', 30.0)   # stream ARM frame for 5 seconds
-        self.declare_parameter('prearm_hz', 40)         # at 40 Hz
+        self.declare_parameter('prearm_duration_sec', 30.0)   # stream ARM frame for N seconds
+        self.declare_parameter('prearm_rate_hz', 40)         # at 40 Hz
         self.declare_parameter('startup_delay_sec', 20.0)
 
         # ------------ Param values ------------
         self.control_rate = float(self.get_parameter('control_rate_hz').value)
         self.max_velocity = float(self.get_parameter('max_velocity').value)
-        self.cmd_timeout = float(self.get_parameter('command_timeout_sec').value)
+        self.cmd_timeout = float(self.get_parameter('command_timeout').value)
         self.warmup_frames_total = int(self.get_parameter('warmup_frames').value)
-        self.rc_min = int(self.get_parameter('rc_min').value)
-        self.rc_max = int(self.get_parameter('rc_max').value)
+
+        # RC channel settings
+        self.rc_mid = int(self.get_parameter('rc_mid_value').value)
+        self.rc_min = int(self.get_parameter('rc_min_value').value)
+        self.rc_max = int(self.get_parameter('rc_max_value').value)
+        self.rc_deviation_limit = float(self.get_parameter('rc_deviation_limit').value)
 
         self.arm_aux_high = bool(self.get_parameter('arm_aux_high').value)
         self.angle_mode_enabled = bool(self.get_parameter('enable_angle_mode').value)
@@ -109,6 +125,7 @@ class FCAdapterVelocityNode(Node):
         self.yaw_rate_limit = float(self.get_parameter('yaw_rate_limit').value)
         self.desired_yaw = 0.0  # Target yaw angle (radians)
 
+        # PID gains
         self.kp_xy = float(self.get_parameter('kp_xy').value)
         self.ki_xy = float(self.get_parameter('ki_xy').value)
         self.kd_xy = float(self.get_parameter('kd_xy').value)
@@ -116,17 +133,26 @@ class FCAdapterVelocityNode(Node):
         self.ki_z = float(self.get_parameter('ki_z').value)  # Not used
         self.kd_z = float(self.get_parameter('kd_z').value)  # Not used
 
+        # PID limits
+        self.pid_output_min = float(self.get_parameter('pid_output_min').value)
+        self.pid_output_max = float(self.get_parameter('pid_output_max').value)
+        self.pid_integral_max = float(self.get_parameter('pid_integral_max').value)
+        self.pid_derivative_filter_alpha = float(self.get_parameter('pid_derivative_filter_alpha').value)
+        self.pid_max_history_length = int(self.get_parameter('pid_max_history_length').value)
+
         # Z-axis control parameters
         self.vz_scale = float(self.get_parameter('vz_to_throttle_scale').value)
         self.throttle_rate_limit = float(self.get_parameter('throttle_rate_limit').value)
 
-        self.msp_port = str(self.get_parameter('msp_port').value)
-        self.msp_baudrate = int(self.get_parameter('msp_baudrate').value)
-        self.msp_write_timeout = float(self.get_parameter('msp_write_timeout_sec').value)
+        # MSP serial
+        self.msp_port = str(self.get_parameter('msp_serial_port').value)
+        self.msp_baudrate = int(self.get_parameter('msp_baud_rate').value)
+        self.msp_write_timeout = float(self.get_parameter('msp_write_timeout').value)
 
+        # Pre-arm
         self.prearm_enabled = bool(self.get_parameter('prearm_enabled').value)
-        self.prearm_seconds = float(self.get_parameter('prearm_seconds').value)
-        self.prearm_hz = int(self.get_parameter('prearm_hz').value)
+        self.prearm_seconds = float(self.get_parameter('prearm_duration_sec').value)
+        self.prearm_hz = int(self.get_parameter('prearm_rate_hz').value)
         self.startup_delay_sec = float(self.get_parameter('startup_delay_sec').value)
 
         # ------------ State ------------
@@ -152,12 +178,15 @@ class FCAdapterVelocityNode(Node):
         # Safety RTH override
         self.safety_rth_requested = False
 
-        # PID
-        rc_dev_limit = 400.0
+        # PID - use parameters from config
         self.velocity_controller = VelocityPIDController(
             kp_xy=self.kp_xy, ki_xy=self.ki_xy, kd_xy=self.kd_xy,
             kp_z=self.kp_z,  ki_z=self.ki_z,  kd_z=self.kd_z,
-            output_min=-rc_dev_limit, output_max=rc_dev_limit
+            output_min=self.pid_output_min,
+            output_max=self.pid_output_max,
+            integral_max=self.pid_integral_max,
+            derivative_filter_alpha=self.pid_derivative_filter_alpha,
+            max_history_length=self.pid_max_history_length
         )
 
         self.stats = {'loops': 0, 'msp_cmds': 0, 'failsafes': 0}

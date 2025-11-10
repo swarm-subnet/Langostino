@@ -220,22 +220,27 @@ class AIFlightNode(Node):
     # Constants
     OBS_DIM = 131
     ACT_DIM = 4
-    PREDICT_HZ = 10.0  # infer 10 times per second
 
     def __init__(self):
         super().__init__("ai_flight_node")
 
         # Declare parameters
         self.declare_parameter('model_path', "/home/pi/swarm-ros/model/UID_3.zip")
+        self.declare_parameter('prediction_rate', 10.0)  # AI prediction rate (Hz)
+        self.declare_parameter('device', 'cpu')  # Computation device (cpu/cuda)
+        self.declare_parameter('qos_depth', 1)  # QoS depth for AI topics
 
-        # Read model path from parameter (configured in swarm_params.yaml)
+        # Read parameters (configured in swarm_params.yaml)
         self.MODEL_PATH = str(self.get_parameter('model_path').value)
+        self.PREDICT_HZ = float(self.get_parameter('prediction_rate').value)
+        self.device = str(self.get_parameter('device').value)
+        self.qos_depth = int(self.get_parameter('qos_depth').value)
 
         # QoS: reliable, keep last
         qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1
+            depth=self.qos_depth
         )
 
         # Subscriptions
@@ -256,8 +261,9 @@ class AIFlightNode(Node):
         # Load model (sync at startup to keep things simple & robust)
         try:
             self.get_logger().info(f"Loading AI model from: {self.MODEL_PATH}")
+            self.get_logger().info(f"Using device: {self.device}")
             self.model = secure_load_ppo_from_zip_no_env(
-                self.MODEL_PATH, obs_dim=self.OBS_DIM, act_dim=self.ACT_DIM, device="cpu"
+                self.MODEL_PATH, obs_dim=self.OBS_DIM, act_dim=self.ACT_DIM, device=self.device
             )
             self.model_ready = True
             self.get_logger().info("AI model loaded successfully (ready for inference).")

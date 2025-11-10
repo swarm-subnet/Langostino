@@ -27,6 +27,22 @@ class MSPMessageParser:
     node clean and focused on coordination.
     """
 
+    def __init__(self, imu_scale_accel: float = 9.81 / 512.0, imu_scale_gyro: float = 0.001,
+                 battery_voltage_scale: float = 10.0, battery_current_scale: float = 100.0):
+        """
+        Initialize MSP Message Parser with scale factors.
+
+        Args:
+            imu_scale_accel: IMU accelerometer scale factor
+            imu_scale_gyro: IMU gyroscope scale factor (radians)
+            battery_voltage_scale: Battery voltage divisor
+            battery_current_scale: Battery current divisor
+        """
+        self.imu_scale_accel = imu_scale_accel
+        self.imu_scale_gyro = imu_scale_gyro
+        self.battery_voltage_scale = battery_voltage_scale
+        self.battery_current_scale = battery_current_scale
+
     def parse_imu_data(self, data: bytes, timestamp, frame_id: str = 'fc_imu') -> Optional[Imu]:
         """
         Parse MSP_RAW_IMU data and create IMU ROS message.
@@ -48,13 +64,12 @@ class MSPMessageParser:
 
             # Convert raw values to proper units
             # Accelerometer: convert to m/s²
-            acc_scale = 9.81 / 512.0  # Typical scale for INAV
-            imu_msg.linear_acceleration.x = float(imu_data['acc'][0] * acc_scale)
-            imu_msg.linear_acceleration.y = float(imu_data['acc'][1] * acc_scale)
-            imu_msg.linear_acceleration.z = float(imu_data['acc'][2] * acc_scale)
+            imu_msg.linear_acceleration.x = float(imu_data['acc'][0] * self.imu_scale_accel)
+            imu_msg.linear_acceleration.y = float(imu_data['acc'][1] * self.imu_scale_accel)
+            imu_msg.linear_acceleration.z = float(imu_data['acc'][2] * self.imu_scale_accel)
 
             # Gyroscope: convert to rad/s
-            gyro_scale = 0.001 * np.pi / 180.0  # Typical scale
+            gyro_scale = self.imu_scale_gyro * np.pi / 180.0
             imu_msg.angular_velocity.x = float(imu_data['gyro'][0] * gyro_scale)
             imu_msg.angular_velocity.y = float(imu_data['gyro'][1] * gyro_scale)
             imu_msg.angular_velocity.z = float(imu_data['gyro'][2] * gyro_scale)
@@ -289,8 +304,8 @@ class MSPMessageParser:
             battery_msg.header.stamp = timestamp
             battery_msg.header.frame_id = frame_id
 
-            battery_msg.voltage = float(vbat / 10.0)        # volts
-            battery_msg.current = float(amperage / 100.0)   # amps
+            battery_msg.voltage = float(vbat / self.battery_voltage_scale)        # volts
+            battery_msg.current = float(amperage / self.battery_current_scale)   # amps
             battery_msg.power_supply_status = battery_msg.POWER_SUPPLY_STATUS_UNKNOWN
             battery_msg.power_supply_technology = battery_msg.POWER_SUPPLY_TECHNOLOGY_LIPO
 

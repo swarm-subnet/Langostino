@@ -24,7 +24,8 @@ class PIDController:
         output_min: float = -float('inf'),
         output_max: float = float('inf'),
         integral_max: float = 100.0,
-        derivative_filter_alpha: float = 0.1
+        derivative_filter_alpha: float = 0.1,
+        max_history_length: int = 100
     ):
         self.kp = kp
         self.ki = ki
@@ -33,6 +34,7 @@ class PIDController:
         self.output_max = output_max
         self.integral_max = integral_max
         self.derivative_filter_alpha = derivative_filter_alpha
+        self.max_history_length = max_history_length
 
         # State
         self.integral = 0.0
@@ -87,7 +89,7 @@ class PIDController:
         # logs
         self.output_history.append(output)
         self.error_history.append(error)
-        if len(self.output_history) > 100:
+        if len(self.output_history) > self.max_history_length:
             self.output_history.pop(0)
             self.error_history.pop(0)
 
@@ -127,23 +129,33 @@ class VelocityPIDController:
         ki_z: float = 5.0,
         kd_z: float = 15.0,
         output_min: float = -400.0,
-        output_max: float = 400.0
+        output_max: float = 400.0,
+        integral_max: float = 50.0,
+        derivative_filter_alpha: float = 0.1,
+        max_history_length: int = 100
     ):
         self.pid_x = PIDController(
             kp=kp_xy, ki=ki_xy, kd=kd_xy,
             output_min=output_min, output_max=output_max,
-            integral_max=50.0
+            integral_max=integral_max,
+            derivative_filter_alpha=derivative_filter_alpha,
+            max_history_length=max_history_length
         )
         self.pid_y = PIDController(
             kp=kp_xy, ki=ki_xy, kd=kd_xy,
             output_min=output_min, output_max=output_max,
-            integral_max=50.0
+            integral_max=integral_max,
+            derivative_filter_alpha=derivative_filter_alpha,
+            max_history_length=max_history_length
         )
         self.pid_z = PIDController(
             kp=kp_z, ki=ki_z, kd=kd_z,
             output_min=output_min, output_max=output_max,
-            integral_max=50.0
+            integral_max=integral_max,
+            derivative_filter_alpha=derivative_filter_alpha,
+            max_history_length=max_history_length
         )
+        self.max_history_length = max_history_length
 
     def reset(self):
         self.pid_x.reset()

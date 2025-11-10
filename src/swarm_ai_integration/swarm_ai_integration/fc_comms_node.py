@@ -42,10 +42,16 @@ class FCCommsNode(Node):
         self.declare_parameter('heartbeat_rate', 1.0)
         self.declare_parameter('heartbeat_timeout', 10.0)
         self.declare_parameter('connection_timeout', 10.0)
-        self.declare_parameter('wp_poll_mode', 'first')  # 'first' or 'all' or 'none'
+        self.declare_parameter('waypoint_poll_mode', 'first')  # 'first' or 'all' or 'none'
         self.declare_parameter('max_waypoint_cycle', 10)
         self.declare_parameter('command_qos_depth', 10)
         self.declare_parameter('max_rx_buffer_size', 1024)
+
+        # Data processing scale factors
+        self.declare_parameter('imu_scale_accel', 9.81 / 512.0)  # IMU accelerometer scale
+        self.declare_parameter('imu_scale_gyro', 0.001)  # IMU gyroscope scale
+        self.declare_parameter('battery_voltage_scale', 10.0)  # Battery voltage divisor
+        self.declare_parameter('battery_current_scale', 100.0)  # Battery current divisor
 
         # Get parameters
         self.serial_port = self.get_parameter('serial_port').get_parameter_value().string_value
@@ -56,9 +62,16 @@ class FCCommsNode(Node):
         self.heartbeat_rate = self.get_parameter('heartbeat_rate').get_parameter_value().double_value
         self.heartbeat_timeout = self.get_parameter('heartbeat_timeout').get_parameter_value().double_value
         self.connection_timeout = self.get_parameter('connection_timeout').get_parameter_value().double_value
-        self.wp_poll_mode = self.get_parameter('wp_poll_mode').get_parameter_value().string_value
+        self.wp_poll_mode = self.get_parameter('waypoint_poll_mode').get_parameter_value().string_value
         self.max_waypoint_cycle = self.get_parameter('max_waypoint_cycle').get_parameter_value().integer_value
         self.command_qos_depth = self.get_parameter('command_qos_depth').get_parameter_value().integer_value
+        self.max_rx_buffer_size = self.get_parameter('max_rx_buffer_size').get_parameter_value().integer_value
+
+        # Get scale factors
+        self.imu_scale_accel = self.get_parameter('imu_scale_accel').get_parameter_value().double_value
+        self.imu_scale_gyro = self.get_parameter('imu_scale_gyro').get_parameter_value().double_value
+        self.battery_voltage_scale = self.get_parameter('battery_voltage_scale').get_parameter_value().double_value
+        self.battery_current_scale = self.get_parameter('battery_current_scale').get_parameter_value().double_value
 
         # Initialize modular components
         self.serial_handler = MSPSerialHandler(
@@ -68,10 +81,15 @@ class FCCommsNode(Node):
             timeout=self.timeout,
             reconnect_interval=self.reconnect_interval,
             heartbeat_timeout=self.heartbeat_timeout,
-            max_rx_buffer_size=self.get_parameter('max_rx_buffer_size').get_parameter_value().integer_value
+            max_rx_buffer_size=self.max_rx_buffer_size
         )
 
-        self.parser = MSPMessageParser()
+        self.parser = MSPMessageParser(
+            imu_scale_accel=self.imu_scale_accel,
+            imu_scale_gyro=self.imu_scale_gyro,
+            battery_voltage_scale=self.battery_voltage_scale,
+            battery_current_scale=self.battery_current_scale
+        )
         self.publisher = TelemetryPublisher(self)
 
         # Set callback for incoming MSP messages
