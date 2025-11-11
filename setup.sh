@@ -564,6 +564,10 @@ setup_ros2_workspace() {
         print_error "Failed to build ROS2 workspace"
         exit 1
     fi
+
+    print_info "Setting execution permissions for ROS nodes..."
+    chmod +x src/swarm_ai_integration/swarm_ai_integration/*.py
+    print_success "Execution permissions set for Python nodes"
 }
 
 ################################################################################

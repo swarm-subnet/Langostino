@@ -292,13 +292,47 @@ class BlackBoxRecorderNode(Node):
         if hasattr(msg, 'data') and isinstance(msg.data, (list, tuple)):
             return {'data': list(msg.data)}
 
-        # Handle other messages - extract all fields
-        if hasattr(msg, '__slots__'):
+        # Handle ROS2 messages using get_fields_and_field_types()
+        if hasattr(msg, 'get_fields_and_field_types'):
+            try:
+                fields = msg.get_fields_and_field_types()
+                for field_name in fields.keys():
+                    if field_name.startswith('_'):
+                        continue
+
+                    value = getattr(msg, field_name, None)
+
+                    # Skip None values
+                    if value is None:
+                        continue
+
+                    # Recursively handle nested messages
+                    if hasattr(value, 'get_fields_and_field_types'):
+                        result[field_name] = self._msg_to_dict(value)
+                    # Handle arrays/lists
+                    elif isinstance(value, (list, tuple)):
+                        # Check if it's a list of messages
+                        if len(value) > 0 and hasattr(value[0], 'get_fields_and_field_types'):
+                            result[field_name] = [self._msg_to_dict(item) for item in value]
+                        else:
+                            result[field_name] = list(value)
+                    # Handle primitive types
+                    else:
+                        result[field_name] = value
+
+            except Exception as e:
+                # Fallback to __slots__ if get_fields_and_field_types fails
+                pass
+
+        # Fallback: Handle messages using __slots__ (older method)
+        if not result and hasattr(msg, '__slots__'):
             for slot in msg.__slots__:
                 if slot.startswith('_'):
                     continue
                 value = getattr(msg, slot, None)
-                if hasattr(value, '__slots__'):  # Nested message
+                if value is None:
+                    continue
+                if hasattr(value, '__slots__') or hasattr(value, 'get_fields_and_field_types'):
                     result[slot] = self._msg_to_dict(value)
                 elif isinstance(value, (list, tuple)):
                     result[slot] = list(value)
