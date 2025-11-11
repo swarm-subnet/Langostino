@@ -1,0 +1,772 @@
+pi@ubuntu:~/swarm-ros$ ros2 run swarm_ai_integration fc_comms_node.py
+[INFO] [1762859276.858540690] [fc_comms_node]: ✅ Telemetry publishers created
+[INFO] [1762859276.894771022] [fc_comms_node]: 🔄 MSP serial communication thread started
+[INFO] [1762859276.901990900] [fc_comms_node]: 🔌 Connecting to /dev/ttyAMA0...
+[INFO] [1762859276.915232683] [fc_comms_node]: ════════════════════════════════════════════════════════════
+[INFO] [1762859276.925370857] [fc_comms_node]: ✅ Connected to flight controller on /dev/ttyAMA0
+[INFO] [1762859276.935018977] [fc_comms_node]: ♻️  Reconnect #1
+2025-11-11 12:07:56,937 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:56,939 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:56,941 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859276.943155110] [fc_comms_node]: 🚀 FC Communications Node Started
+[INFO] [1762859276.953417712] [fc_comms_node]:    Serial Port: /dev/ttyAMA0
+[INFO] [1762859276.967201268] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+[INFO] [1762859276.972190094] [fc_comms_node]:    Baud Rate: 115200
+[WARN] [1762859276.987641836] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+[INFO] [1762859277.012132944] [fc_comms_node]:    Telemetry Rate: 10.0 Hz
+[INFO] [1762859277.013742639] [fc_comms_node]: 📊 Unknown command statistics (total: 1):
+   200_MSP_SET_RAW_RC: 1 occurrences
+[INFO] [1762859277.023119612] [fc_comms_node]:    Waypoint Polling: first
+2025-11-11 12:07:57,027 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,028 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,029 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859277.038633906] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+[WARN] [1762859277.050254066] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:57,056 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,058 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,060 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859277.064708511] [fc_comms_node]: ════════════════════════════════════════════════════════════
+[INFO] [1762859277.090027384] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:57,093 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=REQ, size=0
+[WARN] [1762859277.104288859] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:57,109 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,112 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,110 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:57,114 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859277.133029050] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+[WARN] [1762859277.146875524] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:57,152 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,153 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,155 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:57,163 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=REQ, size=0
+2025-11-11 12:07:57,165 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:57,172 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,174 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859277.181136888] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:57,200 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,201 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859277.212601259] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:57,213 - MSP_Protocol - DEBUG - Encoded message: 244d3c006666
+2025-11-11 12:07:57,216 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,218 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,219 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:07:57,235 - MSP_Protocol - DEBUG - Encoded message: 244d3c006a6a
+2025-11-11 12:07:57,241 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,242 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,248 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:07:57,259 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,262 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=REQ, size=0
+2025-11-11 12:07:57,269 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:57,274 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,277 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,279 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,288 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,292 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,294 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,303 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,316 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,317 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,327 - MSP_Protocol - DEBUG - Encoded message: 244d3c006c6c
+2025-11-11 12:07:57,343 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:07:57,348 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,350 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,360 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,363 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ALTITUDE (code=109), direction=REQ, size=0
+2025-11-11 12:07:57,365 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:57,376 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,378 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,383 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,394 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,395 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,396 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,410 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,420 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,421 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,425 - MSP_Protocol - DEBUG - Encoded message: 244d3c006d6d
+2025-11-11 12:07:57,439 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:07:57,451 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,458 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,459 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,463 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,466 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=REQ, size=0
+2025-11-11 12:07:57,467 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:57,475 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,484 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,485 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,491 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,503 - MSP_Protocol - DEBUG - Encoded message: 244d3c006565
+2025-11-11 12:07:57,511 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,513 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,515 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:07:57,523 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,535 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,536 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,537 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,549 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,550 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,551 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,560 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:57,572 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,573 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,574 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859277.582380758] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:57,588 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ANALOG (code=110), direction=REQ, size=0
+2025-11-11 12:07:57,589 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:57,593 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,594 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859277.603366016] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:57,604 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,612 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,612 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:57,611 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,620 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,627 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,628 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859277.636246540] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+[WARN] [1762859277.645528147] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:57,646 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,647 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,647 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:57,651 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,653 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,669 - MSP_Protocol - DEBUG - Creating MSP message: MSP_MOTOR (code=104), direction=REQ, size=0
+2025-11-11 12:07:57,670 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+[INFO] [1762859277.680252690] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:57,677 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,695 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,701 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,702 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859277.710293044] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:57,711 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,711 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,712 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859277.720506583] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:57,729 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,729 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859277.741887884] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:57,742 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,747 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,751 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859277.767032381] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:57,750 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,771 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,776 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=REQ, size=0
+[WARN] [1762859277.787865659] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:57,780 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:57,791 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,792 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,788 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,796 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,797 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859277.806189133] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:57,813 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,814 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,821 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,822 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859277.837485639] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+[INFO] [1762859277.846698184] [fc_comms_node]: 📊 Unknown command statistics (total: 11):
+   200_MSP_SET_RAW_RC: 11 occurrences
+2025-11-11 12:07:57,847 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:57,851 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,854 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,853 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:57,862 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:57,867 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=REQ, size=0
+2025-11-11 12:07:57,870 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+[INFO] [1762859277.881959761] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+[WARN] [1762859277.892652052] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:57,893 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e12661900e9ff010200000000000061016d0319006f
+2025-11-11 12:07:57,894 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=RESP, size=18
+2025-11-11 12:07:57,898 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,909 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,916 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,917 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:57,908 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_RAW_IMU (code=102), size=18, payload=1900e9ff010200000000000061016d031900
+[INFO] [1762859277.935576895] [fc_comms_node]: 📥 Received: MSP_RAW_IMU (code=102, size=18 bytes)
+2025-11-11 12:07:57,936 - MSP_Protocol - DEBUG - Unpacked IMU: {'acc': (25, -23, 513), 'gyro': (0, 0, 0), 'mag': (353, 877, 25)}
+2025-11-11 12:07:57,942 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,943 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859277.960041701] [fc_comms_node]:    ➜ Published to /fc/imu_raw | acc=[0.48, -0.44, 9.83] m/s² | gyro=[0.000, 0.000, 0.000] rad/s
+2025-11-11 12:07:57,960 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+2025-11-11 12:07:57,963 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=REQ, size=0
+2025-11-11 12:07:57,966 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:57,964 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+2025-11-11 12:07:57,974 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+2025-11-11 12:07:57,973 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:57,978 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859277.991338676] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+2025-11-11 12:07:57,992 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+2025-11-11 12:07:57,997 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,002 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.014835873] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+2025-11-11 12:07:58,015 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e126a02191eb23316be3accfcad00080038096b00a1
+2025-11-11 12:07:58,016 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=RESP, size=18
+2025-11-11 12:07:58,017 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_RAW_GPS (code=106), size=18, payload=02191eb23316be3accfcad00080038096b00
+2025-11-11 12:07:58,022 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,023 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.036127278] [fc_comms_node]: 📥 Received: MSP_RAW_GPS (code=106, size=18 bytes)
+🐛 GPS DEBUG: fix_byte=0x02 (2), satellites=25, raw_hex=02191eb23316be3accfcad0008003809
+2025-11-11 12:07:58,041 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,042 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,051 - MSP_Protocol - INFO - 📡 GPS Extended (18 bytes): extra_bytes=0x6b00, interpreted_as_hdop=107
+2025-11-11 12:07:58,052 - MSP_Protocol - INFO - 🐛 GPS FULL DEBUG: fix_byte=2 (0x02), sats=25, lat_raw=372486686, lon_raw=-53724482, hdop=107, full_hex=02191eb23316be3accfcad00080038096b00
+2025-11-11 12:07:58,063 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ALTITUDE (code=109), direction=REQ, size=0
+2025-11-11 12:07:58,064 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:58,076 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1523, 1501, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,078 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.086506585] [fc_comms_node]:    ➜ Published to /fc/gps_fix | speed=0.08m/s | course=236.0° | sats=25 | hdop=1.07m | lat=37.2486686 | lon=-5.3724482 | alt=173.0m | fix=0
+2025-11-11 12:07:58,087 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,088 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,089 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,104 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1509, 1515, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,105 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.114370990] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,125 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1510, 1515, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,126 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859278.133971241] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,134 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+2025-11-11 12:07:58,135 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+2025-11-11 12:07:58,136 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+2025-11-11 12:07:58,150 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1510, 1515, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,151 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.178043851] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+2025-11-11 12:07:58,165 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=REQ, size=0
+2025-11-11 12:07:58,179 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:58,185 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1510, 1514, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,186 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,178 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+[INFO] [1762859278.210548748] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+2025-11-11 12:07:58,211 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,213 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,215 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,218 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1511, 1514, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,224 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,231 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1511, 1514, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,232 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.242144942] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,245 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1511, 1514, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,247 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,262 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ANALOG (code=110), direction=REQ, size=0
+2025-11-11 12:07:58,263 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+[WARN] [1762859278.270409506] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,271 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,272 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,272 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,282 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1511, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,283 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.298803029] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,310 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1511, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,311 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859278.319617505] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,320 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,321 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,321 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,326 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,327 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.339615414] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,343 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,345 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859278.361776407] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,362 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,364 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,365 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,372 - MSP_Protocol - DEBUG - Creating MSP message: MSP_MOTOR (code=104), direction=REQ, size=0
+2025-11-11 12:07:58,373 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:58,379 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,380 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.392020460] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+[WARN] [1762859278.403158274] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,404 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,405 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,418 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,419 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,425 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,426 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,426 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859278.450777880] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,458 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,459 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,474 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=REQ, size=0
+2025-11-11 12:07:58,475 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+[WARN] [1762859278.490899116] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,492 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,493 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,493 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,504 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,505 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,515 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+[INFO] [1762859278.520757229] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+[WARN] [1762859278.532354525] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,524 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,533 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,544 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,545 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859278.554924269] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,543 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,566 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859278.572557167] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,573 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e066ce4ffebff430026
+2025-11-11 12:07:58,574 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=RESP, size=6
+2025-11-11 12:07:58,575 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_ATTITUDE (code=108), size=6, payload=e4ffebff4300
+2025-11-11 12:07:58,581 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=REQ, size=0
+2025-11-11 12:07:58,583 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:58,587 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,588 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,593 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,594 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.600451521] [fc_comms_node]: 📥 Received: MSP_ATTITUDE (code=108, size=6 bytes)
+2025-11-11 12:07:58,601 - MSP_Protocol - DEBUG - Unpacked attitude: roll=-2.8°, pitch=-2.1°, yaw=6.7°
+2025-11-11 12:07:58,610 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,612 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,624 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,627 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.637986547] [fc_comms_node]:    ➜ Published to /fc/attitude_euler | roll=-2.8° | pitch=-2.1° | yaw=6.7°
+2025-11-11 12:07:58,638 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,639 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,640 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,649 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,651 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.656791117] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+[WARN] [1762859278.669777482] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,677 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=REQ, size=0
+2025-11-11 12:07:58,683 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:58,689 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,690 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.699647783] [fc_comms_node]: 📊 Unknown command statistics (total: 21):
+   200_MSP_SET_RAW_RC: 21 occurrences
+2025-11-11 12:07:58,696 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,701 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,700 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+2025-11-11 12:07:58,705 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+2025-11-11 12:07:58,706 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+[INFO] [1762859278.718816365] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+2025-11-11 12:07:58,720 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+2025-11-11 12:07:58,726 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,729 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,744 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,746 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.752366319] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+2025-11-11 12:07:58,753 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,755 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,757 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,766 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ALTITUDE (code=109), direction=REQ, size=0
+2025-11-11 12:07:58,768 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+[INFO] [1762859278.787375187] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,793 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,795 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859278.800755043] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,807 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,815 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,802 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,821 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,822 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,829 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,830 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.844523901] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,854 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,855 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859278.864901864] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,865 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,867 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,867 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,876 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=REQ, size=0
+[INFO] [1762859278.884989201] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,893 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+[WARN] [1762859278.900089691] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,900 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,901 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,902 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,908 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,910 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,916 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,917 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:58,923 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,924 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859278.936509919] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,942 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,943 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859278.956877674] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:58,957 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:58,958 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:58,959 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:58,973 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ANALOG (code=110), direction=REQ, size=0
+2025-11-11 12:07:58,975 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+[INFO] [1762859278.981633783] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:58,996 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:58,999 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,006 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+[WARN] [1762859279.009096000] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,014 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,013 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:59,022 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:59,023 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:59,021 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,030 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.043916585] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:59,053 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,056 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859279.069584105] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,070 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:59,071 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:59,072 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:59,078 - MSP_Protocol - DEBUG - Creating MSP message: MSP_MOTOR (code=104), direction=REQ, size=0
+2025-11-11 12:07:59,079 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:59,085 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,086 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.095183344] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+[WARN] [1762859279.108894816] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,109 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e0a6d0000000000003f00000058
+2025-11-11 12:07:59,111 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,114 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,112 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ALTITUDE (code=109), direction=RESP, size=10
+2025-11-11 12:07:59,122 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_ALTITUDE (code=109), size=10, payload=0000000000003f000000
+2025-11-11 12:07:59,132 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,133 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.140696793] [fc_comms_node]: 📥 Received: MSP_ALTITUDE (code=109, size=10 bytes)
+2025-11-11 12:07:59,141 - MSP_Protocol - INFO - 🐛 MSP_ALTITUDE RAW: len=10 bytes, hex=0000000000003f000000
+2025-11-11 12:07:59,141 - MSP_Protocol - INFO - 🐛 MSP_ALTITUDE EXTENDED: altitude_cm=0, vario_cms=0, z_vel_cms=63
+2025-11-11 12:07:59,142 - MSP_Protocol - INFO - ✓ MSP_ALTITUDE RESULT: altitude=0.00m, vario=+0.00m/s
+2025-11-11 12:07:59,149 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,150 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,165 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=REQ, size=0
+2025-11-11 12:07:59,166 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+[INFO] [1762859279.180340631] [fc_comms_node]:    ➜ Published to /fc/altitude | altitude=0.00m | vario=+0.00m/s
+2025-11-11 12:07:59,180 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+2025-11-11 12:07:59,184 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+2025-11-11 12:07:59,185 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+2025-11-11 12:07:59,183 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,187 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.203545691] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+2025-11-11 12:07:59,204 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+2025-11-11 12:07:59,215 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,216 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.224411365] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+2025-11-11 12:07:59,225 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:59,225 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:59,226 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859279.234488810] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:59,238 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,239 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,251 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,252 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,263 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=REQ, size=0
+2025-11-11 12:07:59,265 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:59,276 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,277 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859279.285863069] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,286 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:59,287 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:59,287 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859279.296396662] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:59,302 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,303 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859279.316080924] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,316 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:59,317 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:59,318 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:59,321 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,323 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.336973785] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:59,342 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,343 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859279.356614766] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,362 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=REQ, size=0
+2025-11-11 12:07:59,363 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:59,371 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,372 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.382772549] [fc_comms_node]: 📊 Unknown command statistics (total: 31):
+   200_MSP_SET_RAW_RC: 31 occurrences
+2025-11-11 12:07:59,383 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:59,384 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:59,385 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+[INFO] [1762859279.394129166] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:59,397 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,398 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859279.413218738] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,413 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:59,414 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:59,415 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:59,425 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,426 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.439119696] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:59,442 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,443 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859279.459024480] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,459 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:59,460 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:59,462 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ALTITUDE (code=109), direction=REQ, size=0
+2025-11-11 12:07:59,464 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:59,463 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:59,480 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,481 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.489357700] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:59,498 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,499 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859279.509139150] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,509 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e0b6503020000cf000800000400ac
+2025-11-11 12:07:59,510 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=RESP, size=11
+2025-11-11 12:07:59,511 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_STATUS (code=101), size=11, payload=03020000cf000800000400
+2025-11-11 12:07:59,521 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,522 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.529768885] [fc_comms_node]: 📥 Received: MSP_STATUS (code=101, size=11 bytes)
+2025-11-11 12:07:59,541 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,542 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.550786279] [fc_comms_node]:    ➜ Published to /fc/status | Cycle: 515us, I2C Errors: 0, Sensors: 0x00cf, Box Flags: 0x04000008
+2025-11-11 12:07:59,551 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:59,552 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:59,553 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:59,562 - MSP_Protocol - DEBUG - Creating MSP message: MSP_STATUS (code=101), direction=REQ, size=0
+2025-11-11 12:07:59,563 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:59,572 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,573 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.581454083] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+[WARN] [1762859279.591599549] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,592 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e15760104000000000000000000000000000000000000a5c3
+2025-11-11 12:07:59,593 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=RESP, size=21
+2025-11-11 12:07:59,596 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_WP (code=118), size=21, payload=0104000000000000000000000000000000000000a5
+2025-11-11 12:07:59,596 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,601 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.611249853] [fc_comms_node]: 📥 Received: MSP_WP (code=118, size=21 bytes)
+2025-11-11 12:07:59,611 - MSP_Protocol - DEBUG - Unpacked WP: {'wp_no': 1, 'latitude': 0.0, 'longitude': 0.0, 'altitude_m': 0.0, 'heading_deg': 0.0, 'staytime_s': 0, 'navflag': 0}
+2025-11-11 12:07:59,619 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,621 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.635471480] [fc_comms_node]:    ➜ Published to /fc/waypoint | wp#1 lat=0.0000000 lon=0.0000000 | alt=0.0m | heading=0.0° | stay=0s | navflag=0x00
+2025-11-11 12:07:59,635 - MSP_Protocol - DEBUG - Attempting to decode message: 244d3e00c8c8
+2025-11-11 12:07:59,636 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=RESP, size=0
+2025-11-11 12:07:59,637 - MSP_Protocol - INFO - ✓ Decoded RESPONSE: MSP_SET_RAW_RC (code=200), size=0, payload=empty
+2025-11-11 12:07:59,645 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,646 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[INFO] [1762859279.656108247] [fc_comms_node]: 📥 Received: MSP_SET_RAW_RC (code=200, size=0 bytes)
+2025-11-11 12:07:59,662 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ANALOG (code=110), direction=REQ, size=0
+2025-11-11 12:07:59,663 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:59,677 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1512, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,678 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+[WARN] [1762859279.686220736] [fc_comms_node]: ⚠️  Unhandled MSP command: MSP_SET_RAW_RC (code=200)
+   Direction: RESPONSE (>)
+   Size: 0 bytes
+   Raw data (hex): empty
+   Note: This is a known MSP command but no handler is implemented.
+2025-11-11 12:07:59,687 - MSP_Protocol - DEBUG - Encoded message: 244d3c006e6e
+2025-11-11 12:07:59,697 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,698 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,699 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:07:59,717 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,718 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,727 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,739 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,742 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,744 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,755 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,762 - MSP_Protocol - DEBUG - Creating MSP message: MSP_MOTOR (code=104), direction=REQ, size=0
+2025-11-11 12:07:59,763 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:59,773 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,775 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,780 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,791 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,792 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,797 - MSP_Protocol - DEBUG - Encoded message: 244d3c006868
+2025-11-11 12:07:59,811 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:07:59,815 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,817 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,825 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,840 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,842 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,851 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,862 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_IMU (code=102), direction=REQ, size=0
+2025-11-11 12:07:59,864 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,866 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:59,875 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,877 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,886 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,891 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,893 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,907 - MSP_Protocol - DEBUG - Encoded message: 244d3c006666
+2025-11-11 12:07:59,915 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,917 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,919 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:07:59,935 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,941 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,941 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,949 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,962 - MSP_Protocol - DEBUG - Creating MSP message: MSP_RAW_GPS (code=106), direction=REQ, size=0
+2025-11-11 12:07:59,964 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,965 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:07:59,976 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,977 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,981 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:07:59,991 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:07:59,992 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:07:59,997 - MSP_Protocol - DEBUG - Encoded message: 244d3c006a6a
+2025-11-11 12:08:00,007 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:08:00,017 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:08:00,018 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:08:00,019 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:08:00,035 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:08:00,040 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:08:00,041 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:08:00,050 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:08:00,057 - MSP_Protocol - DEBUG - Encoded message: 244d3c006c6c
+2025-11-11 12:08:00,067 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ATTITUDE (code=108), direction=REQ, size=0
+2025-11-11 12:08:00,069 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:08:00,072 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1513, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:08:00,074 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:08:00,079 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:08:00,081 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:08:00,091 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:08:00,092 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:08:00,098 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:08:00,111 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:08:00,116 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:08:00,118 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:08:00,127 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:08:00,140 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:08:00,142 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:08:00,151 - MSP_Protocol - DEBUG - Encoded message: 244d3c006d6d
+2025-11-11 12:08:00,162 - MSP_Protocol - DEBUG - Creating MSP message: MSP_ALTITUDE (code=109), direction=REQ, size=0
+2025-11-11 12:08:00,164 - MSP_Protocol - DEBUG - Creating MSP message: MSP_WP (code=118), direction=REQ, size=1
+2025-11-11 12:08:00,163 - MSP_Protocol - DEBUG - Encoded message: 244d3c01760176
+2025-11-11 12:08:00,175 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]
+2025-11-11 12:08:00,175 - MSP_Protocol - DEBUG - Creating MSP message: MSP_SET_RAW_RC (code=200), direction=REQ, size=18
+2025-11-11 12:08:00,180 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8f305dd05dc05dc050807080708070807e8031f
+2025-11-11 12:08:00,191 - MSP_Protocol - DEBUG - Encoded message: 244d3c12c8e505eb05dc05dc050807080708070807e8033f
+2025-11-11 12:08:00,195 - MSP_Protocol - DEBUG - Packing 9 RC channels: [1512, 1513, 1500, 1500, 1800, 1800, 1800, 1800, 1000]

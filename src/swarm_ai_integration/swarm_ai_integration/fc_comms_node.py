@@ -208,7 +208,12 @@ class FCCommsNode(Node):
         based on message type.
         """
         cmd_name = self._get_command_name(message.command)
-        self.get_logger().info(f'📥 Received: {cmd_name} (code={message.command}, size={message.size} bytes)')
+
+        # Log MSP_SET_RAW_RC at DEBUG level to reduce log noise
+        if message.command == MSPCommand.MSP_SET_RAW_RC:
+            self.get_logger().debug(f'📥 Received: {cmd_name} (code={message.command}, size={message.size} bytes)')
+        else:
+            self.get_logger().info(f'📥 Received: {cmd_name} (code={message.command}, size={message.size} bytes)')
 
         try:
             # Route to appropriate handler
@@ -238,6 +243,10 @@ class FCCommsNode(Node):
 
             elif message.command == MSPCommand.MSP_RC:
                 self._handle_rc(message.data)
+
+            elif message.command == MSPCommand.MSP_SET_RAW_RC:
+                # RC command ACK - just log at debug level (no data to process)
+                self.get_logger().debug(f'✓ RC command acknowledged')
 
             else:
                 # Unknown or unhandled command
