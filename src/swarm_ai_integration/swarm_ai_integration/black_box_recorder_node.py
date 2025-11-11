@@ -384,26 +384,174 @@ class BlackBoxRecorderNode(Node):
             # Convert to string as last resort
             return str(value)
 
+    def _create_clean_snapshot(self) -> Dict[str, Any]:
+        """Create a clean, organized snapshot from raw topic data"""
+        snapshot = {}
+
+        # AI observation (just the array)
+        if 'ai_observation' in self.latest_data:
+            ai_obs = self._convert_value(self.latest_data['ai_observation'])
+            if isinstance(ai_obs, dict) and 'data' in ai_obs:
+                snapshot['ai_observation'] = ai_obs['data']
+
+        # AI action (just the array)
+        if 'ai_action' in self.latest_data:
+            ai_act = self._convert_value(self.latest_data['ai_action'])
+            if isinstance(ai_act, dict) and 'data' in ai_act:
+                snapshot['ai_action'] = ai_act['data']
+
+        # LiDAR data
+        lidar = {}
+        if 'lidar_distance' in self.latest_data:
+            dist_data = self._convert_value(self.latest_data['lidar_distance'])
+            if isinstance(dist_data, dict):
+                lidar['frame'] = dist_data.get('header', {}).get('frame_id', 'lidar_link')
+                lidar['range_m'] = dist_data.get('range', 0.0)
+                lidar['fov'] = dist_data.get('field_of_view', 0.035)
+                lidar['min_range'] = dist_data.get('min_range', 0.05)
+                lidar['max_range'] = dist_data.get('max_range', 50.0)
+
+        if 'lidar_status' in self.latest_data:
+            # Parse status string to extract health
+            status_str = self.latest_data.get('lidar_status', '')
+            if 'OK' in status_str:
+                lidar['status'] = 'OK'
+            else:
+                lidar['status'] = 'ERROR'
+
+        if 'lidar_raw' in self.latest_data:
+            raw_data = self._convert_value(self.latest_data['lidar_raw'])
+            if isinstance(raw_data, dict) and 'data' in raw_data:
+                lidar['raw'] = raw_data['data']
+
+        if 'lidar_point' in self.latest_data:
+            point_data = self._convert_value(self.latest_data['lidar_point'])
+            if isinstance(point_data, dict) and 'point' in point_data:
+                lidar['point'] = point_data['point']
+
+        if lidar:
+            snapshot['lidar'] = lidar
+
+        # Flight Controller data
+        fc = {}
+
+        # Connection status
+        if 'fc_connected' in self.latest_data:
+            fc['connected'] = self.latest_data['fc_connected']
+
+        # Status string
+        if 'fc_status' in self.latest_data:
+            fc['status'] = self.latest_data['fc_status']
+
+        # Waypoint
+        if 'fc_waypoint' in self.latest_data:
+            wp_data = self._convert_value(self.latest_data['fc_waypoint'])
+            if isinstance(wp_data, dict) and 'data' in wp_data:
+                fc['waypoint'] = wp_data['data']
+
+        # Motor RPM
+        if 'fc_motor_rpm' in self.latest_data:
+            rpm_data = self._convert_value(self.latest_data['fc_motor_rpm'])
+            if isinstance(rpm_data, dict) and 'data' in rpm_data:
+                fc['motor_rpm'] = rpm_data['data']
+
+        # Battery
+        if 'fc_battery' in self.latest_data:
+            batt_data = self._convert_value(self.latest_data['fc_battery'])
+            if isinstance(batt_data, dict):
+                fc['battery'] = {
+                    'voltage': batt_data.get('voltage', 0.0),
+                    'technology': batt_data.get('power_supply_technology', 0)
+                }
+
+        # IMU data (complex nested structure)
+        imu = {}
+        if 'fc_imu' in self.latest_data:
+            imu_data = self._convert_value(self.latest_data['fc_imu'])
+            if isinstance(imu_data, dict):
+                # Orientation
+                if 'orientation' in imu_data:
+                    imu['orientation'] = imu_data['orientation']
+                # Angular velocity
+                if 'angular_velocity' in imu_data:
+                    imu['angular_velocity'] = imu_data['angular_velocity']
+                # Linear acceleration
+                if 'linear_acceleration' in imu_data:
+                    imu['linear_acceleration'] = imu_data['linear_acceleration']
+
+        # GPS
+        if 'fc_gps' in self.latest_data:
+            gps_data = self._convert_value(self.latest_data['fc_gps'])
+            if isinstance(gps_data, dict):
+                imu['gps'] = {
+                    'lat': gps_data.get('latitude', 0.0),
+                    'lon': gps_data.get('longitude', 0.0),
+                    'alt': gps_data.get('altitude', 0.0)
+                }
+
+        # GPS speed and course
+        if 'fc_gps_speed_course' in self.latest_data:
+            gps_sc_data = self._convert_value(self.latest_data['fc_gps_speed_course'])
+            if isinstance(gps_sc_data, dict) and 'data' in gps_sc_data:
+                imu['gps_speed_course'] = gps_sc_data['data']
+
+        # Attitude (roll, pitch, yaw)
+        if 'fc_attitude' in self.latest_data:
+            att_data = self._convert_value(self.latest_data['fc_attitude'])
+            if isinstance(att_data, dict) and 'vector' in att_data:
+                imu['attitude'] = att_data['vector']
+
+        # Altitude
+        if 'fc_altitude' in self.latest_data:
+            alt_data = self._convert_value(self.latest_data['fc_altitude'])
+            if isinstance(alt_data, dict) and 'data' in alt_data:
+                imu['altitude'] = alt_data['data']
+
+        if imu:
+            fc['imu'] = imu
+
+        if fc:
+            snapshot['flight_controller'] = fc
+
+        # FC Adapter data
+        if 'fc_adapter_status' in self.latest_data or 'fc_adapter_velocity_error' in self.latest_data:
+            fc_adapter = {}
+            if 'fc_adapter_status' in self.latest_data:
+                fc_adapter['status'] = self.latest_data['fc_adapter_status']
+            if 'fc_adapter_velocity_error' in self.latest_data:
+                vel_err_data = self._convert_value(self.latest_data['fc_adapter_velocity_error'])
+                if isinstance(vel_err_data, dict) and 'vector' in vel_err_data:
+                    fc_adapter['velocity_error'] = vel_err_data['vector']
+            snapshot['fc_adapter'] = fc_adapter
+
+        # Safety system
+        safety = {}
+        if 'safety_override' in self.latest_data:
+            safety['override'] = self.latest_data['safety_override']
+        if 'safety_rth_command' in self.latest_data:
+            safety['rth_command'] = self.latest_data['safety_rth_command']
+        if 'safety_status' in self.latest_data:
+            safety['status'] = self.latest_data['safety_status']
+        if safety:
+            snapshot['safety'] = safety
+
+        return snapshot
+
     def log_snapshot(self):
         """Log a snapshot of all latest values (called every 0.1s)"""
         try:
             self.observation_counter += 1
 
-            # Convert all data to JSON-serializable format
-            converted_data = {}
-            for key, value in self.latest_data.items():
-                try:
-                    converted_data[key] = self._convert_value(value)
-                except Exception as e:
-                    self.get_logger().error(f'Error converting {key}: {e}, type: {type(value)}')
-                    converted_data[key] = str(value)
+            # Create clean snapshot
+            clean_data = self._create_clean_snapshot()
 
             # Create snapshot entry
             entry = {
                 'observation_number': self.observation_counter,
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-                'data': converted_data
+                'timestamp': datetime.now(timezone.utc).isoformat()
             }
+            # Merge clean data into entry
+            entry.update(clean_data)
 
             # Write to file
             line = json.dumps(entry) + '\n'
@@ -425,12 +573,8 @@ class BlackBoxRecorderNode(Node):
         except Exception as e:
             # More detailed error logging
             self.get_logger().error(f'Error logging snapshot: {e}')
-            # Try to identify the problematic field
-            for key, value in self.latest_data.items():
-                try:
-                    json.dumps({key: value})
-                except Exception:
-                    self.get_logger().error(f'  Problematic field: {key}, type: {type(value)}')
+            import traceback
+            self.get_logger().error(f'Traceback: {traceback.format_exc()}')
             self.stats['errors'] += 1
 
     def log_statistics(self):
