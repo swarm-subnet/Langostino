@@ -290,8 +290,16 @@ class BlackBoxRecorderNode(Node):
         result = {}
 
         # Handle Float32MultiArray
-        if hasattr(msg, 'data') and isinstance(msg.data, (list, tuple)):
-            return {'data': list(msg.data)}
+        if hasattr(msg, 'data'):
+            data = msg.data
+            # Convert numpy arrays to lists
+            if isinstance(data, np.ndarray):
+                return {'data': data.tolist()}
+            elif isinstance(data, (list, tuple)):
+                return {'data': list(data)}
+            # Check if it has array-like interface
+            elif hasattr(data, 'tolist'):
+                return {'data': data.tolist()}
 
         # Handle ROS2 messages using get_fields_and_field_types()
         if hasattr(msg, 'get_fields_and_field_types'):
@@ -328,9 +336,25 @@ class BlackBoxRecorderNode(Node):
 
     def _convert_value(self, value: Any) -> Any:
         """Convert a value to JSON-serializable format"""
-        # Handle numpy arrays
+        # Handle None
+        if value is None:
+            return None
+
+        # Handle numpy arrays first (before checking other properties)
         if isinstance(value, np.ndarray):
             return value.tolist()
+
+        # Handle array.array and other array-like objects with tolist()
+        if hasattr(value, 'tolist') and callable(getattr(value, 'tolist')):
+            try:
+                return value.tolist()
+            except Exception:
+                pass  # Fall through to other checks
+
+        # Handle numpy scalar types
+        if type(value).__module__ == 'numpy':
+            if hasattr(value, 'item'):
+                return value.item()
 
         # Handle nested ROS messages
         if hasattr(value, 'get_fields_and_field_types') or hasattr(value, '__slots__'):
@@ -338,32 +362,47 @@ class BlackBoxRecorderNode(Node):
 
         # Handle lists/tuples
         if isinstance(value, (list, tuple)):
-            # Check if it's a list of messages
-            if len(value) > 0 and (hasattr(value[0], 'get_fields_and_field_types') or hasattr(value[0], '__slots__')):
-                return [self._msg_to_dict(item) for item in value]
-            # Check if it contains numpy arrays
-            elif len(value) > 0 and isinstance(value[0], np.ndarray):
-                return [item.tolist() for item in value]
-            else:
-                return list(value)
+            converted_list = []
+            for item in value:
+                converted_list.append(self._convert_value(item))
+            return converted_list
 
-        # Handle other numpy types
-        if hasattr(value, 'item'):  # numpy scalar types
-            return value.item()
+        # Handle bytes
+        if isinstance(value, bytes):
+            return list(value)
 
-        # Return primitive types as-is
-        return value
+        # Handle primitive types (int, float, str, bool)
+        if isinstance(value, (int, float, str, bool)):
+            return value
+
+        # Last resort: try to convert to string
+        try:
+            # Check if it's JSON serializable
+            json.dumps(value)
+            return value
+        except (TypeError, ValueError):
+            # Convert to string as last resort
+            return str(value)
 
     def log_snapshot(self):
         """Log a snapshot of all latest values (called every 0.1s)"""
         try:
             self.observation_counter += 1
 
+            # Convert all data to JSON-serializable format
+            converted_data = {}
+            for key, value in self.latest_data.items():
+                try:
+                    converted_data[key] = self._convert_value(value)
+                except Exception as e:
+                    self.get_logger().error(f'Error converting {key}: {e}, type: {type(value)}')
+                    converted_data[key] = str(value)
+
             # Create snapshot entry
             entry = {
                 'observation_number': self.observation_counter,
                 'timestamp': datetime.now(timezone.utc).isoformat(),
-                'data': dict(self.latest_data)  # Copy of all latest values
+                'data': converted_data
             }
 
             # Write to file
@@ -384,7 +423,14 @@ class BlackBoxRecorderNode(Node):
                 self.create_new_log_file()
 
         except Exception as e:
+            # More detailed error logging
             self.get_logger().error(f'Error logging snapshot: {e}')
+            # Try to identify the problematic field
+            for key, value in self.latest_data.items():
+                try:
+                    json.dumps({key: value})
+                except Exception:
+                    self.get_logger().error(f'  Problematic field: {key}, type: {type(value)}')
             self.stats['errors'] += 1
 
     def log_statistics(self):
