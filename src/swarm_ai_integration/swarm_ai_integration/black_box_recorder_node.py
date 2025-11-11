@@ -28,6 +28,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
@@ -306,19 +307,8 @@ class BlackBoxRecorderNode(Node):
                     if value is None:
                         continue
 
-                    # Recursively handle nested messages
-                    if hasattr(value, 'get_fields_and_field_types'):
-                        result[field_name] = self._msg_to_dict(value)
-                    # Handle arrays/lists
-                    elif isinstance(value, (list, tuple)):
-                        # Check if it's a list of messages
-                        if len(value) > 0 and hasattr(value[0], 'get_fields_and_field_types'):
-                            result[field_name] = [self._msg_to_dict(item) for item in value]
-                        else:
-                            result[field_name] = list(value)
-                    # Handle primitive types
-                    else:
-                        result[field_name] = value
+                    # Convert value to JSON-serializable format
+                    result[field_name] = self._convert_value(value)
 
             except Exception:
                 # Fallback to __slots__ if get_fields_and_field_types fails
@@ -332,14 +322,37 @@ class BlackBoxRecorderNode(Node):
                 value = getattr(msg, slot, None)
                 if value is None:
                     continue
-                if hasattr(value, '__slots__') or hasattr(value, 'get_fields_and_field_types'):
-                    result[slot] = self._msg_to_dict(value)
-                elif isinstance(value, (list, tuple)):
-                    result[slot] = list(value)
-                else:
-                    result[slot] = value
+                result[slot] = self._convert_value(value)
 
         return result
+
+    def _convert_value(self, value: Any) -> Any:
+        """Convert a value to JSON-serializable format"""
+        # Handle numpy arrays
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+
+        # Handle nested ROS messages
+        if hasattr(value, 'get_fields_and_field_types') or hasattr(value, '__slots__'):
+            return self._msg_to_dict(value)
+
+        # Handle lists/tuples
+        if isinstance(value, (list, tuple)):
+            # Check if it's a list of messages
+            if len(value) > 0 and (hasattr(value[0], 'get_fields_and_field_types') or hasattr(value[0], '__slots__')):
+                return [self._msg_to_dict(item) for item in value]
+            # Check if it contains numpy arrays
+            elif len(value) > 0 and isinstance(value[0], np.ndarray):
+                return [item.tolist() for item in value]
+            else:
+                return list(value)
+
+        # Handle other numpy types
+        if hasattr(value, 'item'):  # numpy scalar types
+            return value.item()
+
+        # Return primitive types as-is
+        return value
 
     def log_snapshot(self):
         """Log a snapshot of all latest values (called every 0.1s)"""
