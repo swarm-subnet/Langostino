@@ -320,7 +320,7 @@ class BlackBoxRecorderNode(Node):
                     else:
                         result[field_name] = value
 
-            except Exception as e:
+            except Exception:
                 # Fallback to __slots__ if get_fields_and_field_types fails
                 pass
 
