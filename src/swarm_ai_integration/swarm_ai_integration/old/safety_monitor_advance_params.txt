@@ -1,0 +1,53 @@
+safety_monitor_node:
+  ros__parameters:
+    # Attitude Limits (Roll/Pitch/Yaw Safety)
+    max_roll_angle: 30.0                # Maximum roll angle (degrees)
+    max_pitch_angle: 30.0               # Maximum pitch angle (degrees)
+    max_attitude_rate: 180.0            # Maximum attitude rate (degrees/s)
+    sustained_tilt_time: 3.0            # Time threshold for sustained tilt (seconds)
+
+    # Altitude & Velocity Limits
+    min_altitude: 0.3                   # Minimum altitude - ground proximity (meters)
+    max_altitude: 50.0                  # Maximum flight altitude (meters)
+    max_ascent_rate: 3.0                # Maximum ascent rate (m/s)
+    max_descent_rate: 2.0               # Maximum descent rate (m/s)
+    max_horizontal_velocity: 5.0        # Maximum horizontal velocity (m/s)
+    rapid_altitude_change_threshold: 5.0 # Rapid altitude change threshold (m/s²)
+
+    # Control Authority (Motor Saturation)
+    motor_saturation_threshold: 95.0    # Motor saturation threshold (% of max RPM)
+    motor_saturation_time: 2.0          # Time threshold for saturation (seconds)
+    motor_failure_rpm_threshold: 500    # RPM threshold for motor failure detection
+
+    # GPS Health Monitoring
+    min_satellites: 6                   # Minimum GPS satellites for valid fix
+    max_hdop: 2.0                       # Maximum HDOP (Horizontal Dilution of Precision)
+    gps_jump_threshold: 10.0            # GPS position jump detection threshold (meters)
+
+    # Battery Safety
+    min_battery_voltage: 14.0           # Critical battery voltage (volts) - triggers RTH
+    warning_battery_voltage: 14.8       # Warning battery voltage (volts) - early warning
+    battery_sag_threshold: 0.5          # Voltage sag detection threshold (volts)
+    rth_battery_reserve: 1.0            # RTH battery reserve (volts above critical)
+    default_safe_battery_voltage: 16.0  # Default safe voltage when no data (volts)
+    battery_timeout_multiplier: 5       # Multiplier for battery data timeout
+
+    # Geofencing (Horizontal Boundaries)
+    max_distance_from_home: 100.0       # Maximum distance from home (meters) - hard limit
+    geofence_warning_distance: 80.0     # Geofence warning distance (meters)
+
+    # Obstacle Proximity (LiDAR Collision Avoidance)
+    obstacle_emergency_distance: 0.5    # Emergency obstacle distance (meters)
+    obstacle_warning_distance: 2.0      # Warning obstacle distance (meters)
+    max_ray_distance: 20.0              # Maximum LiDAR range (meters) - MUST MATCH ai_adapter_node
+    default_safe_lidar_distance: 10.0   # Default safe LiDAR distance when no data (meters)
+
+    # Communication & Mission Timeouts
+    communication_timeout: 2.0          # Communication timeout for critical topics (seconds)
+    mission_timeout: 300.0              # Maximum mission duration (seconds) - 5 minutes
+    waypoint_stuck_time: 30.0           # Time threshold for waypoint stuck detection (seconds)
+
+    # System Configuration
+    monitor_rate: 20.0                  # Safety monitoring rate (Hz) - increased for better response
+    qos_depth: 1                        # QoS depth for safety topics
+    violation_history_size: 100         # Number of violations to keep in history

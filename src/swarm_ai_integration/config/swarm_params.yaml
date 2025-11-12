@@ -41,37 +41,26 @@ ai_flight_node:
     qos_depth: 1                        # QoS depth for AI topics
 
 # ═══════════════════════════════════════════════════════════════════
-# Safety Monitor Node Parameters
+# Safety Monitor Node Parameters - Simple Safety System
 # ═══════════════════════════════════════════════════════════════════
 safety_monitor_node:
   ros__parameters:
-    # Altitude limits
-    max_altitude: 10.0                  # Maximum flight altitude (meters)
-    min_altitude: 0.0                   # Minimum flight altitude (meters)
+    # Attitude Limits
+    max_roll_angle: 30.0                # Maximum roll angle (degrees)
+    max_pitch_angle: 30.0               # Maximum pitch angle (degrees)
 
-    # Velocity limits
-    max_velocity: 0.1                   # Maximum velocity before override (m/s)
-
-    # Battery monitoring
-    min_battery_voltage: 14.0           # Minimum battery voltage (volts)
-    default_safe_battery_voltage: 16.0  # Default safe battery voltage when no data (volts)
-    battery_timeout_multiplier: 5       # Multiplier for battery data timeout
+    # Altitude Limits
+    min_altitude: 0.5                   # Minimum altitude (meters)
+    max_altitude: 10.0                  # Maximum altitude (meters)
 
     # Geofencing
-    max_distance_from_home: 100.0       # Maximum distance from takeoff point (meters)
+    max_distance_from_home: 50.0       # Maximum distance from home (meters)
 
-    # Obstacle avoidance
-    obstacle_danger_distance: 1.0       # Danger distance from obstacles (meters)
-    default_safe_lidar_distance: 10.0   # Default safe LiDAR distance when no data (meters)
-    max_ray_distance: 20.0              # Maximum LiDAR range for normalization (meters) - MUST MATCH ai_adapter_node
+    # Safety Action Timing
+    hover_duration: 3.0                 # Hover duration before landing (seconds)
 
-    # Communication monitoring
-    communication_timeout: 2.0          # Communication timeout (seconds)
-
-    # System monitoring
-    monitor_rate: 10.0                  # Safety monitoring rate (Hz)
-
-    # QoS settings
+    # System Configuration
+    monitor_rate: 20.0                  # Safety monitoring rate (Hz)
     qos_depth: 1                        # QoS depth for safety topics
 
 # ═══════════════════════════════════════════════════════════════════
