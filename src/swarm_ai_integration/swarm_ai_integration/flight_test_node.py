@@ -40,15 +40,15 @@ class FlightTestNode(Node):
     """
     Node that executes a hardcoded flight test sequence.
 
-    RC Channel Mapping:
+    RC Channel Mapping (AETR + AUX):
     - CH1 (index 0): Roll
     - CH2 (index 1): Pitch
-    - CH3 (index 2): Throttle
+    - CH3 (index 2): Throttle (MUST be 1000 when arming!)
     - CH4 (index 3): Yaw
-    - CH5 (index 4): Arm/Disarm (2000 = armed)
+    - CH5 (index 4): Arm/Disarm (1800 = armed, >1700)
     - CH6 (index 5): Angle Mode (1500 = enabled)
-    - CH7 (index 6): Alt Hold (2000 = enabled)
-    - CH8 (index 7): MSP Override (1800 = enabled, must be >1700)
+    - CH7 (index 6): Alt Hold (1800 = enabled, >1700)
+    - CH8 (index 7): MSP Override (1800 = enabled, MUST be >1700)
     """
 
     def __init__(self):
@@ -77,16 +77,18 @@ class FlightTestNode(Node):
         self.phase_duration = self.get_parameter('phase_duration_sec').value
         self.startup_delay = self.get_parameter('startup_delay_sec').value
 
-        # RC values for the test
+        # RC values for the test (based on working old tests)
         self.RC_NEUTRAL = 1500
+        self.RC_THROTTLE_LOW = 1000  # CRITICAL: Must be low when arming!
         self.RC_THROTTLE_UP = 1520
         self.RC_THROTTLE_DOWN = 1480
         self.RC_ROLL_RIGHT = 1520
         self.RC_ROLL_LEFT = 1480
-        self.RC_ARM = 2000
+        self.RC_ARM = 1800  # >1700 to arm (was 2000, but tests use 1800)
         self.RC_DISARM = 1000
         self.RC_ANGLE_MODE = 1500
-        self.RC_ALT_HOLD = 2000
+        self.RC_ALT_HOLD_OFF = 1500  # Alt Hold disabled during arming
+        self.RC_ALT_HOLD_ON = 1800   # Alt Hold enabled during flight (>1700)
         self.RC_MSP_OVERRIDE = 1800
 
         # State tracking
@@ -165,23 +167,26 @@ class FlightTestNode(Node):
         """Execute RC commands for the current flight phase"""
 
         if self.current_phase == FlightPhase.ARMED:
-            # Armed and ready - waiting for user to start sequence
+            # Armed with THROTTLE LOW (required for arming), Alt Hold OFF
+            # This matches the working old tests: [1500, 1500, 1000, 1500, 1800, 1500, 1500, 1800]
             self.publish_rc_command(
                 roll=self.RC_NEUTRAL,
                 pitch=self.RC_NEUTRAL,
-                throttle=self.RC_NEUTRAL,
+                throttle=self.RC_THROTTLE_LOW,  # CRITICAL: Must be 1000 to arm!
                 yaw=self.RC_NEUTRAL,
-                armed=True
+                armed=True,
+                alt_hold=False  # Keep Alt Hold off during arming
             )
 
         elif self.current_phase == FlightPhase.THROTTLE_UP:
-            # Throttle up to lift off
+            # Throttle up to lift off with Alt Hold enabled
             self.publish_rc_command(
                 roll=self.RC_NEUTRAL,
                 pitch=self.RC_NEUTRAL,
                 throttle=self.RC_THROTTLE_UP,
                 yaw=self.RC_NEUTRAL,
-                armed=True
+                armed=True,
+                alt_hold=True  # Enable Alt Hold for flight
             )
 
         elif self.current_phase == FlightPhase.ROLL_RIGHT:
@@ -191,7 +196,8 @@ class FlightTestNode(Node):
                 pitch=self.RC_NEUTRAL,
                 throttle=self.RC_THROTTLE_UP,
                 yaw=self.RC_NEUTRAL,
-                armed=True
+                armed=True,
+                alt_hold=True
             )
 
         elif self.current_phase == FlightPhase.ROLL_CENTER_1:
@@ -201,7 +207,8 @@ class FlightTestNode(Node):
                 pitch=self.RC_NEUTRAL,
                 throttle=self.RC_THROTTLE_UP,
                 yaw=self.RC_NEUTRAL,
-                armed=True
+                armed=True,
+                alt_hold=True
             )
 
         elif self.current_phase == FlightPhase.ROLL_LEFT:
@@ -211,7 +218,8 @@ class FlightTestNode(Node):
                 pitch=self.RC_NEUTRAL,
                 throttle=self.RC_THROTTLE_UP,
                 yaw=self.RC_NEUTRAL,
-                armed=True
+                armed=True,
+                alt_hold=True
             )
 
         elif self.current_phase == FlightPhase.ROLL_CENTER_2:
@@ -221,7 +229,8 @@ class FlightTestNode(Node):
                 pitch=self.RC_NEUTRAL,
                 throttle=self.RC_THROTTLE_UP,
                 yaw=self.RC_NEUTRAL,
-                armed=True
+                armed=True,
+                alt_hold=True
             )
 
         elif self.current_phase == FlightPhase.THROTTLE_DOWN:
@@ -231,7 +240,8 @@ class FlightTestNode(Node):
                 pitch=self.RC_NEUTRAL,
                 throttle=self.RC_THROTTLE_DOWN,
                 yaw=self.RC_NEUTRAL,
-                armed=True
+                armed=True,
+                alt_hold=True
             )
 
         elif self.current_phase == FlightPhase.COMPLETE:
@@ -244,7 +254,7 @@ class FlightTestNode(Node):
                 armed=False
             )
 
-    def publish_rc_command(self, roll, pitch, throttle, yaw, armed):
+    def publish_rc_command(self, roll, pitch, throttle, yaw, armed, alt_hold=False):
         """
         Publish RC override command to flight controller
 
@@ -254,6 +264,7 @@ class FlightTestNode(Node):
             throttle: RC value for throttle (1000-2000)
             yaw: RC value for yaw (1000-2000)
             armed: Boolean indicating if drone should be armed
+            alt_hold: Boolean indicating if alt hold should be enabled
         """
         msg = Float32MultiArray()
 
@@ -269,7 +280,7 @@ class FlightTestNode(Node):
         # Set mode and arming channels
         channels[4] = float(self.RC_ARM if armed else self.RC_DISARM)  # CH5 - Arm
         channels[5] = float(self.RC_ANGLE_MODE)                        # CH6 - Angle Mode
-        channels[6] = float(self.RC_ALT_HOLD)                          # CH7 - Alt Hold
+        channels[6] = float(self.RC_ALT_HOLD_ON if alt_hold else self.RC_ALT_HOLD_OFF)  # CH7 - Alt Hold
         channels[7] = float(self.RC_MSP_OVERRIDE)                      # CH8 - MSP Override
 
         msg.data = channels

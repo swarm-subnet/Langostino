@@ -50,7 +50,7 @@ safety_monitor_node:
     max_pitch_angle: 30.0               # Maximum pitch angle (degrees)
 
     # Altitude Limits
-    min_altitude: 0.5                   # Minimum altitude (meters)
+    min_altitude: 0.0                   # Minimum altitude (meters)
     max_altitude: 10.0                  # Maximum altitude (meters)
 
     # Geofencing
