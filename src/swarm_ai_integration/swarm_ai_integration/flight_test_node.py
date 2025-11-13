@@ -70,11 +70,13 @@ class FlightTestNode(Node):
 
         # Flight test parameters
         self.declare_parameter('publish_rate_hz', 40.0)  # Match FC adapter rate
-        self.declare_parameter('phase_duration_sec', 2.0)  # Duration for each action
+        self.declare_parameter('phase_duration_sec', 2.0)  # Duration for each flight action
+        self.declare_parameter('arm_duration_sec', 10.0)  # Duration for ARM phase (must be longer!)
         self.declare_parameter('startup_delay_sec', 3.0)  # Delay before starting sequence
 
         self.publish_rate = self.get_parameter('publish_rate_hz').value
         self.phase_duration = self.get_parameter('phase_duration_sec').value
+        self.arm_duration = self.get_parameter('arm_duration_sec').value
         self.startup_delay = self.get_parameter('startup_delay_sec').value
 
         # RC values for the test (based on working old tests)
@@ -106,19 +108,20 @@ class FlightTestNode(Node):
         self.get_logger().info('Flight Test Node Initialized')
         self.get_logger().info('='*60)
         self.get_logger().info(f'Publish rate: {self.publish_rate} Hz')
-        self.get_logger().info(f'Phase duration: {self.phase_duration} sec')
+        self.get_logger().info(f'Flight action duration: {self.phase_duration} sec')
+        self.get_logger().info(f'ARM duration: {self.arm_duration} sec')
         self.get_logger().info(f'Startup delay: {self.startup_delay} sec')
         self.get_logger().info('')
         self.get_logger().info('Test Sequence:')
-        self.get_logger().info('  1. Startup delay (3 sec)')
-        self.get_logger().info('  2. Arm + Setup modes')
-        self.get_logger().info('  3. Throttle UP to 1520 (2 sec)')
-        self.get_logger().info('  4. Roll RIGHT to 1520 (2 sec)')
-        self.get_logger().info('  5. Roll CENTER to 1500 (2 sec)')
-        self.get_logger().info('  6. Roll LEFT to 1480 (2 sec)')
-        self.get_logger().info('  7. Roll CENTER to 1500 (2 sec)')
-        self.get_logger().info('  8. Throttle DOWN to 1480 (2 sec)')
-        self.get_logger().info('  9. Test complete')
+        self.get_logger().info(f'  1. Startup delay ({self.startup_delay} sec)')
+        self.get_logger().info(f'  2. ARM with throttle LOW ({self.arm_duration} sec) - CRITICAL!')
+        self.get_logger().info(f'  3. Throttle UP to 1520 ({self.phase_duration} sec)')
+        self.get_logger().info(f'  4. Roll RIGHT to 1520 ({self.phase_duration} sec)')
+        self.get_logger().info(f'  5. Roll CENTER to 1500 ({self.phase_duration} sec)')
+        self.get_logger().info(f'  6. Roll LEFT to 1480 ({self.phase_duration} sec)')
+        self.get_logger().info(f'  7. Roll CENTER to 1500 ({self.phase_duration} sec)')
+        self.get_logger().info(f'  8. Throttle DOWN to 1480 ({self.phase_duration} sec)')
+        self.get_logger().info('  9. Disarm and complete')
         self.get_logger().info('')
         self.get_logger().info('Black box will automatically record all commands')
         self.get_logger().info('='*60)
@@ -154,11 +157,15 @@ class FlightTestNode(Node):
         if self.phase_start_time is not None:
             phase_elapsed = current_time - self.phase_start_time
 
-            # Auto-advance phases based on duration (except ARMED and COMPLETE)
-            if self.current_phase != FlightPhase.ARMED and \
-               self.current_phase != FlightPhase.COMPLETE and \
-               phase_elapsed >= self.phase_duration:
-                self.advance_to_next_phase()
+            # Auto-advance phases based on duration
+            if self.current_phase == FlightPhase.ARMED:
+                # ARMED phase uses longer arm_duration
+                if phase_elapsed >= self.arm_duration:
+                    self.advance_to_next_phase()
+            elif self.current_phase != FlightPhase.COMPLETE:
+                # Other phases use standard phase_duration
+                if phase_elapsed >= self.phase_duration:
+                    self.advance_to_next_phase()
 
         # Execute current phase
         self.execute_current_phase()

@@ -48,7 +48,13 @@ def generate_launch_description():
     phase_duration_arg = DeclareLaunchArgument(
         'phase_duration',
         default_value='2.0',
-        description='Duration of each flight phase in seconds'
+        description='Duration of each flight action in seconds'
+    )
+
+    arm_duration_arg = DeclareLaunchArgument(
+        'arm_duration',
+        default_value='10.0',
+        description='Duration for ARM phase in seconds (minimum 5-10 seconds recommended)'
     )
 
     startup_delay_arg = DeclareLaunchArgument(
@@ -77,6 +83,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'phase_duration_sec': LaunchConfiguration('phase_duration'),
+            'arm_duration_sec': LaunchConfiguration('arm_duration'),
             'startup_delay_sec': LaunchConfiguration('startup_delay'),
             'publish_rate_hz': LaunchConfiguration('publish_rate'),
         }],
@@ -107,6 +114,7 @@ def generate_launch_description():
     return LaunchDescription([
         # Arguments
         phase_duration_arg,
+        arm_duration_arg,
         startup_delay_arg,
         publish_rate_arg,
         use_fc_comms_arg,
