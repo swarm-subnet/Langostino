@@ -52,9 +52,18 @@ sudo systemctl stop hostapd || true
 ###############################################
 echo "[Swarm Setup] Handling systemd-resolved port 53 conflict..."
 
+# Function to check port 53
+check_port_53() {
+    if sudo lsof -i:53 2>/dev/null | grep -q "LISTEN"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Check if systemd-resolved is using port 53
-if sudo lsof -i:53 | grep -q systemd-r; then
-    echo "[Swarm Setup] systemd-resolved detected on port 53, disabling DNS stub listener..."
+if check_port_53; then
+    echo "[Swarm Setup] Port 53 is in use, configuring systemd-resolved..."
     
     # Configure systemd-resolved to not use port 53
     sudo mkdir -p /etc/systemd/resolved.conf.d/
@@ -76,8 +85,8 @@ EOF
     sleep 3
     
     # Verify port 53 is free
-    if sudo lsof -i:53 | grep -q "LISTEN"; then
-        echo "[Swarm Setup] WARNING: Port 53 still in use, attempting to stop systemd-resolved..."
+    if check_port_53; then
+        echo "[Swarm Setup] WARNING: Port 53 still in use, stopping systemd-resolved..."
         sudo systemctl stop systemd-resolved
         sudo systemctl disable systemd-resolved
         
@@ -87,11 +96,24 @@ nameserver 8.8.8.8
 nameserver 8.8.4.4
 nameserver 1.1.1.1
 EOF
+        # Fix hostname resolution
+        echo "127.0.1.1 ubuntu" | sudo tee -a /etc/hosts > /dev/null
     fi
 fi
 
 ###############################################
-# 3. CHECK AND UNMASK HOSTAPD IF NEEDED
+# 3. FIX HOSTNAME RESOLUTION
+###############################################
+echo "[Swarm Setup] Fixing hostname resolution..."
+
+# Ensure hostname is in /etc/hosts
+HOSTNAME=$(hostname)
+if ! grep -q "127.0.1.1.*$HOSTNAME" /etc/hosts; then
+    echo "127.0.1.1 $HOSTNAME" | sudo tee -a /etc/hosts > /dev/null
+fi
+
+###############################################
+# 4. CHECK AND UNMASK HOSTAPD IF NEEDED
 ###############################################
 echo "[Swarm Setup] Checking hostapd service status..."
 
@@ -106,35 +128,38 @@ sudo systemctl disable dnsmasq || true
 sudo systemctl disable hostapd || true
 
 ###############################################
-# 4. CONFIGURE NETPLAN
+# 5. CONFIGURE NETPLAN (FIXED VERSION)
 ###############################################
 echo "[Swarm Setup] Configuring Netplan..."
 
 NETPLAN_FILE="/etc/netplan/99-swarm-network.yaml"
 
+# Create proper netplan configuration without access points requirement
 sudo bash -c "cat > $NETPLAN_FILE" <<EOF
 network:
   version: 2
   renderer: networkd
-
   ethernets:
     eth0:
       dhcp4: no
       addresses:
         - 192.168.10.1/24
-
-  wifis:
-    wlan0:
-      dhcp4: yes
       optional: true
 EOF
 
+# Set correct permissions for netplan file (only root can read/write)
+sudo chmod 600 $NETPLAN_FILE
+sudo chown root:root $NETPLAN_FILE
+
 echo "[Swarm Setup] Applying netplan configuration..."
 sudo netplan generate
-sudo netplan apply
+sudo netplan apply || true  # Continue even if netplan apply has warnings
+
+# Note: wlan0 will be managed by hostapd when in AP mode, 
+# or by wpa_supplicant/NetworkManager when in client mode
 
 ###############################################
-# 5. DNSMASQ CONFIGURATION (permanent)
+# 6. DNSMASQ CONFIGURATION (permanent)
 ###############################################
 echo "[Swarm Setup] Dnsmasq setup..."
 
@@ -156,7 +181,7 @@ server=8.8.4.4
 EOF
 
 ###############################################
-# 6. HOSTAPD CONFIGURATION (permanent)
+# 7. HOSTAPD CONFIGURATION (permanent)
 ###############################################
 echo "[Swarm Setup] Hostapd setup..."
 
@@ -179,23 +204,25 @@ EOF
 sudo bash -c "echo 'DAEMON_CONF=\"/etc/hostapd/hostapd.conf\"' > /etc/default/hostapd"
 
 ###############################################
-# 7. CREATE KNOWN NETWORKS FILE
+# 8. CREATE KNOWN NETWORKS FILE
 ###############################################
 echo "[Swarm Setup] Creating known networks file..."
 
-sudo bash -c "cat > /etc/wifi_networks.conf" <<EOF
-# Format:
-# SSID:password
+if [ ! -f /etc/wifi_networks.conf ]; then
+    sudo bash -c "cat > /etc/wifi_networks.conf" <<EOF
+# WiFi Networks Configuration
+# Format: SSID:password
+# Example: MyNetwork:mypassword123
 EOF
+fi
 
 ###############################################
-# 8. CREATE IMPROVED WIFI MANAGER
+# 9. CREATE IMPROVED WIFI MANAGER
 ###############################################
 echo "[Swarm Setup] Creating wifi_manager.sh..."
 
 sudo bash -c "cat > /usr/local/bin/wifi_manager.sh" <<'EOF'
 #!/bin/bash
-set -e
 
 WIFI_INTERFACE="wlan0"
 CONFIG_FILE="/etc/wifi_networks.conf"
@@ -208,18 +235,18 @@ echo "[WiFi Manager] Starting network check..."
 
 # Function to check if port 53 is free
 check_port_53() {
-    if sudo lsof -i:53 | grep -q "LISTEN"; then
+    if sudo lsof -i:53 2>/dev/null | grep -q "LISTEN"; then
         echo "[WiFi Manager] Port 53 is in use, attempting to free it..."
         
         # Try to kill systemd-resolved if it's using the port
-        if sudo lsof -i:53 | grep -q systemd-r; then
+        if sudo lsof -i:53 2>/dev/null | grep -q systemd-r; then
             echo "[WiFi Manager] Stopping systemd-resolved..."
             sudo systemctl stop systemd-resolved || true
             sleep 2
         fi
         
         # Kill any remaining process on port 53
-        local pids=$(sudo lsof -ti:53)
+        local pids=$(sudo lsof -ti:53 2>/dev/null)
         if [ ! -z "$pids" ]; then
             echo "[WiFi Manager] Killing processes on port 53: $pids"
             sudo kill -9 $pids 2>/dev/null || true
@@ -256,7 +283,7 @@ start_ap_services() {
         echo "[WiFi Manager] ⚠️ Failed to start hostapd, checking if masked..."
         
         # Check and unmask if needed
-        if systemctl list-unit-files | grep -q "hostapd.service.*masked"; then
+        if systemctl list-unit-files 2>/dev/null | grep -q "hostapd.service.*masked"; then
             echo "[WiFi Manager] Unmasking hostapd..."
             sudo systemctl unmask hostapd
         fi
@@ -275,64 +302,111 @@ start_ap_services() {
     return 0
 }
 
+# Function to connect with wpa_supplicant
+connect_with_wpa() {
+    local ssid="$1"
+    local password="$2"
+    
+    echo "[WiFi Manager] Configuring wpa_supplicant for $ssid..."
+    
+    # Create wpa_supplicant configuration
+    wpa_passphrase "$ssid" "$password" | sudo tee /etc/wpa_supplicant/wpa_supplicant-wlan0.conf > /dev/null
+    
+    # Add control interface
+    sudo sed -i '1i ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\ncountry=ES\n' /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+    
+    # Start wpa_supplicant
+    sudo wpa_supplicant -B -i "$WIFI_INTERFACE" -c /etc/wpa_supplicant/wpa_supplicant-wlan0.conf 2>/dev/null
+    
+    # Wait for connection
+    sleep 5
+    
+    # Request DHCP
+    sudo dhclient "$WIFI_INTERFACE" 2>/dev/null
+    
+    # Check if connected
+    if ip addr show "$WIFI_INTERFACE" | grep -q "inet "; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Deactivate AP services first
 sudo systemctl stop hostapd 2>/dev/null || true
 sudo systemctl stop dnsmasq 2>/dev/null || true
 
+# Kill any existing wpa_supplicant
+sudo killall wpa_supplicant 2>/dev/null || true
+
+CONNECTED=false
+
 # Check if we have NetworkManager
 if command -v nmcli &> /dev/null; then
-    # Scan for available networks using NetworkManager
+    echo "[WiFi Manager] Using NetworkManager..."
+    
+    # Scan for available networks
     AVAILABLE=$(nmcli -t -f SSID dev wifi list 2>/dev/null | sort | uniq)
-    echo "[WiFi Manager] Detected networks:"
-    echo "$AVAILABLE"
     
-    CONNECTED=false
+    if [ ! -z "$AVAILABLE" ]; then
+        echo "[WiFi Manager] Detected networks:"
+        echo "$AVAILABLE"
+        
+        # Try to connect to known networks
+        if [ -f "$CONFIG_FILE" ]; then
+            while IFS=: read -r SSID PASSWORD; do
+                # Skip empty lines and comments
+                [[ -z "$SSID" || "$SSID" =~ ^# ]] && continue
+                
+                if echo "$AVAILABLE" | grep -qx "$SSID"; then
+                    echo "[WiFi Manager] Trying to connect to $SSID..."
+                    if nmcli dev wifi connect "$SSID" password "$PASSWORD" ifname "$WIFI_INTERFACE" 2>/dev/null; then
+                        CONNECTED=true
+                        echo "[WiFi Manager] ✅ Connected to $SSID"
+                        break
+                    fi
+                fi
+            done < "$CONFIG_FILE"
+        fi
+    fi
+else
+    echo "[WiFi Manager] NetworkManager not found, using wpa_supplicant..."
     
-    # Try to connect to known networks
+    # Try wpa_supplicant for known networks
     if [ -f "$CONFIG_FILE" ]; then
+        # Bring up the interface
+        sudo ip link set "$WIFI_INTERFACE" up
+        
+        # Scan for networks
+        SCAN_RESULT=$(sudo iw "$WIFI_INTERFACE" scan 2>/dev/null | grep "SSID:" | sed 's/.*SSID: //')
+        
         while IFS=: read -r SSID PASSWORD; do
             # Skip empty lines and comments
             [[ -z "$SSID" || "$SSID" =~ ^# ]] && continue
             
-            if echo "$AVAILABLE" | grep -qx "$SSID"; then
-                echo "[WiFi Manager] Trying to connect to $SSID..."
-                if nmcli dev wifi connect "$SSID" password "$PASSWORD" ifname "$WIFI_INTERFACE" 2>/dev/null; then
+            if echo "$SCAN_RESULT" | grep -q "$SSID"; then
+                echo "[WiFi Manager] Found known network: $SSID"
+                if connect_with_wpa "$SSID" "$PASSWORD"; then
                     CONNECTED=true
+                    echo "[WiFi Manager] ✅ Connected to $SSID"
                     break
                 fi
             fi
         done < "$CONFIG_FILE"
     fi
-    
-    if [ "$CONNECTED" = true ]; then
-        echo "[WiFi Manager] ✅ Successfully connected to a known network."
-    else
-        echo "[WiFi Manager] ⚠️ No known network found, creating Access Point..."
-        
-        # Configure interface for AP mode
-        sudo ip link set $WIFI_INTERFACE down
-        sudo ip addr flush dev $WIFI_INTERFACE
-        sudo ip addr add $AP_IP/24 dev $WIFI_INTERFACE
-        sudo ip link set $WIFI_INTERFACE up
-        
-        # Start AP services with error handling
-        if start_ap_services; then
-            echo "[WiFi Manager] ✅ AP active: SSID=$AP_SSID, PASS=$AP_PASS"
-        else
-            echo "[WiFi Manager] ❌ Failed to start AP mode"
-            exit 1
-        fi
-    fi
-else
-    echo "[WiFi Manager] NetworkManager not found, starting AP mode directly..."
+fi
+
+# If not connected, start AP mode
+if [ "$CONNECTED" = false ]; then
+    echo "[WiFi Manager] No known network available, starting Access Point..."
     
     # Configure interface for AP mode
-    sudo ip link set $WIFI_INTERFACE down
-    sudo ip addr flush dev $WIFI_INTERFACE
-    sudo ip addr add $AP_IP/24 dev $WIFI_INTERFACE
-    sudo ip link set $WIFI_INTERFACE up
+    sudo ip link set "$WIFI_INTERFACE" down
+    sudo ip addr flush dev "$WIFI_INTERFACE"
+    sudo ip addr add "$AP_IP/24" dev "$WIFI_INTERFACE"
+    sudo ip link set "$WIFI_INTERFACE" up
     
-    # Start AP services with error handling
+    # Start AP services
     if start_ap_services; then
         echo "[WiFi Manager] ✅ AP active: SSID=$AP_SSID, PASS=$AP_PASS"
     else
@@ -345,14 +419,51 @@ EOF
 sudo chmod +x /usr/local/bin/wifi_manager.sh
 
 ###############################################
-# 9. SYSTEMD SERVICE FOR WIFI MANAGER
+# 10. CREATE WIFI CONNECTION HELPER
+###############################################
+echo "[Swarm Setup] Creating wifi connection helper..."
+
+sudo bash -c "cat > /usr/local/bin/wifi_connect.sh" <<'EOF'
+#!/bin/bash
+# Helper script to add and connect to WiFi networks
+
+CONFIG_FILE="/etc/wifi_networks.conf"
+
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <SSID> <PASSWORD>"
+    echo "Example: $0 'MyWiFi' 'mypassword123'"
+    exit 1
+fi
+
+SSID="$1"
+PASSWORD="$2"
+
+# Add to config file if not already there
+if ! grep -q "^$SSID:" "$CONFIG_FILE" 2>/dev/null; then
+    echo "$SSID:$PASSWORD" | sudo tee -a "$CONFIG_FILE" > /dev/null
+    echo "✅ Network '$SSID' added to configuration"
+else
+    echo "ℹ️ Network '$SSID' already in configuration"
+fi
+
+# Restart wifi manager to connect
+echo "Restarting WiFi manager to connect..."
+sudo systemctl restart wifi-manager.service
+
+echo "Check connection status with: sudo systemctl status wifi-manager"
+EOF
+
+sudo chmod +x /usr/local/bin/wifi_connect.sh
+
+###############################################
+# 11. SYSTEMD SERVICE FOR WIFI MANAGER
 ###############################################
 echo "[Swarm Setup] Creating systemd service for wifi_manager.sh..."
 
 sudo bash -c "cat > /etc/systemd/system/wifi-manager.service" <<EOF
 [Unit]
 Description=WiFi Auto Manager (client or AP)
-After=network-online.target
+After=network.target
 Wants=network-online.target
 
 [Service]
@@ -361,6 +472,8 @@ RemainAfterExit=yes
 ExecStart=/usr/local/bin/wifi_manager.sh
 Restart=on-failure
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
@@ -368,22 +481,33 @@ EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable wifi-manager.service
-sudo systemctl restart wifi-manager.service
 
 ###############################################
-# 10. TEST SERVICES
+# 12. TEST SERVICES
 ###############################################
 echo "[Swarm Setup] Testing service configurations..."
 
+# Function for testing in script
+test_check_port_53() {
+    if sudo lsof -i:53 2>/dev/null | grep -q "LISTEN"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Test if hostapd can start
 echo -n "Testing hostapd... "
+sudo systemctl stop hostapd 2>/dev/null || true
 if sudo systemctl start hostapd 2>/dev/null; then
     echo "✅ OK"
+    sudo systemctl stop hostapd
 else
     echo "⚠️ Failed, attempting to fix..."
     sudo systemctl unmask hostapd 2>/dev/null || true
     if sudo systemctl start hostapd 2>/dev/null; then
         echo "✅ Fixed and OK"
+        sudo systemctl stop hostapd
     else
         echo "❌ Still failing, check logs with: sudo journalctl -u hostapd"
     fi
@@ -391,45 +515,48 @@ fi
 
 # Test if dnsmasq can start
 echo -n "Testing dnsmasq... "
-check_port_53
-if sudo systemctl start dnsmasq 2>/dev/null; then
-    echo "✅ OK"
-else
-    echo "⚠️ Failed, attempting to fix restarting the service..."
-    if sudo systemctl restart dnsmasq 2>/dev/null; then
-        echo "✅ Fixed and OK"
-    else
-        echo "❌ Still failing, check logs with: sudo journalctl -u dnsmasq"
-    fi
+sudo systemctl stop dnsmasq 2>/dev/null || true
+
+# Free port 53 if needed
+if test_check_port_53; then
+    echo "(freeing port 53 first...)"
+    sudo systemctl stop systemd-resolved 2>/dev/null || true
+    sudo killall -9 dnsmasq 2>/dev/null || true
+    sleep 2
 fi
 
+if sudo systemctl start dnsmasq 2>/dev/null; then
+    echo "✅ OK"
+    sudo systemctl stop dnsmasq
+else
+    echo "❌ Failed, check logs with: sudo journalctl -u dnsmasq"
+fi
+
+# Start wifi-manager service
+echo "Starting WiFi manager service..."
+sudo systemctl restart wifi-manager.service
+
 ###############################################
-# 11. FINAL MESSAGE
+# 13. FINAL MESSAGE
 ###############################################
 echo ""
-echo "=============================================="
-echo "  ✔ Network setup script completed successfully"
-echo "=============================================="
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  ✅ Network Setup Completed Successfully!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "Your Swarm system network is configured as follows:"
-echo " - eth0 static IP: 192.168.10.1/24"
-echo " - wlan0 uses DHCP to connect to known networks"
-echo " - dnsmasq configured (for AP mode, not running by default)"
-echo " - hostapd configured (for AP mode, not running by default)"
-echo " - systemd-resolved conflicts handled"
+echo "Configuration:"
+echo " • eth0: Static IP 192.168.10.1/24"
+echo " • wlan0: Managed by WiFi Manager"
+echo " • AP Mode: SSID='$AP_SSID', Pass='$AP_PASS'"
 echo ""
-echo "To add known WiFi networks, edit:"
-echo "    sudo nano /etc/wifi_networks.conf"
-echo "    Format: SSID:password"
+echo "Quick Commands:"
+echo " • Add WiFi: sudo wifi_connect.sh 'SSID' 'password'"
+echo " • Check status: sudo systemctl status wifi-manager"
+echo " • View logs: sudo journalctl -u wifi-manager -f"
+echo " • Restart: sudo systemctl restart wifi-manager"
 echo ""
-echo "To start the Access Point mode manually, run:"
-echo "    sudo /usr/local/bin/wifi_manager.sh"
+echo "The system will automatically:"
+echo " 1. Try to connect to known WiFi networks"
+echo " 2. If none available, create an Access Point"
 echo ""
-echo "To check service status:"
-echo "    sudo systemctl status wifi-manager"
-echo "    sudo systemctl status dnsmasq"
-echo "    sudo systemctl status hostapd"
-echo ""
-echo "=============================================="
-echo "   ✔ Swarm Network Setup ready to go!"
-echo "=============================================="
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
