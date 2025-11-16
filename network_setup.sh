@@ -342,6 +342,7 @@ EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable wifi-manager.service
+sudo systemctl restart wifi-manager.service
 
 ###############################################
 # 10. TEST SERVICES
@@ -352,13 +353,11 @@ echo "[Swarm Setup] Testing service configurations..."
 echo -n "Testing hostapd... "
 if sudo systemctl start hostapd 2>/dev/null; then
     echo "✅ OK"
-    sudo systemctl stop hostapd
 else
     echo "⚠️ Failed, attempting to fix..."
     sudo systemctl unmask hostapd 2>/dev/null || true
     if sudo systemctl start hostapd 2>/dev/null; then
         echo "✅ Fixed and OK"
-        sudo systemctl stop hostapd
     else
         echo "❌ Still failing, check logs with: sudo journalctl -u hostapd"
     fi
@@ -369,9 +368,13 @@ echo -n "Testing dnsmasq... "
 check_port_53
 if sudo systemctl start dnsmasq 2>/dev/null; then
     echo "✅ OK"
-    sudo systemctl stop dnsmasq
 else
-    echo "❌ Failed, check logs with: sudo journalctl -u dnsmasq"
+    echo "⚠️ Failed, attempting to fix restarting the service..."
+    if sudo systemctl restart dnsmasq 2>/dev/null; then
+        echo "✅ Fixed and OK"
+    else
+        echo "❌ Still failing, check logs with: sudo journalctl -u dnsmasq"
+    fi
 fi
 
 ###############################################
