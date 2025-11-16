@@ -451,6 +451,33 @@ EOF
 }
 
 ################################################################################
+# Network Configuration
+################################################################################
+
+configure_network() {
+    print_header "Configuring Network Settings"
+
+    local NETWORK_SETUP_SCRIPT="$WORKSPACE_DIR/network_setup.sh"
+
+    if [[ ! -f "$NETWORK_SETUP_SCRIPT" ]]; then
+        print_warning "Network setup script not found: $NETWORK_SETUP_SCRIPT"
+        print_info "Skipping network configuration"
+        return
+    fi
+
+    print_info "Running network setup script..."
+    chmod +x "$NETWORK_SETUP_SCRIPT"
+    bash "$NETWORK_SETUP_SCRIPT"
+
+    if [[ $? -eq 0 ]]; then
+        print_success "Network configuration completed successfully"
+    else
+        print_error "Network configuration failed"
+        print_warning "Continuing with setup (network configuration is optional)"
+    fi
+}
+
+################################################################################
 # Hardware Checks
 ################################################################################
 
@@ -750,6 +777,7 @@ main() {
 
     configure_i2c
     configure_uart
+    configure_network
 
     check_i2c_device
     check_uart_device

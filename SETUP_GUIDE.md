@@ -58,6 +58,7 @@ sudo ./setup.sh
 - ✅ Installs all dependencies (Python, I2C, UART)
 - ✅ Creates Python virtual environment for AI packages
 - ✅ Configures hardware permissions (I2C, UART)
+- ✅ **Configures network (WiFi AP + Ethernet static IP)**
 - ✅ **Fixes workspace ownership** (prevents permission errors)
 - ✅ Builds ROS2 workspace
 - ✅ Installs PM2 process manager (auto-start on boot)
@@ -247,7 +248,42 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
 
-### Step 6: Build ROS2 Workspace
+### Step 6: Configure Network (WiFi AP + Ethernet)
+
+```bash
+# Run the network setup script
+cd ~/swarm-ros
+chmod +x network_setup.sh
+sudo ./network_setup.sh
+```
+
+**What it configures:**
+- Static IP on `eth0`: `192.168.10.1/24`
+- DHCP on `wlan0` for connecting to known WiFi networks
+- Automatic WiFi Access Point fallback
+- AP SSID: `Swarm_AP`
+- AP Password: `swarmascend`
+- DHCP server range: `192.168.10.10 - 192.168.10.50`
+- Automatic network manager service
+
+The system will automatically:
+1. Try to connect to known WiFi networks on boot
+2. If no known network is found, create an Access Point
+3. Allow you to SSH into the drone at `192.168.10.1`
+
+To add known WiFi networks, edit `/etc/wifi_networks.conf`:
+```bash
+sudo nano /etc/wifi_networks.conf
+```
+
+Add networks in the format:
+```
+SSID:password
+MyHomeWiFi:mypassword123
+WorkNetwork:workpassword
+```
+
+### Step 7: Build ROS2 Workspace
 
 ```bash
 cd ~/swarm-ros
@@ -256,7 +292,7 @@ rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
 ```
 
-### Step 7: Configure Environment
+### Step 8: Configure Environment
 
 Add to `~/.bashrc`:
 
@@ -335,6 +371,93 @@ ls -l /dev/ttyAMA0
 ```
 
 Should show device with `crw-rw----` permissions and group `dialout`.
+
+### Network Setup
+
+The Swarm system is configured with a dual-network setup for maximum flexibility:
+
+#### Network Interfaces
+
+| Interface | Mode | IP Address | Purpose |
+|-----------|------|------------|---------|
+| `eth0` | Static IP | `192.168.10.1/24` | Main communication interface |
+| `wlan0` | DHCP/AP | Auto/`192.168.10.1` | WiFi client or Access Point |
+
+#### WiFi Auto-Manager
+
+The system includes an automatic WiFi manager that:
+1. **Scans** for known WiFi networks on boot
+2. **Connects** to the first available known network (client mode)
+3. **Falls back** to Access Point mode if no known networks found
+
+#### Access Point Details
+
+When in AP mode:
+- **SSID**: `Swarm_AP`
+- **Password**: `swarmascend`
+- **IP Address**: `192.168.10.1`
+- **DHCP Range**: `192.168.10.10 - 192.168.10.50`
+
+#### Connect to the Swarm
+
+**Via Access Point:**
+```bash
+# Connect your laptop to Swarm_AP WiFi network
+# Password: swarmascend
+
+# SSH into the drone
+ssh pi@192.168.10.1
+```
+
+**Via Ethernet:**
+```bash
+# Connect ethernet cable to your laptop
+# Configure your laptop's ethernet to 192.168.10.x (x != 1)
+
+# SSH into the drone
+ssh pi@192.168.10.1
+```
+
+#### Add Known WiFi Networks
+
+Edit the known networks file:
+```bash
+sudo nano /etc/wifi_networks.conf
+```
+
+Add networks (one per line):
+```
+SSID:password
+MyHomeWiFi:mypassword123
+WorkNetwork:workpassword
+```
+
+Restart the WiFi manager service:
+```bash
+sudo systemctl restart wifi-manager.service
+```
+
+#### Network Service Management
+
+```bash
+# Check WiFi manager status
+sudo systemctl status wifi-manager.service
+
+# View WiFi manager logs
+sudo journalctl -u wifi-manager.service -f
+
+# Manually start Access Point
+sudo systemctl start hostapd
+sudo systemctl start dnsmasq
+
+# Manually stop Access Point
+sudo systemctl stop hostapd
+sudo systemctl stop dnsmasq
+
+# Check current network status
+ip addr show
+iwconfig
+```
 
 ---
 
@@ -519,6 +642,80 @@ python3 -m venv ~/ai_flight_node_env
 ```
 
 > **Note**: The latest setup.sh creates the venv in the correct user's home directory automatically.
+
+### Network Issues
+
+**Problem**: Cannot connect to Swarm_AP WiFi
+
+**Solution**:
+```bash
+# Check if WiFi manager service is running
+sudo systemctl status wifi-manager.service
+
+# Check if hostapd and dnsmasq are running (AP mode)
+sudo systemctl status hostapd
+sudo systemctl status dnsmasq
+
+# Restart WiFi manager
+sudo systemctl restart wifi-manager.service
+
+# Check logs
+sudo journalctl -u wifi-manager.service -f
+```
+
+**Problem**: WiFi not switching to known network
+
+**Solution**:
+```bash
+# Verify known networks file exists
+cat /etc/wifi_networks.conf
+
+# Check for typos in SSID or password
+sudo nano /etc/wifi_networks.conf
+
+# Restart WiFi manager
+sudo systemctl restart wifi-manager.service
+
+# Manually scan for networks
+nmcli dev wifi list
+```
+
+**Problem**: Ethernet connection not working
+
+**Solution**:
+```bash
+# Check eth0 configuration
+ip addr show eth0
+
+# Verify static IP is set to 192.168.10.1
+# Should show: inet 192.168.10.1/24
+
+# Check Netplan configuration
+cat /etc/netplan/99-swarm-network.yaml
+
+# Reapply Netplan configuration
+sudo netplan apply
+
+# Verify your laptop's ethernet is in the same subnet (192.168.10.x)
+```
+
+**Problem**: Cannot SSH to 192.168.10.1
+
+**Solution**:
+```bash
+# Verify you're connected to Swarm_AP or ethernet
+# Check your IP address (should be 192.168.10.x)
+ip addr
+
+# Ping the drone
+ping 192.168.10.1
+
+# Check if SSH is running on the drone
+sudo systemctl status ssh
+
+# Try connecting with verbose output
+ssh -vvv pi@192.168.10.1
+```
 
 ### Runtime Issues
 
@@ -712,9 +909,16 @@ After successful setup:
 
 ## Summary of Recent Improvements
 
-### Setup Script Enhancements (2024-11-04)
+### Setup Script Enhancements (2024-11-16)
 
 The `setup.sh` script now includes:
+
+✅ **Automatic Network Configuration**
+- Configures WiFi Access Point with automatic fallback
+- Sets up static IP on ethernet (192.168.10.1/24)
+- Automatic WiFi manager for known networks
+- Easy SSH access to drone via WiFi or ethernet
+- AP credentials: SSID=`Swarm_AP`, Password=`swarmascend`
 
 ✅ **Automatic Permission Fixes**
 - Fixes workspace ownership if run with sudo
@@ -737,6 +941,30 @@ The `setup.sh` script now includes:
 - Sets ownership appropriately
 - No more manual permission fixes needed
 
+### Network Setup Features (2024-11-16)
+
+The `network_setup.sh` script provides:
+
+✅ **Dual Network Interface**
+- `eth0`: Static IP at 192.168.10.1/24 (always available)
+- `wlan0`: Dynamic mode (client or AP)
+
+✅ **Intelligent WiFi Manager**
+- Automatically tries to connect to known WiFi networks
+- Falls back to Access Point if no known network found
+- Systemd service runs on boot
+- Easy to add new known networks
+
+✅ **Access Point Mode**
+- Automatic DHCP server (range: 192.168.10.10-50)
+- Pre-configured with sensible defaults
+- Easy to customize (SSID, password, IP range)
+
+✅ **Remote Access**
+- SSH via WiFi AP or ethernet
+- Consistent IP address (192.168.10.1)
+- No need for monitor/keyboard after setup
+
 ---
 
-**Last Updated**: 2024-11-04
+**Last Updated**: 2024-11-16
