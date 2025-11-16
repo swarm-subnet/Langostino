@@ -13,6 +13,30 @@ AP_IP="192.168.10.1"
 echo "=== [Swarm Setup] Initial network configuration ==="
 
 ###############################################
+# 0. NETPLAN FIX - BACKUP EXISTING CONFIGURATIONS AND DISABLE CLOUD-INIT NETWORK MANAGEMENT
+###############################################
+echo "[Netplan Fix] Backing up existing configurations..."
+sudo mkdir -p /etc/netplan/backup
+sudo cp -f /etc/netplan/*.yaml /etc/netplan/backup/ 2>/dev/null || true
+
+echo "[Netplan Fix] Disabling cloud-init network configuration..."
+
+# Create the cloud-init disable file
+sudo bash -c "cat > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg" <<EOF
+# Disable cloud-init network configuration
+# This prevents cloud-init from overwriting our custom network setup
+network: {config: disabled}
+EOF
+
+echo "[Netplan Fix] Removing conflicting netplan files..."
+
+# Remove cloud-init generated file
+sudo rm -f /etc/netplan/50-cloud-init.yaml
+
+# Remove any other cloud-init network configs
+sudo rm -f /etc/netplan/*cloud*.yaml
+
+###############################################
 # 1. INSTALL DNSMASQ Y HOSTAPD
 ###############################################
 echo "[Swarm Setup] Installing dnsmasq and hostapd..."
@@ -105,6 +129,8 @@ network:
       optional: true
 EOF
 
+echo "[Swarm Setup] Applying netplan configuration..."
+sudo netplan generate
 sudo netplan apply
 
 ###############################################
