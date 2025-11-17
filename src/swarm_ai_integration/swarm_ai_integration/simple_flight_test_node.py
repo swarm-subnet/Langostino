@@ -155,7 +155,7 @@ class SimpleFlightTestNode(Node):
 
         try:
             # PHASE 1: ARM
-            # AETR + AUX: [ROLL, PITCH, THROTTLE, YAW, ARM, ANGLE, ALT_HOLD, MSP_OVERRIDE]
+            # AETR + AUX (16 channels total - INAV standard)
             arm_frame = [
                 self.RC_NEUTRAL,        # CH1 - Roll
                 self.RC_NEUTRAL,        # CH2 - Pitch
@@ -164,7 +164,15 @@ class SimpleFlightTestNode(Node):
                 self.RC_ARM,            # CH5 - Arm
                 self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
                 self.RC_ALT_HOLD_OFF,   # CH7 - Alt Hold OFF
-                self.RC_MSP_OVERRIDE    # CH8 - MSP Override
+                self.RC_MSP_OVERRIDE,   # CH8 - MSP Override
+                self.RC_NEUTRAL,        # CH9
+                self.RC_NEUTRAL,        # CH10
+                self.RC_NEUTRAL,        # CH11
+                self.RC_NEUTRAL,        # CH12
+                self.RC_NEUTRAL,        # CH13
+                self.RC_NEUTRAL,        # CH14
+                self.RC_NEUTRAL,        # CH15
+                self.RC_NEUTRAL         # CH16
             ]
             self.stream_for(arm_frame, self.arm_duration, 'PHASE 1: ARM')
 
@@ -177,7 +185,15 @@ class SimpleFlightTestNode(Node):
                 self.RC_ARM,
                 self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
                 self.RC_ALT_HOLD_OFF,   # CH7 - Alt Hold OFF
-                self.RC_MSP_OVERRIDE
+                self.RC_MSP_OVERRIDE,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL
             ]
             self.stream_for(rise_frame, self.rise_duration, 'PHASE 2: RISE')
 
@@ -190,7 +206,15 @@ class SimpleFlightTestNode(Node):
                 self.RC_ARM,
                 self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
                 self.RC_ALT_HOLD_ON,    # CH7 - Alt Hold ON at 1800
-                self.RC_MSP_OVERRIDE
+                self.RC_MSP_OVERRIDE,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL
             ]
             self.stream_for(hover_frame, self.hover_duration, 'PHASE 3: HOVER')
 
@@ -203,7 +227,15 @@ class SimpleFlightTestNode(Node):
                 self.RC_ARM,
                 self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
                 self.RC_ALT_HOLD_OFF,   # CH7 - Alt Hold OFF
-                self.RC_MSP_OVERRIDE
+                self.RC_MSP_OVERRIDE,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL
             ]
             self.stream_for(land_frame, self.land_duration, 'PHASE 4: LAND')
 
@@ -216,7 +248,15 @@ class SimpleFlightTestNode(Node):
                 self.RC_DISARM,         # CH5 - Disarm
                 self.RC_ANGLE_MODE,
                 self.RC_ALT_HOLD_OFF,
-                self.RC_MSP_OVERRIDE
+                self.RC_MSP_OVERRIDE,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL
             ]
             self.stream_for(disarm_frame, 1.0, 'PHASE 5: DISARM')
 
