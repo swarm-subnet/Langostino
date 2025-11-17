@@ -41,7 +41,7 @@ sudo rm -f /etc/netplan/*cloud*.yaml
 ###############################################
 echo "[Swarm Setup] Installing dnsmasq and hostapd..."
 sudo apt update
-sudo apt install -y dnsmasq hostapd
+sudo apt install -y dnsmasq hostapd wireless-tools iw
 
 # Stop services first
 sudo systemctl stop dnsmasq || true

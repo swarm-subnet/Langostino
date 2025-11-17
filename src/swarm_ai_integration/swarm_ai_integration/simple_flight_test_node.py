@@ -68,7 +68,7 @@ class SimpleFlightTestNode(Node):
         # Flight test parameters
         self.declare_parameter('publish_rate_hz', 40.0)  # Match FC adapter rate
         self.declare_parameter('arm_duration_sec', 10.0)  # Wait after arming
-        self.declare_parameter('throttle_up_duration_sec', 2.0)  # Rise duration
+        self.declare_parameter('throttle_up_duration_sec', 1.0)  # Rise duration
         self.declare_parameter('hover_duration_sec', 15.0)  # Hover duration
         self.declare_parameter('landing_duration_sec', 5.0)  # Landing duration
         self.declare_parameter('startup_delay_sec', 3.0)  # Delay before starting
@@ -83,7 +83,7 @@ class SimpleFlightTestNode(Node):
         # RC values for the test
         self.RC_NEUTRAL = 1500
         self.RC_THROTTLE_LOW = 1000  # CRITICAL: Must be low when arming!
-        self.RC_THROTTLE_UP = 1520   # Rise throttle value
+        self.RC_THROTTLE_UP = 1510   # Rise throttle value (reduced from 1520 for gentler climb)
         self.RC_THROTTLE_DOWN = 1480  # Landing throttle value
         self.RC_ARM = 1800  # >1700 to arm
         self.RC_DISARM = 1000
@@ -96,6 +96,7 @@ class SimpleFlightTestNode(Node):
         self.current_phase = FlightPhase.INIT
         self.phase_start_time = None
         self.test_start_time = None
+        self.last_print_time = None  # For periodic status updates
 
         # Create timer for publishing RC commands
         self.timer = self.create_timer(
@@ -103,26 +104,29 @@ class SimpleFlightTestNode(Node):
             self.control_loop
         )
 
-        self.get_logger().info('='*60)
+        print('='*60)
+        print('Simple Flight Test Node Initialized')
+        print('='*60)
+        print(f'Publish rate: {self.publish_rate} Hz')
+        print(f'ARM duration: {self.arm_duration} sec')
+        print(f'Throttle up duration: {self.throttle_up_duration} sec')
+        print(f'Hover duration: {self.hover_duration} sec')
+        print(f'Landing duration: {self.landing_duration} sec')
+        print(f'Startup delay: {self.startup_delay} sec')
+        print('')
+        print('Test Sequence:')
+        print(f'  1. Startup delay ({self.startup_delay} sec)')
+        print(f'  2. ARM with throttle LOW ({self.arm_duration} sec)')
+        print(f'  3. Throttle UP to {self.RC_THROTTLE_UP} ({self.throttle_up_duration} sec)')
+        print(f'  4. Hover at neutral 1500 ({self.hover_duration} sec)')
+        print(f'  5. Throttle DOWN to 1480 ({self.landing_duration} sec)')
+        print('  6. Disarm and complete')
+        print('')
+        print('Black box will automatically record all commands')
+        print(f'Logs will be saved to: ~/swarm-ros/flight-logs/')
+        print('='*60)
+
         self.get_logger().info('Simple Flight Test Node Initialized')
-        self.get_logger().info('='*60)
-        self.get_logger().info(f'Publish rate: {self.publish_rate} Hz')
-        self.get_logger().info(f'ARM duration: {self.arm_duration} sec')
-        self.get_logger().info(f'Throttle up duration: {self.throttle_up_duration} sec')
-        self.get_logger().info(f'Hover duration: {self.hover_duration} sec')
-        self.get_logger().info(f'Landing duration: {self.landing_duration} sec')
-        self.get_logger().info(f'Startup delay: {self.startup_delay} sec')
-        self.get_logger().info('')
-        self.get_logger().info('Test Sequence:')
-        self.get_logger().info(f'  1. Startup delay ({self.startup_delay} sec)')
-        self.get_logger().info(f'  2. ARM with throttle LOW ({self.arm_duration} sec)')
-        self.get_logger().info(f'  3. Throttle UP to 1520 ({self.throttle_up_duration} sec)')
-        self.get_logger().info(f'  4. Hover at neutral 1500 ({self.hover_duration} sec)')
-        self.get_logger().info(f'  5. Throttle DOWN to 1480 ({self.landing_duration} sec)')
-        self.get_logger().info('  6. Disarm and complete')
-        self.get_logger().info('')
-        self.get_logger().info('Black box will automatically record all commands')
-        self.get_logger().info('='*60)
 
     def control_loop(self):
         """Main control loop - called at publish_rate Hz"""
@@ -131,6 +135,7 @@ class SimpleFlightTestNode(Node):
         # Initialize test start time
         if self.test_start_time is None:
             self.test_start_time = current_time
+            print(f'\n[INIT] Starting simple flight test in {self.startup_delay} seconds...')
             self.get_logger().info(f'Starting simple flight test in {self.startup_delay} seconds...')
             return
 
@@ -150,6 +155,15 @@ class SimpleFlightTestNode(Node):
         # Transition from INIT to ARMED after startup delay
         if self.current_phase == FlightPhase.INIT:
             self.transition_to_phase(FlightPhase.ARMED)
+
+        # Print periodic status updates (every 2 seconds)
+        if self.last_print_time is None or (current_time - self.last_print_time) >= 2.0:
+            self.last_print_time = current_time
+            if self.phase_start_time is not None:
+                phase_elapsed = current_time - self.phase_start_time
+                remaining = self._get_phase_duration() - phase_elapsed
+                if remaining > 0:
+                    print(f'[STATUS] Phase: {self.current_phase.name}, Elapsed: {phase_elapsed:.1f}s, Remaining: {remaining:.1f}s')
 
         # Check if current phase duration has elapsed
         if self.phase_start_time is not None:
@@ -171,6 +185,19 @@ class SimpleFlightTestNode(Node):
 
         # Execute current phase
         self.execute_current_phase()
+
+    def _get_phase_duration(self):
+        """Get the duration for the current phase"""
+        if self.current_phase == FlightPhase.ARMED:
+            return self.arm_duration
+        elif self.current_phase == FlightPhase.THROTTLE_UP:
+            return self.throttle_up_duration
+        elif self.current_phase == FlightPhase.HOVER:
+            return self.hover_duration
+        elif self.current_phase == FlightPhase.THROTTLE_DOWN:
+            return self.landing_duration
+        else:
+            return 0.0
 
     def execute_current_phase(self):
         """Execute RC commands for the current flight phase"""
@@ -268,14 +295,15 @@ class SimpleFlightTestNode(Node):
 
         # Log phase transition
         phase_names = {
-            FlightPhase.ARMED: 'ARMED - Ready to fly (waiting 10 sec)',
-            FlightPhase.THROTTLE_UP: 'THROTTLE UP to 1520 (rising)',
-            FlightPhase.HOVER: 'HOVERING at neutral 1500 (15 sec)',
-            FlightPhase.THROTTLE_DOWN: 'THROTTLE DOWN to 1480 (landing)',
+            FlightPhase.ARMED: f'ARMED - Ready to fly (waiting {self.arm_duration} sec)',
+            FlightPhase.THROTTLE_UP: f'THROTTLE UP to {self.RC_THROTTLE_UP} (rising for {self.throttle_up_duration} sec)',
+            FlightPhase.HOVER: f'HOVERING at neutral {self.RC_NEUTRAL} ({self.hover_duration} sec)',
+            FlightPhase.THROTTLE_DOWN: f'THROTTLE DOWN to {self.RC_THROTTLE_DOWN} (landing for {self.landing_duration} sec)',
             FlightPhase.COMPLETE: 'TEST COMPLETE'
         }
 
         if new_phase in phase_names:
+            print(f'\n[PHASE] {phase_names[new_phase]}')
             self.get_logger().info(f'[Phase] {phase_names[new_phase]}')
 
     def advance_to_next_phase(self):
@@ -295,6 +323,12 @@ class SimpleFlightTestNode(Node):
 
             # Stop publishing after test is complete
             if next_phase == FlightPhase.COMPLETE:
+                print('\n' + '='*60)
+                print('Simple flight test completed successfully!')
+                print('All data has been logged by black_box_recorder_node')
+                print('Check ~/swarm-ros/flight-logs/ for recorded data')
+                print('='*60 + '\n')
+
                 self.get_logger().info('='*60)
                 self.get_logger().info('Simple flight test completed successfully!')
                 self.get_logger().info('All data has been logged by black_box_recorder_node')

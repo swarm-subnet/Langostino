@@ -281,6 +281,11 @@ class BlackBoxRecorderNode(Node):
             String, '/safety/status',
             lambda msg: self._update_latest('safety_status', msg.data), reliable_qos)
 
+        # RC Override Commands
+        self.create_subscription(
+            Float32MultiArray, '/fc/rc_override',
+            lambda msg: self._update_latest('rc_override', self._msg_to_dict(msg)), reliable_qos)
+
     def _update_latest(self, topic_name: str, value: Any):
         """Update the latest value for a topic"""
         self.latest_data[topic_name] = value
@@ -534,6 +539,12 @@ class BlackBoxRecorderNode(Node):
             safety['status'] = self.latest_data['safety_status']
         if safety:
             snapshot['safety'] = safety
+
+        # RC Override Commands
+        if 'rc_override' in self.latest_data:
+            rc_data = self._convert_value(self.latest_data['rc_override'])
+            if isinstance(rc_data, dict) and 'data' in rc_data:
+                snapshot['rc_override'] = rc_data['data']
 
         return snapshot
 
