@@ -33,7 +33,7 @@ from swarm_ai_integration.msp_protocol import (
 STREAM_HZ_DEFAULT = 40
 ARM_SECONDS_DEFAULT = 3.0
 THROTTLE_VALUE_DEFAULT = 1500
-THROTTLE_SECONDS_DEFAULT = 5.0
+THROTTLE_SECONDS_DEFAULT = 2.5
 
 
 class FlightController:
@@ -106,8 +106,24 @@ class FlightController:
         arm_frame = [1500, 1500, 1000, 1500, 1800, 1500, 1500, 1800]
         self._stream_for(arm_frame, arm_seconds, hz)
 
-        print(f"=== PHASE 2: THROTTLE={throttle_value} for {throttle_seconds:.1f}s @ {hz}Hz (AUX1 stays HIGH) ===")
-        throttle_frame = [1500, 1500, throttle_value, 1500, 1800, 1500, 1500, 1800]
+        print(f"=== PHASE 2: THROTTLE={1100} for {throttle_seconds:.1f}s @ {hz}Hz (AUX1 stays HIGH) ===")
+        throttle_frame = [1500, 1500, 1100, 1500, 1800, 1500, 1500, 1800]
+        self._stream_for(throttle_frame, throttle_seconds, hz)
+
+        print(f"=== PHASE 3: THROTTLE={1200} for {throttle_seconds:.1f}s @ {hz}Hz (AUX1 stays HIGH) ===")
+        throttle_frame = [1500, 1500, 1200, 1500, 1800, 1500, 1500, 1800]
+        self._stream_for(throttle_frame, throttle_seconds, hz)
+
+        print(f"=== PHASE 4: THROTTLE={1300} for {throttle_seconds:.1f}s @ {hz}Hz (AUX1 stays HIGH) ===")
+        throttle_frame = [1500, 1500, 1300, 1500, 1800, 1500, 1500, 1800]
+        self._stream_for(throttle_frame, throttle_seconds, hz)
+
+        print(f"=== PHASE 5: THROTTLE={1400} for {throttle_seconds:.1f}s @ {hz}Hz (AUX1 stays HIGH) ===")
+        throttle_frame = [1500, 1500, 1400, 1500, 1800, 1500, 1500, 1800]
+        self._stream_for(throttle_frame, throttle_seconds, hz)
+
+        print(f"=== PHASE 5: THROTTLE={1600} for {throttle_seconds:.1f}s @ {hz}Hz (AUX1 stays HIGH) ===")
+        throttle_frame = [1500, 1500, 1600, 1500, 1800, 1500, 1500, 1800]
         self._stream_for(throttle_frame, throttle_seconds, hz)
 
         print("✅ Completed arm + throttle sequence.")

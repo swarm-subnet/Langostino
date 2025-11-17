@@ -1,340 +1,238 @@
 #!/usr/bin/env python3
 """
-Simple Flight Test Node - Basic altitude test sequence
+Simple Flight Test Node - Direct MSP Control
 
-This node executes a simplified flight sequence to test basic altitude control:
-1. Arm in Angle mode (Alt Hold disabled at 900)
-2. Wait 10 seconds after arming
-3. Throttle up to 1510 in Angle mode to rise
-4. Switch to Alt Hold (1500) and hover for 15 seconds
-5. Throttle down to 1480 to land (Alt Hold maintained)
+This script executes a simple flight test sequence using direct MSP communication:
+1. ARM for 3 seconds (throttle low, Angle mode, Alt Hold OFF)
+2. RISE for 2 seconds (throttle 1300, Angle mode, Alt Hold OFF)
+3. HOVER for 5 seconds (throttle 1500, Angle mode, Alt Hold ON at 1800)
+4. LAND for 3 seconds (throttle 1300, Angle mode, Alt Hold OFF)
+5. DISARM
 
-All RC commands are published to /fc/rc_override and automatically logged
-by the black_box_recorder_node.
+RC Channel Mapping (AETR + AUX):
+- CH1 (index 0): Roll (1500 = neutral)
+- CH2 (index 1): Pitch (1500 = neutral)
+- CH3 (index 2): Throttle (1000 = low, 1500 = hover, 1300 = rise/land)
+- CH4 (index 3): Yaw (1500 = neutral)
+- CH5 (index 4): Arm/Disarm (1800 = armed, 1000 = disarmed)
+- CH6 (index 5): Angle Mode (1500 = enabled)
+- CH7 (index 6): Alt Hold (1800 = enabled, 1000 = disabled)
+- CH8 (index 7): MSP Override (1800 = enabled)
 
-Author: ROS2 Swarm Project
+Safety: TEST WITH PROPS OFF FIRST
 """
+
+import time
+import serial
+from typing import List, Optional
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from std_msgs.msg import Float32MultiArray
-import time
-from enum import Enum
 
-
-class FlightPhase(Enum):
-    """Flight test sequence phases"""
-    INIT = 0
-    ARMED = 1
-    THROTTLE_UP = 2
-    HOVER = 3
-    THROTTLE_DOWN = 4
-    COMPLETE = 5
+from swarm_ai_integration.msp_protocol import (
+    MSPMessage, MSPCommand, MSPDirection, MSPDataTypes
+)
 
 
 class SimpleFlightTestNode(Node):
-    """
-    Node that executes a simple altitude test sequence.
-
-    RC Channel Mapping (AETR + AUX):
-    - CH1 (index 0): Roll
-    - CH2 (index 1): Pitch
-    - CH3 (index 2): Throttle (MUST be 1000 when arming!)
-    - CH4 (index 3): Yaw
-    - CH5 (index 4): Arm/Disarm (1800 = armed, >1700)
-    - CH6 (index 5): Angle Mode (1500 = enabled)
-    - CH7 (index 6): Alt Hold (1500 = enabled/hover, 900 = disabled)
-    - CH8 (index 7): MSP Override (1800 = enabled, MUST be >1700)
-    """
+    """Simple flight test node with direct MSP control"""
 
     def __init__(self):
         super().__init__('simple_flight_test_node')
 
-        # QoS profile for reliable communication
-        qos_profile = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=10
-        )
+        # Declare parameters
+        self.declare_parameter('serial_port', '/dev/ttyAMA0')
+        self.declare_parameter('baud_rate', 115200)
+        self.declare_parameter('stream_hz', 40)
 
-        # Publisher for RC override commands
-        self.rc_pub = self.create_publisher(
-            Float32MultiArray,
-            '/fc/rc_override',
-            qos_profile
-        )
+        # Phase durations (seconds)
+        self.declare_parameter('arm_duration', 3.0)
+        self.declare_parameter('rise_duration', 2.0)
+        self.declare_parameter('hover_duration', 5.0)
+        self.declare_parameter('land_duration', 3.0)
 
-        # Flight test parameters
-        self.declare_parameter('publish_rate_hz', 40.0)  # Match FC adapter rate
-        self.declare_parameter('arm_duration_sec', 10.0)  # Wait after arming
-        self.declare_parameter('throttle_up_duration_sec', 1.0)  # Rise duration
-        self.declare_parameter('hover_duration_sec', 15.0)  # Hover duration
-        self.declare_parameter('landing_duration_sec', 5.0)  # Landing duration
-        self.declare_parameter('startup_delay_sec', 3.0)  # Delay before starting
+        # RC values
+        self.declare_parameter('throttle_rise', 1300)
+        self.declare_parameter('throttle_hover', 1500)
+        self.declare_parameter('throttle_land', 1300)
 
-        self.publish_rate = self.get_parameter('publish_rate_hz').value
-        self.arm_duration = self.get_parameter('arm_duration_sec').value
-        self.throttle_up_duration = self.get_parameter('throttle_up_duration_sec').value
-        self.hover_duration = self.get_parameter('hover_duration_sec').value
-        self.landing_duration = self.get_parameter('landing_duration_sec').value
-        self.startup_delay = self.get_parameter('startup_delay_sec').value
+        # Get parameters
+        self.serial_port = self.get_parameter('serial_port').value
+        self.baud_rate = self.get_parameter('baud_rate').value
+        self.stream_hz = self.get_parameter('stream_hz').value
 
-        # RC values for the test
+        self.arm_duration = self.get_parameter('arm_duration').value
+        self.rise_duration = self.get_parameter('rise_duration').value
+        self.hover_duration = self.get_parameter('hover_duration').value
+        self.land_duration = self.get_parameter('land_duration').value
+
+        self.throttle_rise = self.get_parameter('throttle_rise').value
+        self.throttle_hover = self.get_parameter('throttle_hover').value
+        self.throttle_land = self.get_parameter('throttle_land').value
+
+        # RC channel constants
         self.RC_NEUTRAL = 1500
-        self.RC_THROTTLE_LOW = 1000  # CRITICAL: Must be low when arming!
-        self.RC_THROTTLE_UP = 1300   # Rise throttle value (reduced from 1520 for gentler climb)
-        self.RC_THROTTLE_DOWN = 1300  # Landing throttle value
-        self.RC_ARM = 1800  # >1700 to arm
+        self.RC_THROTTLE_LOW = 1000
+        self.RC_ARM = 1800
         self.RC_DISARM = 1000
-        self.RC_ANGLE_MODE = 1500
-        self.RC_ALT_HOLD_OFF = 900   # Alt Hold disabled
-        self.RC_ALT_HOLD_ON = 1400   # Alt Hold enabled for hovering
+        self.RC_ANGLE_MODE = 1500      # CH6 - Angle mode enabled
+        self.RC_ALT_HOLD_ON = 1800     # CH7 - Alt Hold enabled (>1700)
+        self.RC_ALT_HOLD_OFF = 1000    # CH7 - Alt Hold disabled
         self.RC_MSP_OVERRIDE = 1800
 
-        # State tracking
-        self.current_phase = FlightPhase.INIT
-        self.phase_start_time = None
-        self.test_start_time = None
-        self.last_print_time = None  # For periodic status updates
+        # Serial connection
+        self.ser: Optional[serial.Serial] = None
 
-        # Create timer for publishing RC commands
-        self.timer = self.create_timer(
-            1.0 / self.publish_rate,
-            self.control_loop
-        )
-
-        print('='*60)
-        print('Simple Flight Test Node Initialized')
-        print('='*60)
-        print(f'Publish rate: {self.publish_rate} Hz')
-        print(f'ARM duration: {self.arm_duration} sec')
-        print(f'Throttle up duration: {self.throttle_up_duration} sec')
-        print(f'Hover duration: {self.hover_duration} sec')
-        print(f'Landing duration: {self.landing_duration} sec')
-        print(f'Startup delay: {self.startup_delay} sec')
-        print('')
-        print('Test Sequence:')
-        print(f'  1. Startup delay ({self.startup_delay} sec)')
-        print(f'  2. ARM with throttle LOW ({self.arm_duration} sec)')
-        print(f'  3. Throttle UP to {self.RC_THROTTLE_UP} ({self.throttle_up_duration} sec)')
-        print(f'  4. Hover at neutral 1500 ({self.hover_duration} sec)')
-        print(f'  5. Throttle DOWN to 1480 ({self.landing_duration} sec)')
-        print('  6. Disarm and complete')
-        print('')
-        print('Black box will automatically record all commands')
-        print(f'Logs will be saved to: ~/swarm-ros/flight-logs/')
-        print('='*60)
-
+        self.get_logger().info('═' * 60)
         self.get_logger().info('Simple Flight Test Node Initialized')
+        self.get_logger().info('═' * 60)
+        self.get_logger().info(f'Serial Port: {self.serial_port}')
+        self.get_logger().info(f'Baud Rate: {self.baud_rate}')
+        self.get_logger().info(f'Stream Rate: {self.stream_hz} Hz')
+        self.get_logger().info('')
+        self.get_logger().info('Test Sequence:')
+        self.get_logger().info(f'  1. ARM ({self.arm_duration}s) - Angle mode, Alt Hold OFF')
+        self.get_logger().info(f'  2. RISE ({self.rise_duration}s) - Throttle {self.throttle_rise}, Angle mode')
+        self.get_logger().info(f'  3. HOVER ({self.hover_duration}s) - Alt Hold ON at 1800')
+        self.get_logger().info(f'  4. LAND ({self.land_duration}s) - Throttle {self.throttle_land}')
+        self.get_logger().info(f'  5. DISARM')
+        self.get_logger().info('═' * 60)
 
-    def control_loop(self):
-        """Main control loop - called at publish_rate Hz"""
-        current_time = time.time()
+    def connect(self) -> bool:
+        """Connect to flight controller"""
+        try:
+            self.ser = serial.Serial(self.serial_port, self.baud_rate, timeout=0.02)
+            time.sleep(2.0)  # Allow FC to boot
+            self.get_logger().info(f'✓ Connected to {self.serial_port} @ {self.baud_rate}')
+            return True
+        except Exception as e:
+            self.get_logger().error(f'✗ Serial connection failed: {e}')
+            return False
 
-        # Initialize test start time
-        if self.test_start_time is None:
-            self.test_start_time = current_time
-            print(f'\n[INIT] Starting simple flight test in {self.startup_delay} seconds...')
-            self.get_logger().info(f'Starting simple flight test in {self.startup_delay} seconds...')
+    def disconnect(self):
+        """Disconnect from flight controller"""
+        if self.ser and self.ser.is_open:
+            self.ser.close()
+            self.get_logger().info('✓ Disconnected from flight controller')
+
+    def send_rc(self, channels: List[int]):
+        """Send RC channels via MSP_SET_RAW_RC"""
+        if not self.ser or not self.ser.is_open:
             return
 
-        # Wait for startup delay
-        elapsed_since_start = current_time - self.test_start_time
-        if elapsed_since_start < self.startup_delay:
-            # Publish disarmed neutral commands during startup
-            self.publish_rc_command(
-                roll=self.RC_NEUTRAL,
-                pitch=self.RC_NEUTRAL,
-                throttle=self.RC_NEUTRAL,
-                yaw=self.RC_NEUTRAL,
-                armed=False
-            )
-            return
+        payload = MSPDataTypes.pack_rc_channels(channels)
+        msg = MSPMessage(MSPCommand.MSP_SET_RAW_RC, payload, MSPDirection.REQUEST)
 
-        # Transition from INIT to ARMED after startup delay
-        if self.current_phase == FlightPhase.INIT:
-            self.transition_to_phase(FlightPhase.ARMED)
+        try:
+            self.ser.write(msg.encode())
+            self.ser.flush()
+        except Exception as e:
+            self.get_logger().error(f'✗ Send error: {e}')
 
-        # Print periodic status updates (every 2 seconds)
-        if self.last_print_time is None or (current_time - self.last_print_time) >= 2.0:
-            self.last_print_time = current_time
-            if self.phase_start_time is not None:
-                phase_elapsed = current_time - self.phase_start_time
-                remaining = self._get_phase_duration() - phase_elapsed
-                if remaining > 0:
-                    print(f'[STATUS] Phase: {self.current_phase.name}, Elapsed: {phase_elapsed:.1f}s, Remaining: {remaining:.1f}s')
+    def stream_for(self, channels: List[int], duration: float, phase_name: str):
+        """Stream RC frame at configured Hz for specified duration"""
+        period = 1.0 / float(self.stream_hz)
+        t_end = time.time() + duration
 
-        # Check if current phase duration has elapsed
-        if self.phase_start_time is not None:
-            phase_elapsed = current_time - self.phase_start_time
+        self.get_logger().info(f'▶ {phase_name} - {duration}s')
+        self.get_logger().info(f'  Channels: {channels}')
 
-            # Auto-advance phases based on duration
-            if self.current_phase == FlightPhase.ARMED:
-                if phase_elapsed >= self.arm_duration:
-                    self.advance_to_next_phase()
-            elif self.current_phase == FlightPhase.THROTTLE_UP:
-                if phase_elapsed >= self.throttle_up_duration:
-                    self.advance_to_next_phase()
-            elif self.current_phase == FlightPhase.HOVER:
-                if phase_elapsed >= self.hover_duration:
-                    self.advance_to_next_phase()
-            elif self.current_phase == FlightPhase.THROTTLE_DOWN:
-                if phase_elapsed >= self.landing_duration:
-                    self.advance_to_next_phase()
+        while time.time() < t_end:
+            t0 = time.time()
+            self.send_rc(channels)
 
-        # Execute current phase
-        self.execute_current_phase()
+            dt = time.time() - t0
+            sleep_left = period - dt
+            if sleep_left > 0:
+                time.sleep(sleep_left)
 
-    def _get_phase_duration(self):
-        """Get the duration for the current phase"""
-        if self.current_phase == FlightPhase.ARMED:
-            return self.arm_duration
-        elif self.current_phase == FlightPhase.THROTTLE_UP:
-            return self.throttle_up_duration
-        elif self.current_phase == FlightPhase.HOVER:
-            return self.hover_duration
-        elif self.current_phase == FlightPhase.THROTTLE_DOWN:
-            return self.landing_duration
-        else:
-            return 0.0
+        self.get_logger().info(f'✓ {phase_name} complete')
 
-    def execute_current_phase(self):
-        """Execute RC commands for the current flight phase"""
+    def run_flight_test(self):
+        """Execute the complete flight test sequence"""
+        if not self.connect():
+            return False
 
-        if self.current_phase == FlightPhase.ARMED:
-            # Armed with THROTTLE LOW (required for arming), Alt Hold OFF
-            self.publish_rc_command(
-                roll=self.RC_NEUTRAL,
-                pitch=self.RC_NEUTRAL,
-                throttle=self.RC_THROTTLE_LOW,  # CRITICAL: Must be 1000 to arm!
-                yaw=self.RC_NEUTRAL,
-                armed=True,
-                alt_hold=False  # Keep Alt Hold off during arming
-            )
+        try:
+            # PHASE 1: ARM
+            # AETR + AUX: [ROLL, PITCH, THROTTLE, YAW, ARM, ANGLE, ALT_HOLD, MSP_OVERRIDE]
+            arm_frame = [
+                self.RC_NEUTRAL,        # CH1 - Roll
+                self.RC_NEUTRAL,        # CH2 - Pitch
+                self.RC_THROTTLE_LOW,   # CH3 - Throttle (MUST be low to arm)
+                self.RC_NEUTRAL,        # CH4 - Yaw
+                self.RC_ARM,            # CH5 - Arm
+                self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
+                self.RC_ALT_HOLD_OFF,   # CH7 - Alt Hold OFF
+                self.RC_MSP_OVERRIDE    # CH8 - MSP Override
+            ]
+            self.stream_for(arm_frame, self.arm_duration, 'PHASE 1: ARM')
 
-        elif self.current_phase == FlightPhase.THROTTLE_UP:
-            # Throttle up to rise in Angle mode (Alt Hold disabled)
-            self.publish_rc_command(
-                roll=self.RC_NEUTRAL,
-                pitch=self.RC_NEUTRAL,
-                throttle=self.RC_THROTTLE_UP,
-                yaw=self.RC_NEUTRAL,
-                armed=True,
-                alt_hold=False  # Rise in Angle mode only
-            )
+            # PHASE 2: RISE (Angle mode, Alt Hold OFF)
+            rise_frame = [
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.throttle_rise,     # CH3 - Throttle up to rise
+                self.RC_NEUTRAL,
+                self.RC_ARM,
+                self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
+                self.RC_ALT_HOLD_OFF,   # CH7 - Alt Hold OFF
+                self.RC_MSP_OVERRIDE
+            ]
+            self.stream_for(rise_frame, self.rise_duration, 'PHASE 2: RISE')
 
-        elif self.current_phase == FlightPhase.HOVER:
-            # Switch to Alt Hold at 1500 to hover
-            self.publish_rc_command(
-                roll=self.RC_NEUTRAL,
-                pitch=self.RC_NEUTRAL,
-                throttle=self.RC_NEUTRAL,  # Neutral throttle with Alt Hold = hover
-                yaw=self.RC_NEUTRAL,
-                armed=True,
-                alt_hold=True  # Enable Alt Hold at 1500 to maintain altitude
-            )
+            # PHASE 3: HOVER (Alt Hold ON)
+            hover_frame = [
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.throttle_hover,    # CH3 - Neutral throttle
+                self.RC_NEUTRAL,
+                self.RC_ARM,
+                self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
+                self.RC_ALT_HOLD_ON,    # CH7 - Alt Hold ON at 1800
+                self.RC_MSP_OVERRIDE
+            ]
+            self.stream_for(hover_frame, self.hover_duration, 'PHASE 3: HOVER')
 
-        elif self.current_phase == FlightPhase.THROTTLE_DOWN:
-            # Throttle down to 1480 to land
-            self.publish_rc_command(
-                roll=self.RC_NEUTRAL,
-                pitch=self.RC_NEUTRAL,
-                throttle=self.RC_THROTTLE_DOWN,
-                yaw=self.RC_NEUTRAL,
-                armed=True,
-                alt_hold=True
-            )
+            # PHASE 4: LAND (Alt Hold OFF, gentle descent)
+            land_frame = [
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.throttle_land,     # CH3 - Throttle down
+                self.RC_NEUTRAL,
+                self.RC_ARM,
+                self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
+                self.RC_ALT_HOLD_OFF,   # CH7 - Alt Hold OFF
+                self.RC_MSP_OVERRIDE
+            ]
+            self.stream_for(land_frame, self.land_duration, 'PHASE 4: LAND')
 
-        elif self.current_phase == FlightPhase.COMPLETE:
-            # Test complete - disarm
-            self.publish_rc_command(
-                roll=self.RC_NEUTRAL,
-                pitch=self.RC_NEUTRAL,
-                throttle=self.RC_NEUTRAL,
-                yaw=self.RC_NEUTRAL,
-                armed=False
-            )
+            # PHASE 5: DISARM
+            disarm_frame = [
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_NEUTRAL,
+                self.RC_DISARM,         # CH5 - Disarm
+                self.RC_ANGLE_MODE,
+                self.RC_ALT_HOLD_OFF,
+                self.RC_MSP_OVERRIDE
+            ]
+            self.stream_for(disarm_frame, 1.0, 'PHASE 5: DISARM')
 
-    def publish_rc_command(self, roll, pitch, throttle, yaw, armed, alt_hold=False):
-        """
-        Publish RC override command to flight controller
+            self.get_logger().info('═' * 60)
+            self.get_logger().info('✓ Flight test completed successfully!')
+            self.get_logger().info('═' * 60)
+            return True
 
-        Args:
-            roll: RC value for roll (1000-2000)
-            pitch: RC value for pitch (1000-2000)
-            throttle: RC value for throttle (1000-2000)
-            yaw: RC value for yaw (1000-2000)
-            armed: Boolean indicating if drone should be armed
-            alt_hold: Boolean indicating if alt hold should be enabled
-        """
-        msg = Float32MultiArray()
-
-        # Initialize 16 channels (standard RC frame size)
-        channels = [float(self.RC_NEUTRAL)] * 16
-
-        # Set primary control channels
-        channels[0] = float(roll)        # CH1 - Roll
-        channels[1] = float(pitch)       # CH2 - Pitch
-        channels[2] = float(throttle)    # CH3 - Throttle
-        channels[3] = float(yaw)         # CH4 - Yaw
-
-        # Set mode and arming channels
-        channels[4] = float(self.RC_ARM if armed else self.RC_DISARM)  # CH5 - Arm
-        channels[5] = float(self.RC_ANGLE_MODE)                        # CH6 - Angle Mode
-        channels[6] = float(self.RC_ALT_HOLD_ON if alt_hold else self.RC_ALT_HOLD_OFF)  # CH7 - Alt Hold
-        channels[7] = float(self.RC_MSP_OVERRIDE)                      # CH8 - MSP Override
-
-        msg.data = channels
-        self.rc_pub.publish(msg)
-
-    def transition_to_phase(self, new_phase):
-        """Transition to a new flight phase"""
-        self.current_phase = new_phase
-        self.phase_start_time = time.time()
-
-        # Log phase transition
-        phase_names = {
-            FlightPhase.ARMED: f'ARMED - Ready to fly (waiting {self.arm_duration} sec)',
-            FlightPhase.THROTTLE_UP: f'THROTTLE UP to {self.RC_THROTTLE_UP} (rising for {self.throttle_up_duration} sec)',
-            FlightPhase.HOVER: f'HOVERING at neutral {self.RC_NEUTRAL} ({self.hover_duration} sec)',
-            FlightPhase.THROTTLE_DOWN: f'THROTTLE DOWN to {self.RC_THROTTLE_DOWN} (landing for {self.landing_duration} sec)',
-            FlightPhase.COMPLETE: 'TEST COMPLETE'
-        }
-
-        if new_phase in phase_names:
-            print(f'\n[PHASE] {phase_names[new_phase]}')
-            self.get_logger().info(f'[Phase] {phase_names[new_phase]}')
-
-    def advance_to_next_phase(self):
-        """Advance to the next phase in the sequence"""
-        phase_sequence = [
-            FlightPhase.ARMED,
-            FlightPhase.THROTTLE_UP,
-            FlightPhase.HOVER,
-            FlightPhase.THROTTLE_DOWN,
-            FlightPhase.COMPLETE
-        ]
-
-        current_index = phase_sequence.index(self.current_phase)
-        if current_index < len(phase_sequence) - 1:
-            next_phase = phase_sequence[current_index + 1]
-            self.transition_to_phase(next_phase)
-
-            # Stop publishing after test is complete
-            if next_phase == FlightPhase.COMPLETE:
-                print('\n' + '='*60)
-                print('Simple flight test completed successfully!')
-                print('All data has been logged by black_box_recorder_node')
-                print('Check ~/swarm-ros/flight-logs/ for recorded data')
-                print('='*60 + '\n')
-
-                self.get_logger().info('='*60)
-                self.get_logger().info('Simple flight test completed successfully!')
-                self.get_logger().info('All data has been logged by black_box_recorder_node')
-                self.get_logger().info('Check ~/swarm-ros/flight-logs/ for recorded data')
-                self.get_logger().info('='*60)
-                # Keep node running to maintain final disarmed state
+        except KeyboardInterrupt:
+            self.get_logger().warn('✗ Flight test interrupted by user')
+            return False
+        except Exception as e:
+            self.get_logger().error(f'✗ Flight test failed: {e}')
+            return False
+        finally:
+            self.disconnect()
 
 
 def main(args=None):
@@ -344,9 +242,10 @@ def main(args=None):
     node = SimpleFlightTestNode()
 
     try:
-        rclpy.spin(node)
+        # Run the flight test
+        node.run_flight_test()
     except KeyboardInterrupt:
-        node.get_logger().info('Simple flight test interrupted by user')
+        node.get_logger().info('Interrupted by user')
     finally:
         node.destroy_node()
         rclpy.shutdown()
