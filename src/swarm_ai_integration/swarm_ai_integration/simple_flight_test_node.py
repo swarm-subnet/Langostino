@@ -49,7 +49,7 @@ class SimpleFlightTestNode(Node):
         self.declare_parameter('arm_duration', 3.0)
         self.declare_parameter('rise_duration', 2.0)
         self.declare_parameter('hover_duration', 5.0)
-        self.declare_parameter('land_duration', 3.0)
+        self.declare_parameter('land_duration', 10.0)
 
         # RC values
         self.declare_parameter('throttle_rise', 1300)
@@ -226,7 +226,7 @@ class SimpleFlightTestNode(Node):
                 self.RC_NEUTRAL,
                 self.RC_ARM,
                 self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
-                self.RC_ALT_HOLD_OFF,   # CH7 - Alt Hold OFF
+                self.RC_ALT_HOLD_ON,   # CH7 - Alt Hold OFF
                 self.RC_MSP_OVERRIDE,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
