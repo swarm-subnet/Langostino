@@ -3,11 +3,11 @@
 Simple Flight Test Node - Basic altitude test sequence
 
 This node executes a simplified flight sequence to test basic altitude control:
-1. Arm and setup flight modes (Angle mode + Alt Hold)
+1. Arm in Angle mode (Alt Hold disabled at 900)
 2. Wait 10 seconds after arming
-3. Throttle up to 1520 for 2 seconds to rise
-4. Hover for 15 seconds at the same altitude
-5. Throttle down to 1480 to land
+3. Throttle up to 1510 in Angle mode to rise
+4. Switch to Alt Hold (1500) and hover for 15 seconds
+5. Throttle down to 1480 to land (Alt Hold maintained)
 
 All RC commands are published to /fc/rc_override and automatically logged
 by the black_box_recorder_node.
@@ -44,7 +44,7 @@ class SimpleFlightTestNode(Node):
     - CH4 (index 3): Yaw
     - CH5 (index 4): Arm/Disarm (1800 = armed, >1700)
     - CH6 (index 5): Angle Mode (1500 = enabled)
-    - CH7 (index 6): Alt Hold (1800 = enabled, >1700)
+    - CH7 (index 6): Alt Hold (1500 = enabled/hover, 900 = disabled)
     - CH8 (index 7): MSP Override (1800 = enabled, MUST be >1700)
     """
 
@@ -88,8 +88,8 @@ class SimpleFlightTestNode(Node):
         self.RC_ARM = 1800  # >1700 to arm
         self.RC_DISARM = 1000
         self.RC_ANGLE_MODE = 1500
-        self.RC_ALT_HOLD_OFF = 1500  # Alt Hold disabled during arming
-        self.RC_ALT_HOLD_ON = 1800   # Alt Hold enabled during flight (>1700)
+        self.RC_ALT_HOLD_OFF = 900   # Alt Hold disabled
+        self.RC_ALT_HOLD_ON = 1500   # Alt Hold enabled for hovering
         self.RC_MSP_OVERRIDE = 1800
 
         # State tracking
@@ -214,25 +214,25 @@ class SimpleFlightTestNode(Node):
             )
 
         elif self.current_phase == FlightPhase.THROTTLE_UP:
-            # Throttle up to 1520 to rise with Alt Hold enabled
+            # Throttle up to rise in Angle mode (Alt Hold disabled)
             self.publish_rc_command(
                 roll=self.RC_NEUTRAL,
                 pitch=self.RC_NEUTRAL,
                 throttle=self.RC_THROTTLE_UP,
                 yaw=self.RC_NEUTRAL,
                 armed=True,
-                alt_hold=True  # Enable Alt Hold for flight
+                alt_hold=False  # Rise in Angle mode only
             )
 
         elif self.current_phase == FlightPhase.HOVER:
-            # Hover at neutral throttle - Alt Hold maintains altitude
+            # Switch to Alt Hold at 1500 to hover
             self.publish_rc_command(
                 roll=self.RC_NEUTRAL,
                 pitch=self.RC_NEUTRAL,
                 throttle=self.RC_NEUTRAL,  # Neutral throttle with Alt Hold = hover
                 yaw=self.RC_NEUTRAL,
                 armed=True,
-                alt_hold=True
+                alt_hold=True  # Enable Alt Hold at 1500 to maintain altitude
             )
 
         elif self.current_phase == FlightPhase.THROTTLE_DOWN:

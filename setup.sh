@@ -598,6 +598,38 @@ setup_ros2_workspace() {
 }
 
 ################################################################################
+# Create Required Directories
+################################################################################
+
+create_required_directories() {
+    print_header "Creating Required Directories"
+
+    cd "$WORKSPACE_DIR"
+
+    # Create flight-logs directory
+    if [[ ! -d "flight-logs" ]]; then
+        mkdir -p flight-logs
+        print_success "Created flight-logs directory"
+    else
+        print_info "flight-logs directory already exists"
+    fi
+
+    # Create model directory
+    if [[ ! -d "model" ]]; then
+        mkdir -p model
+        print_success "Created model directory"
+    else
+        print_info "model directory already exists"
+    fi
+
+    # Set correct ownership if running with sudo
+    if [[ -n "$SUDO_USER" ]]; then
+        chown -R "$SUDO_USER:$SUDO_USER" flight-logs model
+        print_success "Set directory ownership to $SUDO_USER"
+    fi
+}
+
+################################################################################
 # Environment Configuration
 ################################################################################
 
@@ -733,6 +765,11 @@ print_summary() {
     echo "  - Launch script: $WORKSPACE_DIR/launch.sh"
     echo ""
 
+    print_info "Workspace directories:"
+    echo "  - Flight logs: $WORKSPACE_DIR/flight-logs"
+    echo "  - Model files: $WORKSPACE_DIR/model"
+    echo ""
+
     print_info "Python Virtual Environment:"
     echo "  - Location: ${HOME}/ai_flight_node_env"
     echo "  - Used by: AI Flight Node (ai_flight_node_wrapper.sh)"
@@ -783,6 +820,7 @@ main() {
     check_uart_device
 
     setup_ros2_workspace
+    create_required_directories
     configure_environment
 
     install_pm2
