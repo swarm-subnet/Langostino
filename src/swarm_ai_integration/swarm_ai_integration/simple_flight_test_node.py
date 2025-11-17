@@ -83,13 +83,13 @@ class SimpleFlightTestNode(Node):
         # RC values for the test
         self.RC_NEUTRAL = 1500
         self.RC_THROTTLE_LOW = 1000  # CRITICAL: Must be low when arming!
-        self.RC_THROTTLE_UP = 1510   # Rise throttle value (reduced from 1520 for gentler climb)
-        self.RC_THROTTLE_DOWN = 1480  # Landing throttle value
+        self.RC_THROTTLE_UP = 1300   # Rise throttle value (reduced from 1520 for gentler climb)
+        self.RC_THROTTLE_DOWN = 1300  # Landing throttle value
         self.RC_ARM = 1800  # >1700 to arm
         self.RC_DISARM = 1000
         self.RC_ANGLE_MODE = 1500
         self.RC_ALT_HOLD_OFF = 900   # Alt Hold disabled
-        self.RC_ALT_HOLD_ON = 1500   # Alt Hold enabled for hovering
+        self.RC_ALT_HOLD_ON = 1400   # Alt Hold enabled for hovering
         self.RC_MSP_OVERRIDE = 1800
 
         # State tracking
