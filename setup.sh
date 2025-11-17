@@ -814,7 +814,6 @@ main() {
 
     configure_i2c
     configure_uart
-    configure_network
 
     check_i2c_device
     check_uart_device
@@ -824,6 +823,8 @@ main() {
     configure_environment
 
     install_pm2
+    
+    configure_network
 
     print_summary
 }
