@@ -4,9 +4,9 @@ Simple Flight Test Node - Direct MSP Control
 
 This script executes a simple flight test sequence using direct MSP communication:
 1. ARM for 3 seconds (throttle low, Angle mode, Alt Hold OFF)
-2. RISE for 2 seconds (throttle 1300, Angle mode, Alt Hold OFF)
+2. RISE for 2 seconds (throttle 1300, Angle mode, Alt Hold ON)
 3. HOVER for 5 seconds (throttle 1500, Angle mode, Alt Hold ON at 1800)
-4. LAND for 3 seconds (throttle 1300, Angle mode, Alt Hold OFF)
+4. LAND for 3 seconds (throttle 1300, Angle mode, Alt Hold ON)
 5. DISARM
 
 RC Channel Mapping (AETR + AUX):
@@ -47,14 +47,14 @@ class SimpleFlightTestNode(Node):
 
         # Phase durations (seconds)
         self.declare_parameter('arm_duration', 3.0)
-        self.declare_parameter('rise_duration', 2.0)
-        self.declare_parameter('hover_duration', 5.0)
-        self.declare_parameter('land_duration', 10.0)
+        self.declare_parameter('rise_duration', 0.5)
+        self.declare_parameter('hover_duration', 1.0)
+        self.declare_parameter('land_duration', 5.0)
 
         # RC values
-        self.declare_parameter('throttle_rise', 1300)
+        self.declare_parameter('throttle_rise', 1100)
         self.declare_parameter('throttle_hover', 1500)
-        self.declare_parameter('throttle_land', 1300)
+        self.declare_parameter('throttle_land', 1100)
 
         # Get parameters
         self.serial_port = self.get_parameter('serial_port').value
@@ -72,12 +72,13 @@ class SimpleFlightTestNode(Node):
 
         # RC channel constants
         self.RC_NEUTRAL = 1500
-        self.RC_THROTTLE_LOW = 1000
+        self.RC_THROTTLE_LOW = 900
         self.RC_ARM = 1800
         self.RC_DISARM = 1000
         self.RC_ANGLE_MODE = 1500      # CH6 - Angle mode enabled
         self.RC_ALT_HOLD_ON = 1800     # CH7 - Alt Hold enabled (>1700)
         self.RC_ALT_HOLD_OFF = 1000    # CH7 - Alt Hold disabled
+        self.RC_POS_HOLD_ON = 1500    # CH7 - Pos Hold enabled (=1500)
         self.RC_MSP_OVERRIDE = 1800
 
         # Serial connection
@@ -184,7 +185,7 @@ class SimpleFlightTestNode(Node):
                 self.RC_NEUTRAL,
                 self.RC_ARM,
                 self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
-                self.RC_ALT_HOLD_OFF,   # CH7 - Alt Hold OFF
+                self.RC_ALT_HOLD_ON,   # CH7 - Alt Hold ON
                 self.RC_MSP_OVERRIDE,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
@@ -205,7 +206,7 @@ class SimpleFlightTestNode(Node):
                 self.RC_NEUTRAL,
                 self.RC_ARM,
                 self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
-                self.RC_ALT_HOLD_ON,    # CH7 - Alt Hold ON at 1800
+                self.RC_ALT_HOLD_ON,    # CH7 - Alt Hold ON
                 self.RC_MSP_OVERRIDE,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
@@ -226,7 +227,7 @@ class SimpleFlightTestNode(Node):
                 self.RC_NEUTRAL,
                 self.RC_ARM,
                 self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
-                self.RC_ALT_HOLD_ON,   # CH7 - Alt Hold OFF
+                self.RC_ALT_HOLD_ON,    # CH7 - Alt Hold ON
                 self.RC_MSP_OVERRIDE,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
