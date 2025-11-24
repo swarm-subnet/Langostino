@@ -4,8 +4,8 @@ Simple Flight Test Node - Direct MSP Control
 
 This script executes a simple flight test sequence using direct MSP communication:
 1. ARM for 3 seconds (throttle low, Angle mode, Alt Hold OFF)
-2. RISE for 2 seconds (throttle 1300, Angle mode, Alt Hold ON)
-3. HOVER for 5 seconds (throttle 1500, Angle mode, Alt Hold ON at 1800)
+2. RISE for 0.5 seconds (throttle 1520, Angle mode, Alt Hold ON)
+3. HOVER for 1 seconds (throttle 1500, Angle mode, Alt Hold ON at 1800)
 4. LAND for 3 seconds (throttle 1300, Angle mode, Alt Hold ON)
 5. DISARM
 
@@ -49,12 +49,12 @@ class SimpleFlightTestNode(Node):
         self.declare_parameter('arm_duration', 3.0)
         self.declare_parameter('rise_duration', 0.5)
         self.declare_parameter('hover_duration', 1.0)
-        self.declare_parameter('land_duration', 5.0)
+        self.declare_parameter('land_duration', 3.0)
 
         # RC values
-        self.declare_parameter('throttle_rise', 1100)
+        self.declare_parameter('throttle_rise', 1520)
         self.declare_parameter('throttle_hover', 1500)
-        self.declare_parameter('throttle_land', 1100)
+        self.declare_parameter('throttle_land', 1300)
 
         # Get parameters
         self.serial_port = self.get_parameter('serial_port').value
