@@ -15,7 +15,7 @@ ai_adapter_node:
     relative_start_enu: [0.0, 0.0, 3.0] # Initial relative position [East, North, Up] (meters)
 
     # GPS settings
-    min_gps_satellites: 6                # Minimum GPS satellites for valid fix
+    min_gps_satellites: 5                # Minimum GPS satellites for valid fix
 
     # QoS settings
     sensor_qos_depth: 1                 # QoS depth for sensor topics

@@ -56,7 +56,7 @@ class AIAdapterNode(Node):
         self.declare_parameter('relative_start_enu', [0.0, 0.0, 3.0])  # [E, N, U] meters
         self.declare_parameter('sensor_qos_depth', 1)
         self.declare_parameter('reliable_qos_depth', 10)
-        self.declare_parameter('min_gps_satellites', 6)  # Minimum satellites for GPS lock
+        self.declare_parameter('min_gps_satellites', 5)  # Minimum satellites for GPS lock
 
         telemetry_rate = self.get_parameter('telemetry_rate').get_parameter_value().double_value
         max_ray_distance = self.get_parameter('max_ray_distance').get_parameter_value().double_value
@@ -203,7 +203,7 @@ class AIAdapterNode(Node):
         self.sensor_manager.update_gps_quality(sat_count, fix_type, hdop)
 
         # Check GPS quality before processing
-        if not self.sensor_manager.is_gps_quality_sufficient(max_hdop=4.0, min_satellites=self.min_gps_satellites):
+        if not self.sensor_manager.is_gps_quality_sufficient(max_hdop=8.0, min_satellites=self.min_gps_satellites):
             if not self.sensor_manager.data_received['gps']:
                 # First time - log warning with HDOP info
                 hdop_str = f'hdop={hdop:.2f}m' if hdop < 90.0 else f'sats={sat_count} (need {self.min_gps_satellites})'
@@ -470,7 +470,7 @@ class AIAdapterNode(Node):
     def compute_observation(self):
         """Compute and publish 131-D observation."""
         # Check GPS quality first
-        if not self.sensor_manager.is_gps_quality_sufficient(max_hdop=4.0, min_satellites=self.min_gps_satellites):
+        if not self.sensor_manager.is_gps_quality_sufficient(max_hdop=8.0, min_satellites=self.min_gps_satellites):
             sat_count, fix_type, hdop = self.sensor_manager.get_gps_quality()
             hdop_str = f'hdop={hdop:.2f}m' if hdop < 90.0 else f'{sat_count} satellites (need {self.min_gps_satellites})'
             self.get_logger().warn(
