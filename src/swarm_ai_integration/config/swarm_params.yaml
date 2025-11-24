@@ -46,8 +46,8 @@ ai_flight_node:
 safety_monitor_node:
   ros__parameters:
     # Attitude Limits
-    max_roll_angle: 30.0                # Maximum roll angle (degrees)
-    max_pitch_angle: 30.0               # Maximum pitch angle (degrees)
+    max_roll_angle: 15.0                # Maximum roll angle (degrees)
+    max_pitch_angle: 15.0               # Maximum pitch angle (degrees)
 
     # Altitude Limits
     min_altitude: 0.0                   # Minimum altitude (meters)
@@ -128,9 +128,9 @@ fc_adapter_node:
 
     # RC channel settings
     rc_mid_value: 1500                  # RC channel center value
-    rc_min_value: 1300                  # RC minimum value (safety limit)
-    rc_max_value: 1700                  # RC maximum value (safety limit)
-    rc_deviation_limit: 400.0           # Maximum RC deviation from center
+    rc_min_value: 1450                  # RC minimum value (safety limit)
+    rc_max_value: 1550                  # RC maximum value (safety limit)
+    rc_deviation_limit: 150.0           # Maximum RC deviation from center
 
     # Yaw control
     enable_yaw_control: false           # Enable dynamic yaw alignment (false = fixed yaw like training)
