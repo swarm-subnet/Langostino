@@ -171,8 +171,11 @@ class FCAdapterVelocityNode(Node):
         self.warmup_complete = False
         self.warmup_frames_sent = 0
 
+        # Arming state - keep throttle at 1000 during arming phase
+        self.arming_phase = True  # True during pre-arm and warmup, False after warmup complete
+
         # Throttle rate limiting state
-        self.last_throttle = 1500  # Start at neutral
+        self.last_throttle = 1000  # Start at 1000 for arming safety
         self.throttle_target = 1500
 
         # Safety RTH override
@@ -386,7 +389,9 @@ class FCAdapterVelocityNode(Node):
                 return
             else:
                 self.warmup_complete = True
-                self.get_logger().info(f'✓ Warm-up complete ({self.warmup_frames_sent} frames @ {self.control_rate}Hz)')
+                self.arming_phase = False  # Exit arming phase, now safe to use normal throttle
+                self.last_throttle = 1500  # Reset to neutral for normal operation
+                self.get_logger().info(f'✓ Warm-up complete ({self.warmup_frames_sent} frames @ {self.control_rate}Hz) - Arming phase complete, transitioning to normal operation')
 
         # Command timeout or safety → hover
         if (now - self.last_cmd_time > self.cmd_timeout) or self.safety_override or (not self.ai_enabled):
@@ -549,7 +554,8 @@ class FCAdapterVelocityNode(Node):
         channels = [1500] * 16
         channels[0] = 1500  # Roll (neutral)
         channels[1] = 1500  # Pitch (neutral)
-        channels[2] = 1500  # Throttle (hold altitude in AltHold)
+        # Keep throttle at 1000 during arming phase, use 1500 after armed
+        channels[2] = 1000 if self.arming_phase else 1500  # Throttle
         channels[3] = 1500  # Yaw (neutral)
         channels[4] = 1800 if self.arm_aux_high else 1000        # CH5: ARM (AUX1)
         channels[5] = 1800 if self.angle_mode_enabled else 1000  # CH6: ANGLE mode (AUX2)
