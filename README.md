@@ -1,6 +1,6 @@
-# Swarm AI Integration Documentation
+# Langostino - The Swarm Drone
 
-Complete documentation for the Swarm AI Integration autonomous drone system.
+Complete documentation for the Swarm autonomous drone system.
 
 ---
 
