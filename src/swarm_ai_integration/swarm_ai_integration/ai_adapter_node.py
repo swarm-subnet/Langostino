@@ -429,17 +429,24 @@ class AIAdapterNode(Node):
 
     def _update_tilted_lidar_rays(self):
         """
-        Update tilted-down lidar rays based on altitude from the pure down ray.
+        Update simulated lidar rays based on altitude from the pure down ray.
 
-        The pure down ray (ray 1) gives us altitude. Using this, we calculate
-        the ground distance for tilted-down rays (30° angle):
-        - Ray 11: Forward-down (30° tilt)
-        - Ray 13: Back-down (30° tilt)
-        - Ray 14: Right-down (30° tilt)
-        - Ray 15: Left-down (30° tilt)
+        Ray configuration (matching training environment at swarm/core/moving_drone.py:108-142):
+        - Ray 0: [0, 0, 1] - Pure Up → 1.0 (max range, won't hit ground)
+        - Ray 1: [0, 0, -1] - Pure Down → Real sensor data
+        - Rays 2-9: Horizontal (z=0) → 1.0 (max range, parallel to ground)
+        - Ray 10: [0.866, 0, 0.5] - Forward-Up (+30°) → 1.0 (won't hit ground)
+        - Ray 11: [0.866, 0, -0.5] - Forward-Down (-30°) → CALCULATE
+        - Ray 12: [-0.866, 0, 0.5] - Back-Up (+30°) → 1.0 (won't hit ground)
+        - Ray 13: [-0.866, 0, -0.5] - Back-Down (-30°) → CALCULATE
+        - Ray 14: [0, 0.866, 0.5] - Right-Up (+30°) → 1.0 (won't hit ground)
+        - Ray 15: [0, -0.866, 0.5] - Left-Up (+30°) → 1.0 (won't hit ground)
 
-        For a ray tilted 30° down, hitting the ground:
+        For rays tilted 30° down, hitting the ground:
         distance = altitude / sin(30°) = altitude / 0.5 = 2 * altitude
+
+        This is Pythagorean calculation: if we know the altitude (vertical leg) and
+        the ray angle (-30°), the ray distance (hypotenuse) is altitude / |sin(angle)|
         """
         # Get current lidar distances
         lidar_distances = self.sensor_manager.get_lidar_distances()
@@ -451,7 +458,8 @@ class AIAdapterNode(Node):
         # Denormalize: actual_distance = normalized * max_distance
         actual_altitude = normalized_down * max_ray_distance
 
-        # Calculate distance for 30° tilted rays
+        # Calculate distance for 30° tilted-down rays
+        # For a ray at -30° elevation: sin(-30°) = -0.5, so |sin(-30°)| = 0.5
         sin_30 = 0.5
         tilted_distance = actual_altitude / sin_30 if actual_altitude > 0 else max_ray_distance
 
@@ -461,11 +469,16 @@ class AIAdapterNode(Node):
         # Normalize for observation
         normalized_tilted = self.obs_builder.normalize_lidar_distance(tilted_distance)
 
-        # Update the 4 tilted-down rays
-        self.sensor_manager.update_lidar_ray(11, normalized_tilted)  # forward-down
-        self.sensor_manager.update_lidar_ray(13, normalized_tilted)  # back-down
-        self.sensor_manager.update_lidar_ray(14, normalized_tilted)  # right-down
-        self.sensor_manager.update_lidar_ray(15, normalized_tilted)  # left-down
+        # Update ONLY the 2 rays that point down (negative z component)
+        self.sensor_manager.update_lidar_ray(11, normalized_tilted)  # forward-down (-30°)
+        self.sensor_manager.update_lidar_ray(13, normalized_tilted)  # back-down (-30°)
+
+        # All other rays (except ray 1 which is the real sensor) should be max range
+        # since they either point up or are horizontal and won't hit the ground
+        # These are already initialized to 1.0 in sensor_manager, but we explicitly set them
+        # to ensure they don't get stale data
+        for ray_idx in [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15]:
+            self.sensor_manager.update_lidar_ray(ray_idx, 1.0)  # max range
 
     def compute_observation(self):
         """Compute and publish 131-D observation."""
@@ -501,9 +514,10 @@ class AIAdapterNode(Node):
             return
 
         try:
-            # Update tilted-down lidar rays based on altitude from down ray
-            # Ray 1 is the pure down ray from the actual sensor
-            # We need to calculate rays 11, 13, 14, 15 (forward/back/right/left tilted 30° down)
+            # Update simulated lidar rays based on altitude from down ray
+            # Ray 1 is the pure down ray from the actual sensor (gives altitude)
+            # We calculate rays 11 and 13 (forward/back tilted 30° down)
+            # All other rays are set to 1.0 (max range) as they won't hit the ground
             self._update_tilted_lidar_rays()
             # Prepare action for this observation tick
             last_action = self.obs_builder.prepare_action_for_observation()

@@ -108,10 +108,17 @@ class DebugLogger:
         # LiDAR
         print('\n📡 LIDAR DISTANCES [112:128] (16 values, normalized):')
         print(f'   {lidar_obs}')
-        print(f'   Ray 0 (Up):    {lidar_obs[0]:.4f}')
-        print(f'   Ray 1 (Down):  {lidar_obs[1]:.4f} ⭐ (active sensor, '
-              f'{lidar_obs[1] * self.max_ray_distance:.2f}m)')
-        print(f'   Rays 2-15:     {lidar_obs[2:]} (all inactive = 1.0)')
+        print(f'   Ray 0 (Up):           {lidar_obs[0]:.4f} (always 1.0 - pointing up)')
+        print(f'   Ray 1 (Down):         {lidar_obs[1]:.4f} ⭐ (real sensor, '
+              f'{lidar_obs[1] * self.max_ray_distance:.2f}m altitude)')
+        print(f'   Rays 2-9 (Horiz):     {lidar_obs[2:10]} (all 1.0 - horizontal rays)')
+        print(f'   Ray 10 (Fwd-Up):      {lidar_obs[10]:.4f} (always 1.0 - pointing up)')
+        print(f'   Ray 11 (Fwd-Down):    {lidar_obs[11]:.4f} ⭐ (calculated -30°, '
+              f'{lidar_obs[11] * self.max_ray_distance:.2f}m)')
+        print(f'   Ray 12 (Back-Up):     {lidar_obs[12]:.4f} (always 1.0 - pointing up)')
+        print(f'   Ray 13 (Back-Down):   {lidar_obs[13]:.4f} ⭐ (calculated -30°, '
+              f'{lidar_obs[13] * self.max_ray_distance:.2f}m)')
+        print(f'   Rays 14-15 (Up):      {lidar_obs[14:]} (all 1.0 - pointing up)')
 
         # Goal Vector
         print('\n🎯 GOAL VECTOR [128:131] (3 values) — from /fc/waypoint → ENU / 10 m (no clip):')

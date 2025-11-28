@@ -1,6 +1,6 @@
 # Langostino - The Swarm Drone
 
-Complete documentation for the Swarm autonomous drone system.
+This repo is designed to allow anyone to build their on drone and power it with AI.
 
 ---
 
@@ -21,6 +21,11 @@ Complete documentation for the Swarm autonomous drone system.
 2. [Config Params Guide](CONFIG_PARAMS_GUIDE.md) - Adjust ROS2 parameters
 
 ---
+
+## How to configure your drone.
+These videos by Joshua Bradwell are very useful for setting up your INAV drone.
+[Complete INAV walk-throught](https://www.youtube.com/watch?v=xdf3yhlgJyc)
+[Compass troubles](https://www.youtube.com/watch?v=HWV5b9ZT1eE)
 
 ## Documentation Index
 
