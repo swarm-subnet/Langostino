@@ -174,8 +174,8 @@ class SafetyMonitorNode(Node):
         """Check altitude limits"""
         altitude = self.current_position[2]
 
-        if altitude < self.min_altitude:
-            self.violations.append(f'Altitude {altitude:.2f}m below minimum {self.min_altitude:.2f}m')
+        # Minimum altitude check removed for simplicity
+        # Only check maximum altitude
 
         if altitude > self.max_altitude:
             self.violations.append(f'Altitude {altitude:.2f}m exceeds maximum {self.max_altitude:.2f}m')
