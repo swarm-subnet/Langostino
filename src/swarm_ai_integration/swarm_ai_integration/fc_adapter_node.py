@@ -268,10 +268,11 @@ class FCAdapterVelocityNode(Node):
         """
         Stream the ARM frame for N seconds at hz:
           AETR + AUX = [ROLL, PITCH, THROTTLE, YAW, AUX1(ARM), AUX2(ANGLE), AUX3(ALT_HOLD), AUX4(OVERRIDE)]
-          -> [1500, 1500, 1000, 1500, 1800, 1500, 1800, 1800]
+          -> [1500, 1500, 1000, 1500, 1800, 1500, 1000, 1800]
+          NOTE: Channel 7 (ALT_HOLD) set to 1000 during arming phase, throttle at 1000
         """
-        self.get_logger().warn(f'=== PRE-ARM: streaming ARM for {seconds:.1f}s at {hz}Hz ===')
-        channels = [1500, 1500, 1000, 1500, 1800, 1500, 1800, 1800]
+        self.get_logger().warn(f'=== PRE-ARM: streaming ARM for {seconds:.1f}s at {hz}Hz (CH7=1000, Throttle=1000) ===')
+        channels = [1500, 1500, 1000, 1500, 1800, 1500, 1000, 1800]
         period = 1.0 / float(max(1, hz))
         t_end = time.time() + max(0.0, seconds)
         while time.time() < t_end:
@@ -461,6 +462,7 @@ class FCAdapterVelocityNode(Node):
         channels[3] = yaw_rc
         channels[4] = 1800 if self.arm_aux_high else 1000       # CH5: ARM (AUX1)
         channels[5] = 1800 if self.angle_mode_enabled else 1000  # CH6: ANGLE mode (AUX2)
+        # CH7: ALT HOLD - always use parameter value after arming phase (arming_phase is always False here)
         channels[6] = 1800 if self.althold_enabled else 1000     # CH7: ALT HOLD (AUX3)
         channels[7] = 1800                                       # CH8: MSP RC OVERRIDE (AUX4) - MUST be >1700
         channels[8] = 1800 if (self.nav_rth_enabled or self.safety_rth_requested) else 1000  # CH9: NAV RTH (AUX5)
@@ -559,7 +561,8 @@ class FCAdapterVelocityNode(Node):
         channels[3] = 1500  # Yaw (neutral)
         channels[4] = 1800 if self.arm_aux_high else 1000        # CH5: ARM (AUX1)
         channels[5] = 1800 if self.angle_mode_enabled else 1000  # CH6: ANGLE mode (AUX2)
-        channels[6] = 1800 if self.althold_enabled else 1000     # CH7: ALT HOLD (AUX3)
+        # CH7: ALT HOLD - 1000 during arming phase, then use parameter value
+        channels[6] = 1000 if self.arming_phase else (1800 if self.althold_enabled else 1000)  # CH7: ALT HOLD (AUX3)
         channels[7] = 1800                                       # CH8: MSP RC OVERRIDE (AUX4)
         channels[8] = 1800 if (self.nav_rth_enabled or self.safety_rth_requested) else 1000  # CH9: NAV RTH (AUX5)
         self._send_msp_set_raw_rc(channels)

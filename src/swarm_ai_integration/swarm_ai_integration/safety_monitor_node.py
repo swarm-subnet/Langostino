@@ -33,11 +33,11 @@ class SafetyMonitorNode(Node):
 
         # Parameters
         # Attitude Limits
-        self.declare_parameter('max_roll_angle', 30.0)  # degrees
-        self.declare_parameter('max_pitch_angle', 30.0)  # degrees
+        self.declare_parameter('max_roll_angle', 15.0)  # degrees
+        self.declare_parameter('max_pitch_angle', 15.0)  # degrees
 
         # Altitude Limits
-        self.declare_parameter('min_altitude', 0.5)  # meters
+        self.declare_parameter('min_altitude', 0.0)  # meters
         self.declare_parameter('max_altitude', 10.0)  # meters
 
         # Geofencing
