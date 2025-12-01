@@ -58,9 +58,9 @@ class FCAdapterVelocityNode(Node):
 
         # RC channel settings
         self.declare_parameter('rc_mid_value', 1500)
-        self.declare_parameter('rc_min_value', 1300)
-        self.declare_parameter('rc_max_value', 1700)
-        self.declare_parameter('rc_deviation_limit', 400.0)
+        self.declare_parameter('rc_min_value', 1450)
+        self.declare_parameter('rc_max_value', 1550)
+        self.declare_parameter('rc_deviation_limit', 100.0)
 
         self.declare_parameter('arm_aux_high', True)
         self.declare_parameter('enable_angle_mode', True)
@@ -267,11 +267,11 @@ class FCAdapterVelocityNode(Node):
     def _prearm_stream(self, seconds: float, hz: int):
         """
         Stream the ARM frame for N seconds at hz:
-          AETR + AUX = [ROLL, PITCH, THROTTLE, YAW, AUX1(ARM), AUX2, AUX3, AUX4(OVERRIDE)]
-          -> [1500, 1500, 1000, 1500, 1800, 1500, 1500, 1800]
+          AETR + AUX = [ROLL, PITCH, THROTTLE, YAW, AUX1(ARM), AUX2(ANGLE), AUX3(ALT_HOLD), AUX4(OVERRIDE)]
+          -> [1500, 1500, 1000, 1500, 1800, 1500, 1800, 1800]
         """
         self.get_logger().warn(f'=== PRE-ARM: streaming ARM for {seconds:.1f}s at {hz}Hz ===')
-        channels = [1500, 1500, 1000, 1500, 1800, 1500, 1500, 1800]
+        channels = [1500, 1500, 1000, 1500, 1800, 1500, 1800, 1800]
         period = 1.0 / float(max(1, hz))
         t_end = time.time() + max(0.0, seconds)
         while time.time() < t_end:

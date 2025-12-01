@@ -130,7 +130,7 @@ fc_adapter_node:
     rc_mid_value: 1500                  # RC channel center value
     rc_min_value: 1450                  # RC minimum value (safety limit)
     rc_max_value: 1550                  # RC maximum value (safety limit)
-    rc_deviation_limit: 150.0           # Maximum RC deviation from center
+    rc_deviation_limit: 100.0           # Maximum RC deviation from center
 
     # Yaw control
     enable_yaw_control: false           # Enable dynamic yaw alignment (false = fixed yaw like training)
