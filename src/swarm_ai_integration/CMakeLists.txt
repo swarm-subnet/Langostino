@@ -29,6 +29,7 @@ install(PROGRAMS
   swarm_ai_integration/lidar_reader_node.py
   swarm_ai_integration/black_box_recorder_node.py
   swarm_ai_integration/flight_test_node.py
+  swarm_ai_integration/test_motion_sim_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
