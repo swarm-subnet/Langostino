@@ -274,10 +274,6 @@ class BlackBoxRecorderNode(Node):
             lambda msg: self._update_latest('safety_override', msg.data), reliable_qos)
 
         self.create_subscription(
-            Bool, '/safety/rth_command',
-            lambda msg: self._update_latest('safety_rth_command', msg.data), reliable_qos)
-
-        self.create_subscription(
             String, '/safety/status',
             lambda msg: self._update_latest('safety_status', msg.data), reliable_qos)
 
@@ -533,8 +529,6 @@ class BlackBoxRecorderNode(Node):
         safety = {}
         if 'safety_override' in self.latest_data:
             safety['override'] = self.latest_data['safety_override']
-        if 'safety_rth_command' in self.latest_data:
-            safety['rth_command'] = self.latest_data['safety_rth_command']
         if 'safety_status' in self.latest_data:
             safety['status'] = self.latest_data['safety_status']
         if safety:

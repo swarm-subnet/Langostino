@@ -26,6 +26,15 @@ from geometry_msgs.msg import Vector3Stamped
 class SafetyMonitorNode(Node):
     """
     Simple safety monitoring system with basic checks and emergency landing.
+    
+    Subscriptions:
+        /ai/observation          (std_msgs/Float32MultiArray) : [E, N, U, ...]
+        /fc/attitude_euler      (geometry_msgs/Vector3Stamped) : [roll, pitch, yaw] degrees
+
+    Publications:
+        /safety/override        (std_msgs/Bool) : True=Override AI control
+        /safety/emergency_land  (std_msgs/Bool) : True=Initiate emergency landing
+        /safety/status         (std_msgs/String) : Current safety status
     """
 
     def __init__(self):

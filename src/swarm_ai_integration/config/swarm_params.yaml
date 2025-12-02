@@ -98,62 +98,25 @@ fc_comms_node:
 # ═══════════════════════════════════════════════════════════════════
 fc_adapter_node:
   ros__parameters:
-    # Control rates
+    # Control rate
     control_rate_hz: 40.0               # Main control loop rate (Hz)
-    prearm_rate_hz: 40                  # Pre-arm sequence rate (Hz)
 
-    # Velocity limits
-    max_velocity: 0.1                   # Maximum velocity command (m/s)
+    # Command timeout
+    command_timeout: 1.0                # Command timeout before reverting to hover (seconds)
 
-    # Command processing
-    command_timeout: 1.0                # Command timeout (seconds)
-
-    # Timing
-    warmup_frames: 40                   # Number of warmup frames before accepting commands
-    startup_delay_sec: 20.0             # Initial startup delay (seconds)
-    prearm_duration_sec: 30.0           # Pre-arm sequence duration (seconds)
-
-    # Pre-arm configuration
-    prearm_enabled: true                # Enable pre-arm sequence
-    arm_aux_high: true                  # Set AUX channel high during arm
-    enable_angle_mode: true             # Enable angle mode
-    enable_althold_mode: true           # Enable altitude hold mode
-    enable_nav_rth: false               # Enable NAV RTH on CH9
-
-    # MSP Serial settings
-    msp_serial_port: "/dev/ttyAMA0"     # MSP serial port
-    msp_baud_rate: 115200               # MSP baud rate
-    msp_write_timeout: 0.05             # MSP write timeout (seconds)
+    # Warmup configuration
+    warmup_duration_sec: 10.0           # Warmup duration with low throttle before enabling ALT HOLD (seconds)
 
     # RC channel settings
-    rc_mid_value: 1500                  # RC channel center value
+    rc_mid_value: 1500                  # RC channel center value (neutral)
     rc_min_value: 1450                  # RC minimum value (safety limit)
     rc_max_value: 1550                  # RC maximum value (safety limit)
-    rc_deviation_limit: 100.0           # Maximum RC deviation from center
 
-    # Yaw control
-    enable_yaw_control: false           # Enable dynamic yaw alignment (false = fixed yaw like training)
-    yaw_kp: 200.0                       # Proportional gain for yaw control (only used if enable_yaw_control = true)
-    yaw_rate_limit: 300.0               # Maximum yaw rate change (deg/s, only used if enable_yaw_control = true)
-
-    # PID Controller gains
-    kp_xy: 150.0                        # Proportional gain for XY control
-    ki_xy: 10.0                         # Integral gain for XY control
-    kd_xy: 20.0                         # Derivative gain for XY control
-    kp_z: 100.0                         # Proportional gain for Z control (not used - keeping for compatibility)
-    ki_z: 5.0                           # Integral gain for Z control (not used)
-    kd_z: 15.0                          # Derivative gain for Z control (not used)
-
-    # PID limits
-    pid_output_min: -400.0              # Minimum PID output
-    pid_output_max: 400.0               # Maximum PID output
-    pid_integral_max: 50.0              # Maximum integral accumulation
-    pid_derivative_filter_alpha: 0.1    # Derivative filter coefficient (0-1)
-    pid_max_history_length: 100         # Maximum PID history length
-
-    # Z-axis direct control (no PID)
-    vz_to_throttle_scale: 100.0         # vz (m/s) to throttle RC units conversion
-    throttle_rate_limit: 200.0          # Maximum throttle change rate (units/s)
+    # Joystick mapping gains (RC units per m/s)
+    # These control how much RC deflection per unit of velocity command
+    vx_to_pitch_gain: 50.0              # Forward/backward gain (vx → pitch channel)
+    vy_to_roll_gain: 50.0               # Left/right gain (vy → roll channel)
+    vz_to_throttle_gain: 100.0          # Up/down gain (vz → throttle channel)
 
 # ═══════════════════════════════════════════════════════════════════
 # Black Box Recorder Node Parameters

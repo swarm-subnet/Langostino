@@ -1,0 +1,156 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║              SIMPLIFIED TEST NODE - QUICK REFERENCE                    ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ WHAT CHANGED                                                           │
+└────────────────────────────────────────────────────────────────────────┘
+
+BEFORE (350 lines):                    AFTER (180 lines):
+┌─────────────────────┐               ┌─────────────────────┐
+│ test_motion_sim_node│               │ test_motion_sim_node│
+│                     │               │  (Simple)           │
+│ • Physics engine    │               │                     │
+│ • Position tracking │               │ • Send /ai/action   │
+│ • Velocity calc     │               │ • Read /fc/rc_override
+│ • Attitude sim      │               │ • Display results   │
+│ • GPS simulation    │               │                     │
+│ • Altitude tracking │               │ That's it!          │
+│                     │               │                     │
+│ Publishes:          │               │ Publishes:          │
+│ • /ai/action        │               │ • /ai/action        │
+│ • /fc/gps_speed     │   ✂️          │                     │
+│ • /fc/attitude      │   DELETE      │ Subscribes:         │
+│ • /fc/altitude      │   ───────>    │ • /fc/rc_override   │
+│ • /safety/override  │               │                     │
+│                     │               │ 48% less code!      │
+└─────────────────────┘               └─────────────────────┘
+
+WHY? fc_adapter_node doesn't use any sensor data anymore!
+     It's pure joystick mode - no feedback needed.
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ OUTPUT COMPARISON                                                      │
+└────────────────────────────────────────────────────────────────────────┘
+
+BEFORE (20 Hz - Hard to Read):
+[INFO] Action=[+1.0, +0.0, +0.0, s=0.50]  Vel=[+0.10, +0.00, +0.00]m/s  Speed=0.10m/s  Alt=10.0m  Att=[r=+0.0°, p=+0.1°, y=+0.0°]  RC_OUT=[R=1500, P=1500, T=1500, Y=1500]
+[INFO] Action=[+1.0, +0.0, +0.0, s=0.50]  Vel=[+0.20, +0.00, +0.00]m/s  Speed=0.20m/s  Alt=10.0m  Att=[r=-0.0°, p=+0.3°, y=+7.2°]  RC_OUT=[R=1500, P=1550, T=1500, Y=1500]
+[INFO] Action=[+1.0, +0.0, +0.0, s=0.50]  Vel=[+0.30, +0.00, +0.00]m/s  Speed=0.30m/s  Alt=10.0m  Att=[r=-0.1°, p=+0.6°, y=+13.8°]  RC_OUT=[R=1494, P=1550, T=1500, Y=1500]
+... (scrolls too fast!)
+
+AFTER (2 Hz - Easy to Read):
+[INFO] Action=[+1.00, +0.00, +0.00, s=0.50] → RC_OUT=[R=1500, P=1525, T=1500, Y=1500] AUX[ARM=1800, ANG=1500, ALT=1800, MSP=1800]
+(3 seconds pause)
+[INFO] Action=[+1.00, +0.00, +0.00, s=0.50] → RC_OUT=[R=1500, P=1525, T=1500, Y=1500] AUX[ARM=1800, ANG=1500, ALT=1800, MSP=1800]
+(3 seconds pause)
+[INFO] Action=[+1.00, +0.00, +0.00, s=0.50] → RC_OUT=[R=1500, P=1525, T=1500, Y=1500] AUX[ARM=1800, ANG=1500, ALT=1800, MSP=1800]
+
+Much better! ✅
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ QUICK START                                                            │
+└────────────────────────────────────────────────────────────────────────┘
+
+1. Build:
+   cd ~/swarm-ros
+   colcon build --packages-select swarm_ai_integration
+   source install/setup.bash
+
+2. Run test:
+   ros2 launch swarm_ai_integration test_fc_adapter_launch.py
+
+3. Watch the output - it will cycle through 16 tests automatically!
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ PARAMETERS                                                             │
+└────────────────────────────────────────────────────────────────────────┘
+
+test_motion_sim_node:
+  update_rate_hz: 2.0              # Slow update rate (2 Hz)
+  test_sequence_enabled: true      # Auto-run 16 test cases
+  hold_duration_sec: 3.0           # Hold each test for 3 seconds
+
+# Disable auto test:
+ros2 run swarm_ai_integration test_motion_sim_node.py \
+  --ros-args -p test_sequence_enabled:=false
+
+# Faster updates:
+ros2 run swarm_ai_integration test_motion_sim_node.py \
+  --ros-args -p update_rate_hz:=5.0
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ MANUAL TESTING                                                         │
+└────────────────────────────────────────────────────────────────────────┘
+
+Terminal 1:
+  ros2 run swarm_ai_integration fc_adapter_node.py
+
+Terminal 2 (disable auto test):
+  ros2 run swarm_ai_integration test_motion_sim_node.py \
+    --ros-args -p test_sequence_enabled:=false
+
+Terminal 3 (send manual commands):
+  # Forward
+  ros2 topic pub /ai/action std_msgs/msg/Float32MultiArray \
+    "data: [1.0, 0.0, 0.0, 0.5]"
+  
+  # Right
+  ros2 topic pub /ai/action std_msgs/msg/Float32MultiArray \
+    "data: [0.0, 1.0, 0.0, 0.5]"
+  
+  # Climb
+  ros2 topic pub /ai/action std_msgs/msg/Float32MultiArray \
+    "data: [0.0, 0.0, 1.0, 0.5]"
+  
+  # Hover
+  ros2 topic pub /ai/action std_msgs/msg/Float32MultiArray \
+    "data: [0.0, 0.0, 0.0, 0.0]"
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ EXPECTED BEHAVIOR                                                      │
+└────────────────────────────────────────────────────────────────────────┘
+
+Action [vx, vy, vz, speed]          Expected RC Output
+───────────────────────────────────────────────────────────────────────
+[0, 0, 0, 0]                        R=1500 P=1500 T=1500 Y=1500 (hover)
+[1, 0, 0, 0.5]                      R=1500 P=1525 T=1500 Y=1500 (forward)
+[-1, 0, 0, 0.5]                     R=1500 P=1475 T=1500 Y=1500 (back)
+[0, 1, 0, 0.5]                      R=1525 P=1500 T=1500 Y=1500 (right)
+[0, -1, 0, 0.5]                     R=1475 P=1500 T=1500 Y=1500 (left)
+[0, 0, 1, 0.5]                      R=1500 P=1500 T=1550 Y=1500 (climb)
+[0, 0, -1, 0.5]                     R=1500 P=1500 T=1450 Y=1500 (descend)
+[1, 1, 0, 0.7]                      R=1535 P=1535 T=1500 Y=1500 (diagonal)
+
+All values clamped to [1450, 1550] range.
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ TROUBLESHOOTING                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+
+Issue: "RC_OUT=[waiting for fc_adapter...]"
+Fix: fc_adapter_node is not running or not publishing
+     → Start fc_adapter_node.py
+
+Issue: "Action stays at [0, 0, 0, 0]"
+Fix: Test sequence disabled
+     → Set test_sequence_enabled:=true
+
+Issue: "Output scrolls too fast"
+Fix: Update rate too high
+     → Use update_rate_hz:=1.0 or 2.0
+
+Issue: "No output at all"
+Fix: Build or source setup
+     → colcon build && source install/setup.bash
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                         FILES SIMPLIFIED                               ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+✅ test_motion_sim_node.py    350 → 180 lines (-48%)
+✅ test_fc_adapter_launch.py  Created (simplified parameters)
+✅ Documentation created:
+   • TEST_NODE_SIMPLIFICATION.md
+   • QUICK_TEST_GUIDE.txt (this file)
+

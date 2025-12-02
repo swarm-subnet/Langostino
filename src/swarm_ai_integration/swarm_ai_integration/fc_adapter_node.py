@@ -1,621 +1,279 @@
 #!/usr/bin/env python3
 """
-FC Adapter Velocity Node (Closed-Loop, DIRECT MSP with pre-arm)
-- Arms the FC for N seconds by streaming an ARM frame over MSP (like arm_only_simple.py).
-- Then subscribes to /ai/action (Float32MultiArray: [vx, vy, vz, speed]) and flies closed-loop.
-- Uses GPS speed/course + yaw to estimate actual velocity in body frame.
-- PID (vx, vy) -> RC deviations (roll, pitch) for horizontal control.
-- Direct mapping (vz) -> throttle with rate limiting for altitude control (INAV ALT HOLD interprets as climb rate).
-- MSP_SET_RAW_RC sent over MSP serial (no fc_comms_node).
-- Logs every action it sends to the FC.
+FC Adapter Node - Simple Joystick Mode
 
-Safety:
-- TEST WITH PROPS OFF FIRST.
+Translates /ai/action vectors directly to RC values like a joystick.
+No PID, no sensor feedback - pure open-loop control.
+
+Publishes RC values to /fc/rc_override topic for fc_comms_node to send via MSP.
+
+ENU Coordinate System:
+  X = forward (East)
+  Y = right (North)
+  Z = up
+
+RC Channel Mapping (AETR + AUX):
+  CH1: ROLL    (vy control - right/left)
+  CH2: PITCH   (vx control - forward/back)
+  CH3: THROTTLE (vz control - up/down in ALT HOLD)
+  CH4: YAW     (always 1500 - no rotation)
+  CH5: ARM     (AUX1 - always 1800 when armed)
+  CH6: ANGLE   (AUX2 - always 1500 for angle mode)
+  CH7: ALT_HOLD (AUX3 - 1000 during warmup, 1800 after)
+  CH8: MSP_OVERRIDE (AUX4 - always 1800)
 """
 
-import math
 import time
-from typing import Optional
-
-import numpy as np
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from std_msgs.msg import Float32MultiArray, Bool, String
-from geometry_msgs.msg import Vector3Stamped
-
-import serial
-import struct
-
-from swarm_ai_integration.pid_controller import VelocityPIDController
 
 
-class FCAdapterVelocityNode(Node):
+class FCAdapterNode(Node):
     """
+    FC Adapter Node - Joystick Mode
     Subscriptions:
-      /ai/action                 (std_msgs/Float32MultiArray) : [vx, vy, vz, speed]  (speed unused)
-      /fc/gps_speed_course       (std_msgs/Float32MultiArray) : [speed_mps, course_deg]
-      /fc/attitude_euler         (geometry_msgs/Vector3Stamped): roll,pitch,yaw (rad)
-      /fc/altitude               (std_msgs/Float32MultiArray) : [baro_alt_m, vz_mps]
+      /ai/action                 (std_msgs/Float32MultiArray) : [vx, vy, vz, speed]
       /safety/override           (std_msgs/Bool)
 
     Publications:
       /fc_adapter/status         (std_msgs/String)
-      /fc_adapter/velocity_error (geometry_msgs/Vector3Stamped)
       /fc/rc_override            (std_msgs/Float32MultiArray) : [ch1, ch2, ..., ch9]
     """
 
     def __init__(self):
-        super().__init__('fc_adapter_velocity_node')
+        super().__init__('fc_adapter_node')
 
         # ------------ Parameters ------------
         self.declare_parameter('control_rate_hz', 40.0)
-        self.declare_parameter('max_velocity', 3.0)
-        self.declare_parameter('command_timeout', 1.0)
-        self.declare_parameter('warmup_frames', 40)
-
-        # RC channel settings
         self.declare_parameter('rc_mid_value', 1500)
         self.declare_parameter('rc_min_value', 1450)
         self.declare_parameter('rc_max_value', 1550)
-        self.declare_parameter('rc_deviation_limit', 100.0)
 
-        self.declare_parameter('arm_aux_high', True)
-        self.declare_parameter('enable_angle_mode', True)
-        self.declare_parameter('enable_althold_mode', True)
-        self.declare_parameter('enable_nav_rth', False)  # NAV RTH on CH9
+        # Mapping gains (how much RC deflection per unit of velocity command)
+        self.declare_parameter('vx_to_pitch_gain', 50.0)   # RC units per m/s
+        self.declare_parameter('vy_to_roll_gain', 50.0)    # RC units per m/s
+        self.declare_parameter('vz_to_throttle_gain', 100.0)  # RC units per m/s
 
-        # Yaw control
-        self.declare_parameter('enable_yaw_control', False)   # Enable dynamic yaw alignment
-        self.declare_parameter('yaw_kp', 200.0)              # Yaw P gain (RC units per radian)
-        self.declare_parameter('yaw_rate_limit', 300.0)      # Max yaw RC deviation
+        # Warmup and safety
+        self.declare_parameter('warmup_duration_sec', 10.0)
+        self.declare_parameter('command_timeout', 1.0)
 
-        # PID gains
-        self.declare_parameter('kp_xy', 150.0)
-        self.declare_parameter('ki_xy', 10.0)
-        self.declare_parameter('kd_xy', 20.0)
-        self.declare_parameter('kp_z', 100.0)  # Not used - keeping for compatibility
-        self.declare_parameter('ki_z', 5.0)    # Not used
-        self.declare_parameter('kd_z', 15.0)   # Not used
-
-        # PID limits
-        self.declare_parameter('pid_output_min', -400.0)
-        self.declare_parameter('pid_output_max', 400.0)
-        self.declare_parameter('pid_integral_max', 50.0)
-        self.declare_parameter('pid_derivative_filter_alpha', 0.1)
-        self.declare_parameter('pid_max_history_length', 100)
-
-        # Z-axis direct mapping (no PID)
-        self.declare_parameter('vz_to_throttle_scale', 100.0)  # vz (m/s) → throttle RC units
-        self.declare_parameter('throttle_rate_limit', 200.0)   # Max change per second (units/s)
-
-        # MSP serial (DIRECT) like arm_only_simple.py
-        self.declare_parameter('msp_serial_port', '/dev/ttyAMA0')
-        self.declare_parameter('msp_baud_rate', 115200)
-        self.declare_parameter('msp_write_timeout', 0.05)
-
-        # Pre-arm streaming (like your working script)
-        self.declare_parameter('prearm_enabled', True)
-        self.declare_parameter('prearm_duration_sec', 30.0)   # stream ARM frame for N seconds
-        self.declare_parameter('prearm_rate_hz', 40)         # at 40 Hz
-        self.declare_parameter('startup_delay_sec', 20.0)
-
-        # ------------ Param values ------------
+        # Get parameter values
         self.control_rate = float(self.get_parameter('control_rate_hz').value)
-        self.max_velocity = float(self.get_parameter('max_velocity').value)
-        self.cmd_timeout = float(self.get_parameter('command_timeout').value)
-        self.warmup_frames_total = int(self.get_parameter('warmup_frames').value)
-
-        # RC channel settings
         self.rc_mid = int(self.get_parameter('rc_mid_value').value)
         self.rc_min = int(self.get_parameter('rc_min_value').value)
         self.rc_max = int(self.get_parameter('rc_max_value').value)
-        self.rc_deviation_limit = float(self.get_parameter('rc_deviation_limit').value)
 
-        self.arm_aux_high = bool(self.get_parameter('arm_aux_high').value)
-        self.angle_mode_enabled = bool(self.get_parameter('enable_angle_mode').value)
-        self.althold_enabled = bool(self.get_parameter('enable_althold_mode').value)
-        self.nav_rth_enabled = bool(self.get_parameter('enable_nav_rth').value)
+        self.vx_gain = float(self.get_parameter('vx_to_pitch_gain').value)
+        self.vy_gain = float(self.get_parameter('vy_to_roll_gain').value)
+        self.vz_gain = float(self.get_parameter('vz_to_throttle_gain').value)
 
-        # Yaw control parameters
-        self.enable_yaw_control = bool(self.get_parameter('enable_yaw_control').value)
-        self.yaw_kp = float(self.get_parameter('yaw_kp').value)
-        self.yaw_rate_limit = float(self.get_parameter('yaw_rate_limit').value)
-        self.desired_yaw = 0.0  # Target yaw angle (radians)
-
-        # PID gains
-        self.kp_xy = float(self.get_parameter('kp_xy').value)
-        self.ki_xy = float(self.get_parameter('ki_xy').value)
-        self.kd_xy = float(self.get_parameter('kd_xy').value)
-        self.kp_z = float(self.get_parameter('kp_z').value)  # Not used
-        self.ki_z = float(self.get_parameter('ki_z').value)  # Not used
-        self.kd_z = float(self.get_parameter('kd_z').value)  # Not used
-
-        # PID limits
-        self.pid_output_min = float(self.get_parameter('pid_output_min').value)
-        self.pid_output_max = float(self.get_parameter('pid_output_max').value)
-        self.pid_integral_max = float(self.get_parameter('pid_integral_max').value)
-        self.pid_derivative_filter_alpha = float(self.get_parameter('pid_derivative_filter_alpha').value)
-        self.pid_max_history_length = int(self.get_parameter('pid_max_history_length').value)
-
-        # Z-axis control parameters
-        self.vz_scale = float(self.get_parameter('vz_to_throttle_scale').value)
-        self.throttle_rate_limit = float(self.get_parameter('throttle_rate_limit').value)
-
-        # MSP serial
-        self.msp_port = str(self.get_parameter('msp_serial_port').value)
-        self.msp_baudrate = int(self.get_parameter('msp_baud_rate').value)
-        self.msp_write_timeout = float(self.get_parameter('msp_write_timeout').value)
-
-        # Pre-arm
-        self.prearm_enabled = bool(self.get_parameter('prearm_enabled').value)
-        self.prearm_seconds = float(self.get_parameter('prearm_duration_sec').value)
-        self.prearm_hz = int(self.get_parameter('prearm_rate_hz').value)
-        self.startup_delay_sec = float(self.get_parameter('startup_delay_sec').value)
+        self.warmup_duration = float(self.get_parameter('warmup_duration_sec').value)
+        self.cmd_timeout = float(self.get_parameter('command_timeout').value)
 
         # ------------ State ------------
-        self.velocity_cmd_body = np.zeros(3, dtype=float)      # [vx, vy, vz]
-        self.velocity_actual_earth = np.zeros(3, dtype=float)  # [east, north, up]
-        self.velocity_actual_body = np.zeros(3, dtype=float)   # [vx, vy, vz]
-        self.attitude_yaw = 0.0
-        self.last_ai_speed_scalar: Optional[float] = None
-
+        self.last_action = [0.0, 0.0, 0.0, 0.0]  # [vx, vy, vz, speed]
         self.last_cmd_time = time.time()
-        self.last_control_time = time.time()
         self.safety_override = False
-        self.ai_enabled = False
 
-        # Warm-up state
+        # Warmup state
         self.warmup_complete = False
-        self.warmup_frames_sent = 0
-
-        # Arming state - keep throttle at 1000 during arming phase
-        self.arming_phase = True  # True during pre-arm and warmup, False after warmup complete
-
-        # Throttle rate limiting state
-        self.last_throttle = 1000  # Start at 1000 for arming safety
-        self.throttle_target = 1500
-
-        # Safety RTH override
-        self.safety_rth_requested = False
-
-        # PID - use parameters from config
-        self.velocity_controller = VelocityPIDController(
-            kp_xy=self.kp_xy, ki_xy=self.ki_xy, kd_xy=self.kd_xy,
-            kp_z=self.kp_z,  ki_z=self.ki_z,  kd_z=self.kd_z,
-            output_min=self.pid_output_min,
-            output_max=self.pid_output_max,
-            integral_max=self.pid_integral_max,
-            derivative_filter_alpha=self.pid_derivative_filter_alpha,
-            max_history_length=self.pid_max_history_length
-        )
-
-        self.stats = {'loops': 0, 'msp_cmds': 0, 'failsafes': 0}
-
-        # ------------ MSP Serial (direct) ------------
-        self.ser: Optional[serial.Serial] = None
-        self._open_serial()
-        
-
-        # ----------- OPTIONAL STARTUP DELAY (operator setup window) -----------
-        if self.startup_delay_sec > 0:
-            self.get_logger().warn(f'Waiting {self.startup_delay_sec:.1f}s before arming (operator setup).')
-            time.sleep(self.startup_delay_sec)
-
-        # ----------- PRE-ARM: stream ARM frame like arm_only_simple.py -----------
-        if self.prearm_enabled and (self.ser and self.ser.is_open):
-            self._prearm_stream(seconds=self.prearm_seconds, hz=self.prearm_hz)
-        else:
-            if not self.prearm_enabled:
-                self.get_logger().info('Pre-arm disabled by parameter.')
-            else:
-                self.get_logger().error('Pre-arm requested but MSP serial is not open.')
+        self.warmup_start_time = time.time()
 
         # ------------ QoS & ROS I/O ------------
-        sensor_qos = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
-            history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1
-        )
         control_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
             depth=1
         )
 
-        # Subs
-        self.create_subscription(Float32MultiArray, '/ai/action', self.cb_ai_action_array, control_qos)
-        self.create_subscription(Float32MultiArray, '/fc/gps_speed_course', self.cb_gps_speed_course, sensor_qos)
-        self.create_subscription(Vector3Stamped, '/fc/attitude_euler', self.cb_attitude, sensor_qos)
-        self.create_subscription(Float32MultiArray, '/fc/altitude', self.cb_altitude, sensor_qos)
+        # Subscriptions
+        self.create_subscription(Float32MultiArray, '/ai/action', self.cb_ai_action, control_qos)
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
-        self.create_subscription(Bool, '/safety/rth_command', self.cb_rth_command, control_qos)
 
-        # Pubs
+        # Publications
         self.status_pub = self.create_publisher(String, '/fc_adapter/status', control_qos)
-        self.vel_error_pub = self.create_publisher(Vector3Stamped, '/fc_adapter/velocity_error', control_qos)
         self.rc_override_pub = self.create_publisher(Float32MultiArray, '/fc/rc_override', control_qos)
 
-        # Timers (start AFTER pre-arm so nothing else transmits during arming)
+        # Timer
         self.control_period = 1.0 / max(1.0, self.control_rate)
         self.create_timer(self.control_period, self.control_loop)
         self.create_timer(1.0, self.publish_status)
 
-        self.get_logger().info(f'FC Adapter Velocity Node (DIRECT MSP + pre-arm) ready @ {self.control_rate}Hz; MSP on {self.msp_port}@{self.msp_baudrate}')
+        self.get_logger().info(
+            f'FC Adapter Node (Joystick Mode) started @ {self.control_rate}Hz\n'
+            f'  RC range: [{self.rc_min}, {self.rc_mid}, {self.rc_max}]\n'
+            f'  Gains: vx→pitch={self.vx_gain}, vy→roll={self.vy_gain}, vz→throttle={self.vz_gain}\n'
+            f'  Warmup: {self.warmup_duration}s\n'
+            f'  Publishing to: /fc/rc_override'
+        )
 
-    # ------------ Serial ------------
-    def _open_serial(self):
-        try:
-            self.ser = serial.Serial(self.msp_port, self.msp_baudrate, timeout=0.02, write_timeout=self.msp_write_timeout)
-            time.sleep(2.0)  # let FC UART settle
-            self.get_logger().info('MSP serial opened.')
-        except Exception as e:
-            self.ser = None
-            self.get_logger().error(f'MSP serial open failed: {e}')
-
-    def _close_serial(self):
-        try:
-            if self.ser and self.ser.is_open:
-                self.ser.close()
-                self.get_logger().info('MSP serial closed.')
-        except Exception:
-            pass
-
-    # ------------ Pre-ARM like arm_only_simple.py ------------
-    def _prearm_stream(self, seconds: float, hz: int):
-        """
-        Stream the ARM frame for N seconds at hz:
-          AETR + AUX = [ROLL, PITCH, THROTTLE, YAW, AUX1(ARM), AUX2(ANGLE), AUX3(ALT_HOLD), AUX4(OVERRIDE)]
-          -> [1500, 1500, 1000, 1500, 1800, 1500, 1000, 1800]
-          NOTE: Channel 7 (ALT_HOLD) set to 1000 during arming phase, throttle at 1000
-        """
-        self.get_logger().warn(f'=== PRE-ARM: streaming ARM for {seconds:.1f}s at {hz}Hz (CH7=1000, Throttle=1000) ===')
-        channels = [1500, 1500, 1000, 1500, 1800, 1500, 1000, 1800]
-        period = 1.0 / float(max(1, hz))
-        t_end = time.time() + max(0.0, seconds)
-        while time.time() < t_end:
-            t0 = time.time()
-            self._send_msp_set_raw_rc(channels)
-            dt = time.time() - t0
-            sleep_left = period - dt
-            if sleep_left > 0:
-                time.sleep(sleep_left)
-        self.get_logger().info('✅ PRE-ARM finished; proceeding to closed-loop.')
-
-    # -------------------- Callbacks --------------------
-    def cb_ai_action_array(self, msg: Float32MultiArray):
+    # ------------ Callbacks ------------
+    def cb_ai_action(self, msg: Float32MultiArray):
+        """Receive AI action command"""
         data = list(msg.data)
-        if len(data) < 3:
+        if len(data) < 4:
             return
 
-        # AI model outputs in ENU frame (vx=East, vy=North, vz=Up) + speed scalar
-        # This matches the simulator (ai_adapter_simulator_node.py:241-243)
-        vx_enu, vy_enu, vz_enu = float(data[0]), float(data[1]), float(data[2])
-
-        # Extract speed scalar (0-1 scale where 1 = max_velocity parameter)
-        speed_scalar = float(data[3]) if len(data) > 3 else 1.0
-        self.last_ai_speed_scalar = speed_scalar
-
-        # Speed scaling:
-        # - (vx, vy, vz) represents the direction vector
-        # - speed ∈ [0, 1] represents magnitude as fraction of max_velocity (configured)
-        # - Actual velocity = normalize(direction) * speed * max_velocity
-        direction_magnitude = math.sqrt(vx_enu**2 + vy_enu**2 + vz_enu**2)
-
-        if direction_magnitude > 1e-6:
-            # Normalize direction and scale by speed
-            direction_norm = np.array([vx_enu, vy_enu, vz_enu]) / direction_magnitude
-            target_speed = speed_scalar * self.max_velocity  # Scale by configured max velocity
-            vx_enu = direction_norm[0] * target_speed
-            vy_enu = direction_norm[1] * target_speed
-            vz_enu = direction_norm[2] * target_speed
-        else:
-            # No direction specified, command zero velocity
-            vx_enu = 0.0
-            vy_enu = 0.0
-            vz_enu = 0.0
-
-        # Calculate desired yaw from velocity direction (align heading with movement)
-        if self.enable_yaw_control:
-            velocity_magnitude_xy = math.sqrt(vx_enu**2 + vy_enu**2)
-            if velocity_magnitude_xy > 0.1:  # Only update yaw if moving significantly
-                # Desired yaw = direction of horizontal velocity in ENU
-                # atan2(East, North) gives bearing in radians
-                self.desired_yaw = math.atan2(vx_enu, vy_enu)
-
-        # Transform from ENU to body frame using current yaw
-        # Body frame: vx=forward, vy=right, vz=up
-        cy = math.cos(self.attitude_yaw)
-        sy = math.sin(self.attitude_yaw)
-        vx_body = vx_enu * cy + vy_enu * sy     # forward = E*cos(yaw) + N*sin(yaw)
-        vy_body = -vx_enu * sy + vy_enu * cy    # right = -E*sin(yaw) + N*cos(yaw)
-        vz_body = vz_enu                        # up = up
-
-        # clamp for safety (vz used for throttle mapping with rate limiting)
-        self.velocity_cmd_body[0] = float(np.clip(vx_body, -self.max_velocity, self.max_velocity))
-        self.velocity_cmd_body[1] = float(np.clip(vy_body, -self.max_velocity, self.max_velocity))
-        self.velocity_cmd_body[2] = float(np.clip(vz_body, -self.max_velocity, self.max_velocity))  # Used for throttle mapping
+        self.last_action = [
+            float(data[0]),  # vx (forward)
+            float(data[1]),  # vy (right)
+            float(data[2]),  # vz (up)
+            float(data[3])   # speed (0-1 scale)
+        ]
         self.last_cmd_time = time.time()
-        self.ai_enabled = True
-
-    def cb_gps_speed_course(self, msg: Float32MultiArray):
-        if len(msg.data) < 2:
-            return
-        speed_mps = float(msg.data[0])
-        course_deg = float(msg.data[1])
-        cr = math.radians(course_deg)
-        # ENU: east = +sin(course), north = +cos(course)
-        self.velocity_actual_earth[0] = speed_mps * math.sin(cr)
-        self.velocity_actual_earth[1] = speed_mps * math.cos(cr)
-        # up set in altitude callback
-
-    def cb_attitude(self, msg: Vector3Stamped):
-        self.attitude_yaw = float(msg.vector.z)
-
-    def cb_altitude(self, msg: Float32MultiArray):
-        if len(msg.data) >= 2:
-            self.velocity_actual_earth[2] = float(msg.data[1])  # vertical velocity (up)
 
     def cb_safety(self, msg: Bool):
+        """Safety override - emergency hover"""
         self.safety_override = bool(msg.data)
         if self.safety_override:
-            self.get_logger().warn('Safety override ON → hover')
-            self.velocity_controller.reset()
+            self.get_logger().warn('⚠️ Safety override ON → emergency hover')
 
-    def cb_rth_command(self, msg: Bool):
-        """Handle RTH (Return to Home) command from safety monitor"""
-        self.safety_rth_requested = bool(msg.data)
-        if self.safety_rth_requested:
-            self.get_logger().error('🚨 RTH ACTIVATED - Return to Home mode engaged')
-        else:
-            self.get_logger().info('✓ RTH deactivated')
-
-    # -------------------- Control Loop --------------------
+    # ------------ Control Loop ------------
     def control_loop(self):
+        """Main control loop - translates action to RC values"""
         now = time.time()
-        dt = max(1e-3, now - self.last_control_time)
-        self.last_control_time = now
 
-        # Ensure serial is open; attempt reopen once if lost
-        if not (self.ser and self.ser.is_open):
-            self._open_serial()
-
-        # Warm-up sequence: send neutral frames before accepting AI commands
+        # Check warmup status
         if not self.warmup_complete:
-            if self.warmup_frames_sent < self.warmup_frames_total:
-                self.send_hover_command(reason='warmup')
-                self.warmup_frames_sent += 1
-                return
-            else:
+            if (now - self.warmup_start_time) >= self.warmup_duration:
                 self.warmup_complete = True
-                self.arming_phase = False  # Exit arming phase, now safe to use normal throttle
-                self.last_throttle = 1500  # Reset to neutral for normal operation
-                self.get_logger().info(f'✓ Warm-up complete ({self.warmup_frames_sent} frames @ {self.control_rate}Hz) - Arming phase complete, transitioning to normal operation')
+                self.get_logger().info(f'✅ Warmup complete ({self.warmup_duration}s) - switching to ALT HOLD mode')
+            else:
+                # During warmup: send neutral position with throttle low
+                self._send_warmup_command()
+                return
 
-        # Command timeout or safety → hover
-        if (now - self.last_cmd_time > self.cmd_timeout) or self.safety_override or (not self.ai_enabled):
-            reason = 'timeout' if (now - self.last_cmd_time > self.cmd_timeout) else ('safety/disabled' if self.safety_override else 'no_ai')
-            self.send_hover_command(reason=reason)
+        # Check for command timeout or safety
+        if (now - self.last_cmd_time) > self.cmd_timeout:
+            self._send_hover_command(reason='timeout')
             return
 
-        # Earth (ENU) -> Body (Fwd/Right/Up) using yaw
-        self._earth_to_body_velocity()
+        if self.safety_override:
+            self._send_hover_command(reason='safety')
+            return
 
-        # PID: (vx,vy) error -> RC deviations (pitch, roll)
-        # NOTE: Z-axis uses direct mapping, not PID (vz → throttle with rate limiting)
-        pitch_dev, roll_dev, _ = self.velocity_controller.compute(
-            vel_cmd_x=self.velocity_cmd_body[0],
-            vel_cmd_y=self.velocity_cmd_body[1],
-            vel_cmd_z=0.0,  # Not used - Z uses direct mapping instead of PID
-            vel_actual_x=self.velocity_actual_body[0],
-            vel_actual_y=self.velocity_actual_body[1],
-            vel_actual_z=0.0,  # Not used - Z uses direct mapping instead of PID
-            dt=dt
-        )
+        # Normal operation: translate action to RC
+        self._send_action_command()
 
-        # Deviations around 1500
-        roll_rc = int(1500 + roll_dev)         # ch1
-        pitch_rc = int(1500 + pitch_dev)       # ch2
+    def _send_warmup_command(self):
+        """Send warmup RC values (armed, low throttle, no ALT HOLD)"""
+        channels = [
+            self.rc_mid,  # CH1: Roll (neutral)
+            self.rc_mid,  # CH2: Pitch (neutral)
+            1000,         # CH3: Throttle (low for warmup)
+            self.rc_mid,  # CH4: Yaw (neutral)
+            1800,         # CH5: ARM (high)
+            1500,         # CH6: ANGLE mode (high)
+            1000,         # CH7: ALT HOLD (off during warmup)
+            1800,         # CH8: MSP RC OVERRIDE (high)
+        ]
+        self._publish_rc_override(channels)
 
-        # Yaw control: align heading with desired yaw
-        if self.enable_yaw_control:
-            # Calculate yaw error (shortest angular distance)
-            yaw_error = self.desired_yaw - self.attitude_yaw
-            # Normalize to [-pi, pi]
-            yaw_error = math.atan2(math.sin(yaw_error), math.cos(yaw_error))
+    def _send_hover_command(self, reason: str):
+        """Send hover RC values (neutral with ALT HOLD active)"""
+        channels = [
+            self.rc_mid,  # CH1: Roll (neutral)
+            self.rc_mid,  # CH2: Pitch (neutral)
+            self.rc_mid,  # CH3: Throttle (neutral in ALT HOLD = maintain altitude)
+            self.rc_mid,  # CH4: Yaw (neutral)
+            1800,         # CH5: ARM (high)
+            1500,         # CH6: ANGLE mode (high)
+            1800,         # CH7: ALT HOLD (high)
+            1800,         # CH8: MSP RC OVERRIDE (high)
+        ]
+        self._publish_rc_override(channels)
+        self.get_logger().info(f'Hover command sent ({reason})', throttle_duration_sec=2.0)
 
-            # Proportional control: yaw error -> yaw rate command
-            yaw_dev = self.yaw_kp * yaw_error
-            yaw_dev = max(-self.yaw_rate_limit, min(self.yaw_rate_limit, yaw_dev))
-            yaw_rc = int(1500 + yaw_dev)       # ch4
-        else:
-            yaw_rc = 1500                      # ch4 (hold)
+    def _send_action_command(self):
+        """Translate action vector to RC channels"""
+        vx, vy, vz, speed = self.last_action
 
-        # Z-axis: Direct vz command → throttle mapping with rate limiting
-        # INAV ALT HOLD interprets throttle as climb rate command
-        vz_command = self.velocity_cmd_body[2]
-        self.throttle_target = int(1500 + (vz_command * self.vz_scale))
-        self.throttle_target = max(self.rc_min, min(self.rc_max, self.throttle_target))
+        # Scale horizontal commands by speed
+        vx_scaled = vx * speed
+        vy_scaled = vy * speed
+        vz_scaled = vz * speed
 
-        # Rate limit throttle change (smooth ramping)
-        max_change_per_iteration = int(self.throttle_rate_limit * dt)
-        if self.throttle_target > self.last_throttle:
-            throttle_rc = min(self.throttle_target, self.last_throttle + max_change_per_iteration)
-        elif self.throttle_target < self.last_throttle:
-            throttle_rc = max(self.throttle_target, self.last_throttle - max_change_per_iteration)
-        else:
-            throttle_rc = self.last_throttle
+        # Map to RC values
+        # vx (forward) → PITCH (CH2): positive vx = higher pitch
+        pitch_rc = self.rc_mid + int(vx_scaled * self.vx_gain)
 
-        self.last_throttle = throttle_rc  # Store for next iteration
+        # vy (right) → ROLL (CH1): positive vy = higher roll
+        roll_rc = self.rc_mid + int(vy_scaled * self.vy_gain)
 
-        # Clamp roll/pitch (throttle already clamped during rate limiting)
+        # vz (up) → THROTTLE (CH3): positive vz = higher throttle
+        throttle_rc = self.rc_mid + int(vz_scaled * self.vz_gain)
+
+        # Clamp to RC limits
         roll_rc = max(self.rc_min, min(self.rc_max, roll_rc))
         pitch_rc = max(self.rc_min, min(self.rc_max, pitch_rc))
+        throttle_rc = max(self.rc_min, min(self.rc_max, throttle_rc))
 
-        # Compose 16 channels (INAV supports up to 18, we use 9 for RTH)
-        channels = [1500] * 16
-        channels[0] = roll_rc
-        channels[1] = pitch_rc
-        channels[2] = throttle_rc
-        channels[3] = yaw_rc
-        channels[4] = 1800 if self.arm_aux_high else 1000       # CH5: ARM (AUX1)
-        channels[5] = 1800 if self.angle_mode_enabled else 1000  # CH6: ANGLE mode (AUX2)
-        # CH7: ALT HOLD - always use parameter value after arming phase (arming_phase is always False here)
-        channels[6] = 1800 if self.althold_enabled else 1000     # CH7: ALT HOLD (AUX3)
-        channels[7] = 1800                                       # CH8: MSP RC OVERRIDE (AUX4) - MUST be >1700
-        channels[8] = 1800 if (self.nav_rth_enabled or self.safety_rth_requested) else 1000  # CH9: NAV RTH (AUX5)
+        # Build channel array
+        channels = [
+            roll_rc,      # CH1: ROLL
+            pitch_rc,     # CH2: PITCH
+            throttle_rc,  # CH3: THROTTLE
+            self.rc_mid,  # CH4: YAW (always neutral)
+            1800,         # CH5: ARM (high)
+            1500,         # CH6: ANGLE mode (high)
+            1800,         # CH7: ALT HOLD (high)
+            1800,         # CH8: MSP RC OVERRIDE (high)
+        ]
 
-        # Direct MSP send
-        self._send_msp_set_raw_rc(channels)
+        # Publish to topic
+        self._publish_rc_override(channels)
 
-        # Publish RC channels for black box logging
-        rc_msg = Float32MultiArray()
-        rc_msg.data = [float(ch) for ch in channels[:9]]  # First 9 channels (important ones)
-        self.rc_override_pub.publish(rc_msg)
-
-        # Log every action (Z-axis now directly mapped to throttle with rate limiting)
-        vx_body, vy_body, vz_body = self.velocity_cmd_body
-        ex = vx_body - self.velocity_actual_body[0]
-        ey = vy_body - self.velocity_actual_body[1]
-        spd = self.last_ai_speed_scalar if self.last_ai_speed_scalar is not None else 0.0
-
-        # Calculate actual commanded speed magnitude
-        cmd_speed_magnitude = math.sqrt(vx_body**2 + vy_body**2 + vz_body**2)
-
-        yaw_info = ""
-        if self.enable_yaw_control:
-            yaw_error = self.desired_yaw - self.attitude_yaw
-            yaw_error = math.atan2(math.sin(yaw_error), math.cos(yaw_error))
-            yaw_info = f"  Yaw(des,cur,err)=({math.degrees(self.desired_yaw):+.1f}°,{math.degrees(self.attitude_yaw):+.1f}°,{math.degrees(yaw_error):+.1f}°)"
-
+        # Log action
         self.get_logger().info(
-            f"[loop {self.stats['loops']+1:06d}] AI(speed={spd:.2f}, |v|={cmd_speed_magnitude:.2f}m/s)  "
-            f"Cmd=({vx_body:+.2f},{vy_body:+.2f},{vz_body:+.2f})  "
-            f"Act=({self.velocity_actual_body[0]:+.2f},{self.velocity_actual_body[1]:+.2f},{self.velocity_actual_body[2]:+.2f})  "
-            f"Err=({ex:+.2f},{ey:+.2f})  "
-            f"RC[R,P,T,Y]=[{channels[0]},{channels[1]},{channels[2]},{channels[3]}]{yaw_info}"
+            f'Action=[{vx:+.2f}, {vy:+.2f}, {vz:+.2f}, s={speed:.2f}] → '
+            f'RC[R={roll_rc}, P={pitch_rc}, T={throttle_rc}, Y={self.rc_mid}]'
         )
 
-        self.stats['loops'] += 1
-
-        # Publish error vector for plotting (Z-axis uses direct mapping, no error tracking)
-        err_msg = Vector3Stamped()
-        err_msg.header.stamp = self.get_clock().now().to_msg()
-        err_msg.header.frame_id = 'body'
-        err_msg.vector.x = ex
-        err_msg.vector.y = ey
-        err_msg.vector.z = 0.0  # Z-axis uses direct mapping, not PID feedback
-        self.vel_error_pub.publish(err_msg)
-
-    # -------------------- Helpers --------------------
-    def _earth_to_body_velocity(self):
-        vx_e, vy_n, vz_u = self.velocity_actual_earth
-        cy = math.cos(self.attitude_yaw)
-        sy = math.sin(self.attitude_yaw)
-        self.velocity_actual_body[0] = vx_e * cy + vy_n * sy     # forward
-        self.velocity_actual_body[1] = -vx_e * sy + vy_n * cy    # right
-        self.velocity_actual_body[2] = vz_u                      # up
-
-    def _send_msp_set_raw_rc(self, channels: list):
-        """
-        Send MSP_SET_RAW_RC command directly over serial.
-
-        MSP_SET_RAW_RC (code=200) expects 16 uint16 channel values in little-endian.
-        Format: $M<[size][cmd][...data...][crc]
-        """
-        if not (self.ser and self.ser.is_open):
-            return
-
-        try:
-            # Clamp and pad to 16 channels
-            ch = [int(max(1000, min(2000, c))) for c in (channels + [1500]*16)[:16]]
-
-            # MSP v1 format
-            MSP_SET_RAW_RC = 200
-            payload = struct.pack('<' + 'H' * 16, *ch)  # 16 uint16_t values
-            payload_size = len(payload)
-
-            # Calculate checksum
-            checksum = payload_size ^ MSP_SET_RAW_RC
-            for byte in payload:
-                checksum ^= byte
-
-            # Build frame: $M<[size][cmd][payload][checksum]
-            frame = b'$M<' + bytes([payload_size, MSP_SET_RAW_RC]) + payload + bytes([checksum])
-
-            self.ser.write(frame)
-            self.stats['msp_cmds'] += 1
-
-        except Exception as e:
-            self.get_logger().error(f'MSP send error: {e}', throttle_duration_sec=1.0)
-
-    def send_hover_command(self, reason: str):
-        """Send hover command (neutral RC with modes enabled)."""
-        channels = [1500] * 16
-        channels[0] = 1500  # Roll (neutral)
-        channels[1] = 1500  # Pitch (neutral)
-        # Keep throttle at 1000 during arming phase, use 1500 after armed
-        channels[2] = 1000 if self.arming_phase else 1500  # Throttle
-        channels[3] = 1500  # Yaw (neutral)
-        channels[4] = 1800 if self.arm_aux_high else 1000        # CH5: ARM (AUX1)
-        channels[5] = 1800 if self.angle_mode_enabled else 1000  # CH6: ANGLE mode (AUX2)
-        # CH7: ALT HOLD - 1000 during arming phase, then use parameter value
-        channels[6] = 1000 if self.arming_phase else (1800 if self.althold_enabled else 1000)  # CH7: ALT HOLD (AUX3)
-        channels[7] = 1800                                       # CH8: MSP RC OVERRIDE (AUX4)
-        channels[8] = 1800 if (self.nav_rth_enabled or self.safety_rth_requested) else 1000  # CH9: NAV RTH (AUX5)
-        self._send_msp_set_raw_rc(channels)
-
-        # Publish RC channels for black box logging
+    # ------------ RC Publishing ------------
+    def _publish_rc_override(self, channels: list):
+        """Publish RC override values to topic for fc_comms_node"""
         rc_msg = Float32MultiArray()
-        rc_msg.data = [float(ch) for ch in channels[:9]]
+        rc_msg.data = [float(ch) for ch in channels]
         self.rc_override_pub.publish(rc_msg)
 
-        self.get_logger().warn(f"Hover command sent ({reason}); RC[R,P,T,Y]=[{channels[0]},{channels[1]},{channels[2]},{channels[3]}]")
-        self.stats['failsafes'] += 1
-
-    # -------------------- Status --------------------
+    # ------------ Status Publishing ------------
     def publish_status(self):
+        """Publish node status"""
         flags = []
         now = time.time()
 
-        # Serial status
-        if self.ser and self.ser.is_open:
-            flags.append('MSP_SERIAL_OK')
-        else:
-            flags.append('MSP_SERIAL_FAIL')
-
-        # Operational status
         if not self.warmup_complete:
-            flags.append('WARMUP')
-        if self.ai_enabled:
-            flags.append('AI_ENABLED')
+            elapsed = now - self.warmup_start_time
+            remaining = max(0, self.warmup_duration - elapsed)
+            flags.append(f'WARMUP({remaining:.1f}s)')
+        else:
+            flags.append('READY')
+
         if self.safety_override:
             flags.append('SAFETY_OVERRIDE')
 
-        flags.append('CLOSED_LOOP_DIRECT_MSP')
-
-        if now - self.last_cmd_time > self.cmd_timeout:
+        if (now - self.last_cmd_time) > self.cmd_timeout:
             flags.append('CMD_TIMEOUT')
 
-        s = String()
-        s.data = ' | '.join(flags) if flags else 'STANDBY'
-        self.status_pub.publish(s)
+        flags.append('JOYSTICK_MODE')
 
-    # -------------------- Shutdown --------------------
-    def destroy_node(self):
-        self._close_serial()
-        super().destroy_node()
+        s = String()
+        s.data = ' | '.join(flags)
+        self.status_pub.publish(s)
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = FCAdapterVelocityNode()
+    node = FCAdapterNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info('Shutting down FC Adapter Velocity Node')
+        node.get_logger().info('Shutting down FC Adapter Node')
     finally:
         node.destroy_node()
         rclpy.shutdown()
