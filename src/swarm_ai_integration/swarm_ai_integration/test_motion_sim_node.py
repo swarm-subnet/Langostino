@@ -35,7 +35,7 @@ class TestMotionSimNode(Node):
         # Parameters
         self.declare_parameter('update_rate_hz', 2.0)  # Slower for easier reading
         self.declare_parameter('test_sequence_enabled', True)
-        self.declare_parameter('hold_duration_sec', 3.0)
+        self.declare_parameter('hold_duration_sec', 5.0)
 
         self.update_rate = float(self.get_parameter('update_rate_hz').value)
         self.test_sequence_enabled = bool(self.get_parameter('test_sequence_enabled').value)
@@ -51,21 +51,22 @@ class TestMotionSimNode(Node):
         # Format: [vx, vy, vz, speed]
         self.test_sequence = [
             ([0.0, 0.0, 0.0, 0.0], "Hover - no movement"),
-            ([1.0, 0.0, 0.0, 0.5], "Forward at 50% speed"),
-            ([1.0, 0.0, 0.0, 1.0], "Forward at 100% speed"),
+            ([1.0, 0.0, 0.0, 1], "Nort at 100% speed"),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([-1.0, 0.0, 0.0, 0.5], "Backward at 50% speed"),
+            ([1.0, -1.0, 0.0, 1], "North East at 100% speed"),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([0.0, 1.0, 0.0, 0.5], "Right at 50% speed"),
+            ([0.0, -1.0, 0.0, 1.0], "East at 100% speed"),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([0.0, -1.0, 0.0, 0.5], "Left at 50% speed"),
+            ([-1.0, -1.0, 0.0, 1], "South East at 100% speed"),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([0.0, 0.0, 1.0, 0.5], "Climb at 50% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - maintain altitude"),
-            ([0.0, 0.0, -1.0, 0.5], "Descend at 50% speed"),
+            ([-1.0, 0.0, 0.0, 1.0], "South at 100% speed"),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([1.0, 1.0, 0.0, 0.7], "Diagonal forward-right at 70% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Final hover"),
+            ([-1.0, 1.0, 0.0, 1.0], "South West at 100% speed"),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
+            ([0.0, 1.0, 0.0, 1.0], "West at 100% speed"),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
+            ([1.0, 1.0, 0.0, 1.0], "North West at 100% speed"),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
         ]
 
         # Current action
