@@ -202,8 +202,8 @@ class FCAdapterNode(Node):
         # vx (forward) → PITCH (CH2): positive vx = higher pitch
         pitch_rc = self.rc_mid + int(vx_scaled * self.vx_gain)
 
-        # vy (right) → ROLL (CH1): positive vy = higher roll
-        roll_rc = self.rc_mid + int(vy_scaled * self.vy_gain)
+        # vy (right) → ROLL (CH1): negative vy = higher roll (inverted for correct direction)
+        roll_rc = self.rc_mid - int(vy_scaled * self.vy_gain)
 
         # vz (up) → THROTTLE (CH3): positive vz = higher throttle
         throttle_rc = self.rc_mid + int(vz_scaled * self.vz_gain)
