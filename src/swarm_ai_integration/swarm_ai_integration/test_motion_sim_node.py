@@ -47,30 +47,22 @@ class TestMotionSimNode(Node):
         self.hold_cycles = int(self.hold_duration * self.update_rate)
         self.last_rc_override = None
 
-        # Test sequence: (action, description)
-        # Format: [vx, vy, vz, speed]
+        # Test sequence: (action, description, duration_sec)
+        # Format: [vx, vy, vz, speed], description, duration
         self.test_sequence = [
-            ([0.0, 0.0, 0.0, 0.0], "Hover - no movement"),
-            ([0.0, 0.0, 1.0, 1], "Up at 100% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - no movement"),
-            ([1.0, 0.0, 0.0, 1], "Nort at 100% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([1.0, -1.0, 0.0, 1], "North East at 100% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([0.0, -1.0, 0.0, 1.0], "East at 100% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([-1.0, -1.0, 0.0, 1], "South East at 100% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([-1.0, 0.0, 0.0, 1.0], "South at 100% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([-1.0, 1.0, 0.0, 1.0], "South West at 100% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([0.0, 1.0, 0.0, 1.0], "West at 100% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
-            ([1.0, 1.0, 0.0, 1.0], "North West at 100% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - no movement"),
-            ([0.0, 0.0, -1.0, 1], "Down at 100% speed"),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop"),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - no movement", 5.0),
+            ([0.0, 0.0, 1.0, 1], "Up at 100% speed", 3.0),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - no movement", 3.0),
+            ([1.0, 0.0, 0.0, 1], "Nort at 100% speed", 2.0),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
+            ([0.0, -1.0, 0.0, 1.0], "East at 100% speed", 2.0),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
+            ([-1.0, 0.0, 0.0, 1.0], "South at 100% speed", 2.0),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
+            ([0.0, 1.0, 0.0, 1.0], "West at 100% speed", 2.0),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
+            ([0.0, 0.0, -1.0, 1], "Down at 100% speed", 3.0),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 5.0),
         ]
 
         # Current action
@@ -125,17 +117,21 @@ class TestMotionSimNode(Node):
         """Update action based on test sequence"""
         self.hold_counter += 1
 
-        if self.hold_counter >= self.hold_cycles:
+        # Get current test duration
+        _, _, current_duration = self.test_sequence[self.test_index]
+        current_hold_cycles = int(current_duration * self.update_rate)
+
+        if self.hold_counter >= current_hold_cycles:
             # Move to next test
             self.hold_counter = 0
             self.test_index = (self.test_index + 1) % len(self.test_sequence)
 
-            action, description = self.test_sequence[self.test_index]
+            action, description, duration = self.test_sequence[self.test_index]
             self.current_action = list(action)
 
             self.get_logger().info(
                 f'\n{"="*80}\n'
-                f'  TEST {self.test_index + 1}/{len(self.test_sequence)}: {description}\n'
+                f'  TEST {self.test_index + 1}/{len(self.test_sequence)}: {description} ({duration}s)\n'
                 f'  Action: [vx={action[0]:+.1f}, vy={action[1]:+.1f}, vz={action[2]:+.1f}, speed={action[3]:.1f}]\n'
                 f'{"="*80}'
             )

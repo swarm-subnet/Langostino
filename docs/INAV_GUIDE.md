@@ -109,13 +109,13 @@ Maximum allowed tilt angle for ACRO/ANGLE mode manual flight.
 #### `nav_mc_auto_climb_rate`
 
 ```
-set nav_mc_auto_climb_rate = 50
+set nav_mc_auto_climb_rate = 100
 ```
 
 **Description:**
 Vertical speed used automatically by INAV during autonomous operations.
 
-**Units:** cm/s (50 = 0.5 m/s)
+**Units:** cm/s (100 = 1.0 m/s)
 
 **Used For:**
 - Taking off in autonomous modes
@@ -124,7 +124,7 @@ Vertical speed used automatically by INAV during autonomous operations.
 - Waypoint altitude changes
 
 **Configuration:**
-- **Value:** `50` cm/s (0.5 m/s)
+- **Value:** `100` cm/s (1.0 m/s)
 - **Recommendation:**
   - Conservative for safe takeoffs/landings
   - Increase to 100-150 cm/s (1-1.5 m/s) for faster altitude changes
@@ -137,13 +137,13 @@ Vertical speed used automatically by INAV during autonomous operations.
 #### `nav_mc_manual_climb_rate`
 
 ```
-set nav_mc_manual_climb_rate = 50
+set nav_mc_manual_climb_rate = 100
 ```
 
 **Description:**
 Controls how throttle stick adjusts altitude while in AltHold or PosHold modes.
 
-**Units:** cm/s (50 = 0.5 m/s)
+**Units:** cm/s (100 = 1.0 m/s)
 
 **Behavior:**
 - **Throttle above mid:** Climb at configured rate
@@ -151,7 +151,7 @@ Controls how throttle stick adjusts altitude while in AltHold or PosHold modes.
 - **Throttle at mid:** Hold current altitude
 
 **Configuration:**
-- **Value:** `50` cm/s (0.5 m/s)
+- **Value:** `100` cm/s (1.0 m/s)
 - **Recommendation:**
   - 50-100 cm/s for precise control
   - Higher values = faster altitude changes with stick input
@@ -168,7 +168,7 @@ The XY velocity PID loop controls horizontal position accuracy during GPS naviga
 #### `nav_mc_vel_xy_p`
 
 ```
-set nav_mc_vel_xy_p = 20
+set nav_mc_vel_xy_p = 25
 ```
 
 **Function:**
@@ -181,9 +181,9 @@ Proportional response to horizontal velocity error.
 - **Too low** → Slow corrections, poor position hold
 
 **Configuration:**
-- **Value:** `20` (conservative)
+- **Value:** `25` (conservative)
 - **Tuning:**
-  - Start at 20, increase gradually if position hold is loose
+  - Start at 25, increase gradually if position hold is loose
   - If drone oscillates in position hold, reduce P
   - Typical range: 10-40
 
@@ -194,7 +194,7 @@ Proportional response to horizontal velocity error.
 #### `nav_mc_vel_xy_i`
 
 ```
-set nav_mc_vel_xy_i = 8
+set nav_mc_vel_xy_i = 10
 ```
 
 **Function:**
@@ -207,7 +207,7 @@ Corrects accumulated position error over time.
 - **Too low** → Position drift over time, especially in wind
 
 **Configuration:**
-- **Value:** `8` (moderate)
+- **Value:** `10` (moderate)
 - **Tuning:**
   - If drone drifts slowly over time, increase I
   - If drone circles or oscillates slowly, reduce I
@@ -248,7 +248,7 @@ Damping term that smooths velocity corrections.
 #### `nav_mc_vel_xy_ff`
 
 ```
-set nav_mc_vel_xy_ff = 20
+set nav_mc_vel_xy_ff = 25
 ```
 
 **Function:**
@@ -261,7 +261,7 @@ Reduces delay between stick input and movement in GPS modes.
 - **Too low** → Sluggish response
 
 **Configuration:**
-- **Value:** `20` (normal)
+- **Value:** `25` (normal)
 - **Tuning:**
   - If drone feels sluggish in GPS modes, increase FF
   - If drone overshoots targets, reduce FF
@@ -272,8 +272,8 @@ Reduces delay between stick input and movement in GPS modes.
 ### XY Velocity PID Summary
 
 ```
-set nav_mc_vel_xy_p = 20
-set nav_mc_vel_xy_i = 8
+set nav_mc_vel_xy_p = 25
+set nav_mc_vel_xy_i = 10
 set nav_mc_vel_xy_d = 50
 set nav_mc_vel_xy_ff = 20
 ```
@@ -300,7 +300,7 @@ Level PIDs control attitude stabilization in ANGLE/HORIZON modes and during GPS 
 #### `mc_p_level`
 
 ```
-set mc_p_level = 30
+set mc_p_level = 40
 ```
 
 **Function:**
@@ -313,7 +313,7 @@ Controls how strongly the drone returns to level attitude.
 - **Too low** → Slow to level, floaty feel
 
 **Configuration:**
-- **Value:** `30` (good for medium-sized drones)
+- **Value:** `40` (good for medium-sized drones)
 - **Tuning:**
   - Larger/heavier drones: 20-30
   - Smaller/lighter drones: 40-60
@@ -476,17 +476,17 @@ set max_angle_inclination_rll = 150
 set max_angle_inclination_pit = 150
 
 # Climb Rates
-set nav_mc_auto_climb_rate = 50
-set nav_mc_manual_climb_rate = 50
+set nav_mc_auto_climb_rate = 100
+set nav_mc_manual_climb_rate = 100
 
 # XY Velocity PID (GPS Position Control)
-set nav_mc_vel_xy_p = 20
-set nav_mc_vel_xy_i = 8
+set nav_mc_vel_xy_p = 25
+set nav_mc_vel_xy_i = 10
 set nav_mc_vel_xy_d = 50
-set nav_mc_vel_xy_ff = 20
+set nav_mc_vel_xy_ff = 25
 
 # Level PIDs (Attitude Control)
-set mc_p_level = 30
+set mc_p_level = 40
 set mc_d_level = 50
 
 # MSP Configuration
