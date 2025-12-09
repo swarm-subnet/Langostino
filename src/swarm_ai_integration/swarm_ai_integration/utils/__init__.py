@@ -9,6 +9,7 @@ This package contains reusable components for:
 - AI observation building
 - Sensor data management
 - Debug logging utilities
+- Yaw alignment control
 """
 
 from .msp_serial_handler import MSPSerialHandler
@@ -18,6 +19,7 @@ from .coordinate_transforms import CoordinateTransforms
 from .observation_builder import ObservationBuilder
 from .sensor_data_manager import SensorDataManager
 from .debug_logger import DebugLogger
+from .yaw_alignment import YawAlignmentController, normalize_heading_to_360
 
 __all__ = [
     'MSPSerialHandler',
@@ -27,4 +29,6 @@ __all__ = [
     'ObservationBuilder',
     'SensorDataManager',
     'DebugLogger',
+    'YawAlignmentController',
+    'normalize_heading_to_360',
 ]

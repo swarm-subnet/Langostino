@@ -8,7 +8,7 @@ No physics simulation - just pure input/output testing.
 Test Sequence:
   1. Hover
   2. Forward (50%)
-  3. Forward (100%)
+  3. Forward (25%)
   4. Hover
   5. Backward (50%)
   6. Right (50%)
@@ -50,18 +50,18 @@ class TestMotionSimNode(Node):
         # Test sequence: (action, description, duration_sec)
         # Format: [vx, vy, vz, speed], description, duration
         self.test_sequence = [
-            ([0.0, 0.0, 0.0, 0.0], "Hover - no movement", 5.0),
-            ([0.0, 0.0, 1.0, 1], "Up at 100% speed", 3.0),
+            ([0.0, 0.0, 0.0, 0.0], "Hover - no movement", 20.0),
+            ([0.0, 0.0, 1.0, 1.0], "Up at 100% speed", 3.0),
             ([0.0, 0.0, 0.0, 0.0], "Hover - no movement", 3.0),
-            ([1.0, 0.0, 0.0, 1], "Nort at 100% speed", 2.0),
+            ([1.0, 0.0, 0.0, 0.25], "Nort at 25% speed", 2.0),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
-            ([0.0, -1.0, 0.0, 1.0], "East at 100% speed", 2.0),
+            ([0.0, -1.0, 0.0, 0.25], "East at 25% speed", 2.0),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
-            ([-1.0, 0.0, 0.0, 1.0], "South at 100% speed", 2.0),
+            ([-1.0, 0.0, 0.0, 0.25], "South at 25% speed", 2.0),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
-            ([0.0, 1.0, 0.0, 1.0], "West at 100% speed", 2.0),
+            ([0.0, 1.0, 0.0, 0.25], "West at 25% speed", 2.0),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
-            ([0.0, 0.0, -1.0, 1], "Down at 100% speed", 3.0),
+            ([0.0, 0.0, -1.0, 1.0], "Down at 100% speed", 3.0),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 5.0),
         ]
 
