@@ -51,19 +51,19 @@ class TestMotionSimNode(Node):
         # Format: [vx, vy, vz, speed], description, duration
         self.test_sequence = [
             ([0.0, 0.0, 0.0, 0.0], "Hover - no movement", 20.0),
-            ([0.0, 0.0, 1.0, 1.0], "Up at 100% speed", 3.0),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - no movement", 3.0),
-            ([1.0, 0.0, 0.0, 0.25], "Nort at 25% speed", 2.0),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
-            ([0.0, -1.0, 0.0, 0.25], "East at 25% speed", 2.0),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
-            ([-1.0, 0.0, 0.0, 0.25], "South at 25% speed", 2.0),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
-            ([0.0, 1.0, 0.0, 0.25], "West at 25% speed", 2.0),
-            ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
-            ([0.0, 0.0, -1.0, 1.0], "Down at 100% speed", 3.0),
+            ([0.0, 0.0, -1.0, 0.5], "Down at 50% speed", 3.0),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 5.0),
         ]
+            # ([0.0, 0.0, 1.0, 1.0], "Up at 100% speed", 3.0),
+            # ([0.0, 0.0, 0.0, 0.0], "Hover - no movement", 3.0),
+            # ([1.0, 0.0, 0.0, 0.25], "Nort at 25% speed", 2.0),
+            # ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
+            # ([0.0, -1.0, 0.0, 0.25], "East at 25% speed", 2.0),
+            # ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
+            # ([-1.0, 0.0, 0.0, 0.25], "South at 25% speed", 2.0),
+            # ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
+            # ([0.0, 1.0, 0.0, 0.25], "West at 25% speed", 2.0),
+            # ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 3.0),
 
         # Current action
         self.current_action = [0.0, 0.0, 0.0, 0.0]
