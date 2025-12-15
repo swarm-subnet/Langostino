@@ -1,21 +1,22 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Langostino — Open autonomous drone" width="100%" />
+  <img src="assets/banner.png" alt="Langostino — open autonomous drone" width="100%" />
 </p>
 
-<h1 align="center">Langostino 🦐</h1>
+<h1 align="center">Langostino — The Swarm Drone 🦐</h1>
 
 <p align="center">
-  <b>Build a drone you can understand — and share.</b><br/>
-  An open-source autonomous flight reference drone, built with a <b>global</b> community.
+  <b>Open-source AI autopilot for the real world: understand it, build it, and fly it.</b><br/>
+  An open-source autonomous flight reference platform, built with a <b>global</b> community.
 </p>
 
 <p align="center">
   <a href="https://github.com/swarm-subnet/Langostino">
-    <img alt="Stars" src="https://img.shields.io/github/stars/swarm-subnet/Langostino?style=flat-square" />
+    <img alt="GitHub Stars" src="https://img.shields.io/github/stars/swarm-subnet/Langostino?style=flat-square" />
   </a>
   <a href="LICENSE">
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" />
   </a>
+  <img alt="Version" src="https://img.shields.io/badge/Version-v0.1.6-black?style=flat-square" />
   <a href="https://discord.com/invite/bittensor">
     <img alt="Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square" />
   </a>
