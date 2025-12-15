@@ -96,13 +96,11 @@ class FCCommsNode(Node):
         self.serial_handler.set_message_callback(self.handle_msp_response)
 
         # Telemetry request sequence
-        # NOTE: MSP_ALTITUDE disabled because barometer is not available
-        # Altitude data is now provided by lidar_altitude_bridge_node
         self.telemetry_commands = [
             MSPCommand.MSP_RAW_IMU,
             MSPCommand.MSP_RAW_GPS,
             MSPCommand.MSP_ATTITUDE,
-            # MSPCommand.MSP_ALTITUDE,  # DISABLED - barometer unavailable, using LiDAR
+            MSPCommand.MSP_ALTITUDE,
             MSPCommand.MSP_STATUS,
             MSPCommand.MSP_ANALOG,
             MSPCommand.MSP_MOTOR

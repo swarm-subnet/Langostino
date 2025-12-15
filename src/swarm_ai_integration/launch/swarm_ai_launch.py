@@ -176,23 +176,6 @@ def generate_launch_description():
         ]
     )
 
-    # LiDAR-to-Altitude Bridge Node - Replaces barometer with LiDAR altitude
-    lidar_altitude_bridge_node = Node(
-        package='swarm_ai_integration',
-        executable='lidar_altitude_bridge_node.py',
-        name='lidar_altitude_bridge',
-        output='screen',
-        parameters=[{
-            'lidar_topic': '/down_lidar/lidar_distance_down',
-            'altitude_topic': '/fc/altitude',
-            'vario_window_size': 5,
-            'vario_time_threshold': 0.5,
-            'max_vario': 10.0,
-            'publish_status': True,
-            'status_interval': 1.0
-        }]
-    )
-
     # FC Communications Node - MSP interface to INAV
     fc_comms_node = Node(
         package='swarm_ai_integration',
@@ -344,7 +327,6 @@ def generate_launch_description():
         # Nodes
         #front_lidar_node,
         down_lidar_node,
-        lidar_altitude_bridge_node,
         fc_comms_node,
         ai_adapter_node,
         ai_flight_node,
