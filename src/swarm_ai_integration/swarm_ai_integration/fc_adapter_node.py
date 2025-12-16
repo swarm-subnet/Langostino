@@ -21,11 +21,11 @@ ENU Coordinate System:
   Y = right (North)
   Z = up
 
-RC Channel Mapping (AETR + AUX):
+RC Channel Mapping (AERT + AUX):
   CH1: ROLL    (vy control - right/left)
   CH2: PITCH   (vx control - forward/back)
-  CH3: THROTTLE (vz control - up/down in ALT HOLD)
-  CH4: YAW     (1500 during AI control, variable during alignment)
+  CH3: YAW     (1500 during AI control, variable during alignment)
+  CH4: THROTTLE (vz control - up/down in ALT HOLD)
   CH5: ARM     (AUX1 - always 1800 when armed)
   CH6: ANGLE   (AUX2 - always 1500 for angle mode)
   CH7: ALT_HOLD (AUX3 - 1000 during warmup, 1800 after)
@@ -192,8 +192,8 @@ class FCAdapterNode(Node):
         channels = [
             roll,        # CH1: ROLL
             pitch,       # CH2: PITCH
-            throttle,    # CH3: THROTTLE
-            yaw,         # CH4: YAW
+            yaw,         # CH3: YAW
+            throttle,    # CH4: THROTTLE
             1800,        # CH5: ARM (high)
             1500,        # CH6: ANGLE mode (high)
             1800,        # CH7: ALT HOLD (high - active during yaw alignment)
@@ -283,11 +283,11 @@ class FCAdapterNode(Node):
         """
         Send arming RC values (ARM high, throttle at 1000).
 
-        AETR1234 channel order:
+        AERT1234 channel order:
         - A (Aileron/Roll) - CH1
         - E (Elevator/Pitch) - CH2
-        - T (Throttle) - CH3
-        - R (Rudder/Yaw) - CH4
+        - R (Rudder/Yaw) - CH3
+        - T (Throttle) - CH4
         - AUX1 (ARM) - CH5
         - AUX2 (ANGLE) - CH6
         - AUX3 (ALT HOLD) - CH7
@@ -296,8 +296,8 @@ class FCAdapterNode(Node):
         channels = [
             self.rc_mid,  # CH1: ROLL (neutral)
             self.rc_mid,  # CH2: PITCH (neutral)
-            1000,         # CH3: THROTTLE (1000 for arming)
-            self.rc_mid,  # CH4: YAW (neutral)
+            self.rc_mid,  # CH3: YAW (neutral)
+            1000,         # CH4: THROTTLE (1000 for arming)
             1800,         # CH5: ARM (high - arming)
             1500,         # CH6: ANGLE mode (high)
             1000,         # CH7: ALT HOLD (off during arming)
@@ -310,8 +310,8 @@ class FCAdapterNode(Node):
         channels = [
             self.rc_mid,  # CH1: ROLL (neutral)
             self.rc_mid,  # CH2: PITCH (neutral)
-            1000,         # CH3: THROTTLE (1000 for low throttle)
-            self.rc_mid,  # CH4: YAW (neutral)
+            self.rc_mid,  # CH3: YAW (neutral)
+            1000,         # CH4: THROTTLE (1000 for low throttle)
             1800,         # CH5: ARM (high)
             1500,         # CH6: ANGLE mode (high)
             1000,         # CH7: ALT HOLD (off during warmup)
@@ -322,10 +322,10 @@ class FCAdapterNode(Node):
     def _send_hover_command(self, reason: str):
         """Send hover RC values (neutral with ALT HOLD active)"""
         channels = [
-            self.rc_mid,  # CH1: Roll (neutral)
-            self.rc_mid,  # CH2: Pitch (neutral)
-            self.rc_mid,  # CH3: Throttle (neutral in ALT HOLD = maintain altitude)
-            self.rc_mid,  # CH4: Yaw (neutral)
+            self.rc_mid,  # CH1: ROLL (neutral)
+            self.rc_mid,  # CH2: PITCH (neutral)
+            self.rc_mid,  # CH3: YAW (neutral)
+            self.rc_mid,  # CH4: THROTTLE (neutral in ALT HOLD = maintain altitude)
             1800,         # CH5: ARM (high)
             1500,         # CH6: ANGLE mode (high)
             1800,         # CH7: ALT HOLD (high)
@@ -391,12 +391,12 @@ class FCAdapterNode(Node):
         pitch_rc = max(self.rc_min, min(self.rc_max, pitch_rc))
         throttle_rc = max(self.rc_min, min(self.rc_max, throttle_rc))
 
-        # Build channel array
+        # Build channel array (AERT order)
         channels = [
             roll_rc,      # CH1: ROLL
             pitch_rc,     # CH2: PITCH
-            throttle_rc,  # CH3: THROTTLE
-            self.rc_mid,  # CH4: YAW (always neutral)
+            self.rc_mid,  # CH3: YAW (always neutral)
+            throttle_rc,  # CH4: THROTTLE
             1800,         # CH5: ARM (high)
             1500,         # CH6: ANGLE mode (high)
             1800,         # CH7: ALT HOLD (high)
