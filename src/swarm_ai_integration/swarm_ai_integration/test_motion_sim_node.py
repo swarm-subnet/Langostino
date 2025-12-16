@@ -51,8 +51,9 @@ class TestMotionSimNode(Node):
         # Format: [vx, vy, vz, speed], description, duration
         self.test_sequence = [
             ([0.0, 0.0, 0.0, 0.0], "Hover - no movement", 20.0),
-            ([0.0, 0.0, -1.0, 0.5], "Down at 50% speed", 3.0),
+            ([0.0, 0.0, 1.0, 0.5], "Up at 50% speed", 3.0),
             ([0.0, 0.0, 0.0, 0.0], "Hover - stop", 5.0),
+            ([0.0, 0.0, -1.0, 0.5], "Down at 50% speed", 5.0),
         ]
             # ([0.0, 0.0, 1.0, 1.0], "Up at 100% speed", 3.0),
             # ([0.0, 0.0, 0.0, 0.0], "Hover - no movement", 3.0),
