@@ -166,6 +166,21 @@ Assembly guide:<br/>
 
 
 <!-- SECTION 6 -->
+
+<hr/>
+
+<h2 align="center">FAQ</h2>
+
+<p><b>Do I need to be an engineer?</b><br/>
+No. Langostino is designed to be approachable: clear docs, a guided setup, and a community that can help you get started.</p>
+
+<p><b>How do I get started?</b><br/>
+Start with the Quick Start Guide if you already have compatible hardware. Otherwise, refer to the Assembly Guide for a list of materials and steps to follow. Join Discord if you have any questions.</p>
+
+<p><b>How do I contribute?</b><br/>
+Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pick a <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issue</b></a>.</p>
+
+
 <!-- SECTION 7 -->
 <!-- SECTION 8 -->
 <!-- SECTION 9 -->
