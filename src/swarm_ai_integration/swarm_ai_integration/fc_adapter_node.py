@@ -8,12 +8,13 @@ No PID, no sensor feedback - pure open-loop control.
 Publishes RC values to /fc/rc_override topic for fc_comms_node to send via MSP.
 
 Startup Sequence:
-  1. Warmup phase: Armed with low throttle, ALT HOLD disabled
-  2. Yaw alignment phase: Rise drone (2s @ throttle 1550), then align to north (0°)
+  1. Arming phase: Send ARM=1800 with throttle=1000 (2s default)
+  2. Warmup phase: Remain armed with throttle=1000, ALT HOLD disabled (10s default)
+  3. Yaw alignment phase: Rise drone (2s @ throttle 1550), then align to north (0°)
      - If heading < 350°: turn right (yaw 1520) for 0.5s
      - If heading > 10°: turn left (yaw 1480) for 0.5s
      - Repeat until heading is within 350-360° or 0-10° range
-  3. AI control phase: Normal operation with AI model commands
+  4. AI control phase: Normal operation with AI model commands
 
 ENU Coordinate System:
   X = forward (East)
@@ -71,7 +72,8 @@ class FCAdapterNode(Node):
         self.declare_parameter('vy_to_roll_gain', 50.0)    # RC units per m/s
         self.declare_parameter('vz_to_throttle_gain', 100.0)  # RC units per m/s
 
-        # Warmup and safety
+        # Arming, warmup and safety
+        self.declare_parameter('arming_duration_sec', 2.0)
         self.declare_parameter('warmup_duration_sec', 10.0)
         self.declare_parameter('command_timeout', 1.0)
 
@@ -85,6 +87,7 @@ class FCAdapterNode(Node):
         self.vy_gain = float(self.get_parameter('vy_to_roll_gain').value)
         self.vz_gain = float(self.get_parameter('vz_to_throttle_gain').value)
 
+        self.arming_duration = float(self.get_parameter('arming_duration_sec').value)
         self.warmup_duration = float(self.get_parameter('warmup_duration_sec').value)
         self.cmd_timeout = float(self.get_parameter('command_timeout').value)
 
@@ -93,9 +96,13 @@ class FCAdapterNode(Node):
         self.last_cmd_time = time.time()
         self.safety_override = False
 
+        # Arming state
+        self.arming_complete = False
+        self.arming_start_time = time.time()
+
         # Warmup state
         self.warmup_complete = False
-        self.warmup_start_time = time.time()
+        self.warmup_start_time = None  # Will be set after arming complete
 
         # Yaw alignment state
         self.yaw_alignment_complete = False
@@ -131,7 +138,7 @@ class FCAdapterNode(Node):
             f'FC Adapter Node (Joystick Mode) started @ {self.control_rate}Hz\n'
             f'  RC range: [{self.rc_min}, {self.rc_mid}, {self.rc_max}]\n'
             f'  Gains: vx→pitch={self.vx_gain}, vy→roll={self.vy_gain}, vz→throttle={self.vz_gain}\n'
-            f'  Warmup: {self.warmup_duration}s\n'
+            f'  Arming: {self.arming_duration}s, Warmup: {self.warmup_duration}s\n'
             f'  Publishing to: /fc/rc_override'
         )
 
@@ -234,6 +241,17 @@ class FCAdapterNode(Node):
         """Main control loop - translates action to RC values"""
         now = time.time()
 
+        # Phase 0: Arming (send ARM channel high with throttle at 1000)
+        if not self.arming_complete:
+            if (now - self.arming_start_time) >= self.arming_duration:
+                self.arming_complete = True
+                self.warmup_start_time = now  # Start warmup timer
+                self.get_logger().info(f'✅ Arming complete ({self.arming_duration}s) - proceeding to warmup')
+            else:
+                # During arming: send ARM high with throttle at 1000
+                self._send_arming_command()
+                return
+
         # Phase 1: Warmup
         if not self.warmup_complete:
             if (now - self.warmup_start_time) >= self.warmup_duration:
@@ -261,13 +279,39 @@ class FCAdapterNode(Node):
         # Phase 3: Normal AI control operation
         self._send_action_command()
 
+    def _send_arming_command(self):
+        """
+        Send arming RC values (ARM high, throttle at 1000).
+
+        AETR1234 channel order:
+        - A (Aileron/Roll) - CH1
+        - E (Elevator/Pitch) - CH2
+        - T (Throttle) - CH3
+        - R (Rudder/Yaw) - CH4
+        - AUX1 (ARM) - CH5
+        - AUX2 (ANGLE) - CH6
+        - AUX3 (ALT HOLD) - CH7
+        - AUX4 (MSP Override) - CH8
+        """
+        channels = [
+            self.rc_mid,  # CH1: ROLL (neutral)
+            self.rc_mid,  # CH2: PITCH (neutral)
+            1000,         # CH3: THROTTLE (1000 for arming)
+            self.rc_mid,  # CH4: YAW (neutral)
+            1800,         # CH5: ARM (high - arming)
+            1500,         # CH6: ANGLE mode (high)
+            1000,         # CH7: ALT HOLD (off during arming)
+            1800,         # CH8: MSP RC OVERRIDE (high)
+        ]
+        self._publish_rc_override(channels)
+
     def _send_warmup_command(self):
         """Send warmup RC values (armed, low throttle, no ALT HOLD)"""
         channels = [
-            self.rc_mid,  # CH1: Roll (neutral)
-            self.rc_mid,  # CH2: Pitch (neutral)
-            1000,         # CH3: Throttle (low for warmup)
-            self.rc_mid,  # CH4: Yaw (neutral)
+            self.rc_mid,  # CH1: ROLL (neutral)
+            self.rc_mid,  # CH2: PITCH (neutral)
+            1000,         # CH3: THROTTLE (1000 for low throttle)
+            self.rc_mid,  # CH4: YAW (neutral)
             1800,         # CH5: ARM (high)
             1500,         # CH6: ANGLE mode (high)
             1000,         # CH7: ALT HOLD (off during warmup)
@@ -382,7 +426,11 @@ class FCAdapterNode(Node):
         flags = []
         now = time.time()
 
-        if not self.warmup_complete:
+        if not self.arming_complete:
+            elapsed = now - self.arming_start_time
+            remaining = max(0, self.arming_duration - elapsed)
+            flags.append(f'ARMING({remaining:.1f}s)')
+        elif not self.warmup_complete:
             elapsed = now - self.warmup_start_time
             remaining = max(0, self.warmup_duration - elapsed)
             flags.append(f'WARMUP({remaining:.1f}s)')
