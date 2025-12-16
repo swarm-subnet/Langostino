@@ -42,16 +42,23 @@
 
 <p align="center">
   <b>See it before you read it.</b><br/>
-  Short visuals are the fastest way to understand (and share) Langostino.
+  Short clips beat long docs—watch Langostino fly, then peek under the hood.
 </p>
 
 <!-- Real flight video (thumbnail clickable) -->
 <p align="center">
-  <a href="<REAL_FLIGHT_VIDEO_URL>">
+  <a href="<REAL_FLIGHT_VIDEO_URL>" aria-label="Open real flight demo video in a new tab" target="_blank" rel="noopener noreferrer">
     <img
-      src="https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/maxresdefault.jpg"
-      alt="Langostino — real flight demo"
-      width="720"
+      src="https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/hqdefault.jpg"
+      srcset="
+        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/hqdefault.jpg 480w,
+        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/sddefault.jpg 640w,
+        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/maxresdefault.jpg 1280w
+      "
+      sizes="(max-width: 760px) 100vw, 720px"
+      alt="Langostino real flight — thumbnail (click to watch)"
+      style="max-width:720px;width:100%;border-radius:8px;"
+      loading="lazy"
     />
   </a>
   <br/>
@@ -59,17 +66,27 @@
 </p>
 
 <!-- Two GIFs side-by-side -->
-<table align="center">
+<table align="center" style="table-layout:fixed; width:100%; max-width:760px;">
   <tr>
     <td align="center"><b>Setup</b></td>
     <td align="center"><b>Simulation</b></td>
   </tr>
   <tr>
-    <td align="center">
-      <img src="assets/demo-setup.gif" alt="Langostino setup demo" width="360" />
+    <td align="center" style="padding:6px;">
+      <img
+        src="assets/demo-setup.gif"
+        alt="Quick setup: first run of Langostino"
+        style="width:100%; max-width:360px; border-radius:8px;"
+        loading="lazy"
+      />
     </td>
-    <td align="center">
-      <img src="assets/demo-sim.gif" alt="Langostino simulation demo" width="360" />
+    <td align="center" style="padding:6px;">
+      <img
+        src="assets/demo-sim.gif"
+        alt="Simulation run of Langostino"
+        style="width:100%; max-width:360px; border-radius:8px;"
+        loading="lazy"
+      />
     </td>
   </tr>
   <tr>
@@ -79,5 +96,24 @@
 </table>
 
 <p align="center">
-  <sub>If this made you curious: ⭐ star the repo and share the demo.</sub>
+  <sub>If this made you curious, ⭐ star the repo and share the demo.</sub>
 </p>
+
+
+<!-- SECTION 3 -->
+<!-- SECTION 4 -->
+<!-- SECTION 5 -->
+<!-- SECTION 6 -->
+<!-- SECTION 7 -->
+<!-- SECTION 8 -->
+<!-- SECTION 9 -->
+<!-- SECTION 10 -->
+<!-- SECTION 11 -->
+<!-- SECTION 12 -->
+<!-- SECTION 13 -->
+
+
+
+
+
+
