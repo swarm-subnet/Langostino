@@ -104,19 +104,66 @@
 
 <hr/>
 
-<h2 id="why-it-matters" align="center">Why it matters</h2>
+<h2 align="center">Why it matters</h2>
 
-<div align="left" style="max-width: 820px; margin: 0 auto;">
-  <ul>
-    <li><strong>No black boxes.</strong> Autonomous drones should be understandable.</li>
-    <li><strong>Lower barrier.</strong> An open, working reference you can copy, learn from, and fly.</li>
-    <li><strong>Shared progress.</strong> Clear build guides and a common codebase help more people experiment safely and reuse what works.</li>
-    <li><strong>Real impact.</strong> Faster progress for students, hobbyists, and teams — and more useful, trustworthy drone applications.</li>
-  </ul>
-</div>
+<p align="center">
+  Autonomous drones shouldn’t feel like magic or closed black boxes.<br/>
+  Langostino exists to make real-world autonomy <b>understandable</b> and <b>buildable</b> — so more people can learn, iterate, and ship useful aerial systems.<br/>
+  By sharing a reference drone in the open, we lower the barrier from “curious” to “first flight”, and turn progress into something the whole community can reuse.
+</p>
 
 
 <!-- SECTION 5 -->
+
+<hr/>
+
+<h2 align="center">Choose your path</h2>
+
+<p align="center">
+  Pick what you want to do next — you don’t need to be an expert to start.
+</p>
+
+<table align="center">
+  <tr>
+    <td width="50%" valign="top">
+
+<b>👀 I’m just curious</b><br/>
+- ▶ Watch the demo (above)<br/>
+- ⭐ Star this repo<br/>
+- 📣 Share it with a friend
+
+    </td>
+    <td width="50%" valign="top">
+
+<b>🚀 I want to use the model</b><br/>
+Start here:<br/>
+- <a href="docs/quickstart/README.md"><b>docs/quickstart → Quickstart</b></a>
+
+    </td>
+  </tr>
+
+  <tr>
+    <td width="50%" valign="top">
+
+<b>🔧 I want to build it from scratch</b><br/>
+Assembly guide:<br/>
+- <a href="docs/assembly/README.md"><b>docs/assembly → Build guide</b></a><br/><br/>
+<i>Parts list (BOM) and build guide live here → docs/assembly/…</i>
+
+    </td>
+    <td width="50%" valign="top">
+
+<b>🧩 I want to contribute</b><br/>
+- 💬 Join Discord: <a href="https://discord.com/invite/bittensor">discord.com/invite/bittensor</a><br/>
+- 📝 Read: <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a><br/>
+- 🟢 Pick a starter task: 
+<a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issues</b></a>
+
+    </td>
+  </tr>
+</table>
+
+
 <!-- SECTION 6 -->
 <!-- SECTION 7 -->
 <!-- SECTION 8 -->
