@@ -219,7 +219,8 @@ class MSPDataTypes:
             logger.warning(f"Insufficient data for attitude: {len(data)} bytes")
             return 0.0, 0.0, 0.0
         roll_dd, pitch_dd, yaw_dd = struct.unpack('<hhh', data[:6])
-        result = (roll_dd / 10.0, pitch_dd / 10.0, yaw_dd / 10.0)
+        # Note: INAV 7+ sends attitude data already in degrees, not decidegrees
+        result = (float(roll_dd), float(pitch_dd), float(yaw_dd))
         logger.debug(f"Unpacked attitude: roll={result[0]}°, pitch={result[1]}°, yaw={result[2]}°")
         return result
     
