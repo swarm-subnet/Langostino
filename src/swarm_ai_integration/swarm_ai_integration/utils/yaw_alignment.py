@@ -130,6 +130,9 @@ class YawAlignmentController:
         """
         self.node.get_logger().info('🧭 Starting YAW ALIGNMENT phase')
 
+        # Send initial neutral command to maintain RC link during setup
+        self.send_rc_command(roll=1500, pitch=1500, throttle=1500, yaw=1500)
+
         iteration = 0
 
         while iteration < max_iterations:
@@ -141,6 +144,8 @@ class YawAlignmentController:
                     f'✅ YAW ALIGNMENT complete: heading={heading_deg:.1f}° (target: north/0°)'
                 )
                 self.alignment_complete = True
+                # Send final neutral command before returning to maintain RC link
+                self.send_rc_command(roll=1500, pitch=1500, throttle=1500, yaw=1500)
                 return True
 
             # Determine yaw correction direction
@@ -170,8 +175,16 @@ class YawAlignmentController:
                 )
                 time.sleep(0.025)  # 40Hz control rate
 
-            # Brief pause to let drone settle
-            time.sleep(0.1)
+            # Brief pause to let drone settle (send neutral commands to maintain RC link)
+            settle_start = time.time()
+            while (time.time() - settle_start) < 0.1:
+                self.send_rc_command(
+                    roll=1500,
+                    pitch=1500,
+                    throttle=1500,
+                    yaw=1500  # Return yaw to neutral during settling
+                )
+                time.sleep(0.025)  # 40Hz control rate
 
             iteration += 1
 
@@ -181,6 +194,8 @@ class YawAlignmentController:
             f'⚠️ YAW ALIGNMENT incomplete after {max_iterations} iterations. '
             f'Final heading: {heading_deg:.1f}°'
         )
+        # Send final neutral command before returning to maintain RC link
+        self.send_rc_command(roll=1500, pitch=1500, throttle=1500, yaw=1500)
         return False
 
     def execute_full_sequence(self) -> bool:
