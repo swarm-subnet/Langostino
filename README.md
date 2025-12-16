@@ -182,6 +182,24 @@ Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pi
 
 
 <!-- SECTION 7 -->
+
+<hr/>
+
+<h2 align="center">Roadmap</h2>
+
+<ul>
+  <li><b>v0.2:</b> Publish a beginner-friendly <b>Quickstart</b> (from zero to first run).</li>
+  <li><b>Build guide:</b> Step-by-step <b>assembly guide</b> with photos + safety checklist.</li>
+  <li><b>BOM v1:</b> A complete <b>parts list</b> (with regions/suppliers where possible).</li>
+  <li><b>First-flight path:</b> A reproducible path from “built” → “configured” → “first flight”.</li>
+  <li><b>Community:</b> Starter tasks, bounties, and a monthly contributor highlight.</li>
+</ul>
+
+<p>
+  <sub>Want the broader SWARM roadmap? Link it here: <i>(optional)</i> <a href="<SWARM_ROADMAP_URL>">SWARM roadmap</a></sub>
+</p>
+
+
 <!-- SECTION 8 -->
 <!-- SECTION 9 -->
 <!-- SECTION 10 -->
