@@ -104,13 +104,16 @@
 
 <hr/>
 
-<h2 align="center">Why it matters?</h2>
+<h2 id="why-it-matters" align="center">Why it matters</h2>
 
-<p align="center">
-  Autonomous drones shouldn’t feel like magic or closed black boxes.<br/>
-  Langostino exists to make real-world autonomy <b>understandable</b> and <b>buildable</b> — so more people can learn, iterate, and ship useful aerial systems.<br/>
-  By sharing a reference drone in the open, we lower the barrier from “curious” to “first flight”, and turn progress into something the whole community can reuse.
-</p>
+<div align="left" style="max-width: 820px; margin: 0 auto;">
+  <ul>
+    <li><strong>No black boxes.</strong> Autonomous drones should be understandable.</li>
+    <li><strong>Lower barrier.</strong> An open, working reference you can copy, learn from, and fly.</li>
+    <li><strong>Shared progress.</strong> Clear build guides and a common codebase help more people experiment safely and reuse what works.</li>
+    <li><strong>Real impact.</strong> Faster progress for students, hobbyists, and teams — and more useful, trustworthy drone applications.</li>
+  </ul>
+</div>
 
 
 <!-- SECTION 5 -->
