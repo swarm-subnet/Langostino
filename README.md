@@ -101,6 +101,18 @@
 
 
 <!-- SECTION 4 -->
+
+<hr/>
+
+<h2 align="center">Why it matters?</h2>
+
+<p align="center">
+  Autonomous drones shouldn’t feel like magic or closed black boxes.<br/>
+  Langostino exists to make real-world autonomy <b>understandable</b> and <b>buildable</b> — so more people can learn, iterate, and ship useful aerial systems.<br/>
+  By sharing a reference drone in the open, we lower the barrier from “curious” to “first flight”, and turn progress into something the whole community can reuse.
+</p>
+
+
 <!-- SECTION 5 -->
 <!-- SECTION 6 -->
 <!-- SECTION 7 -->
