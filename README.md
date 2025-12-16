@@ -185,19 +185,46 @@ Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pi
 
 <hr/>
 
-<h2 align="center">Roadmap</h2>
+<h2 align="center">Your flight plan — from zero to first flight</h2>
 
-<ul>
-  <li><b>v0.2:</b> Publish a beginner-friendly <b>Quickstart</b> (from zero to first run).</li>
-  <li><b>Build guide:</b> Step-by-step <b>assembly guide</b> with photos + safety checklist.</li>
-  <li><b>BOM v1:</b> A complete <b>parts list</b> (with regions/suppliers where possible).</li>
-  <li><b>First-flight path:</b> A reproducible path from “built” → “configured” → “first flight”.</li>
-  <li><b>Community:</b> Starter tasks, bounties, and a monthly contributor highlight.</li>
-</ul>
+<ol>
+  <li>
+    <p><b>Watch a 60-second demo.</b> Get the idea fast. 
+      <a href="#REAL_FLIGHT_VIDEO_URL" target="_blank" rel="noopener noreferrer">Watch video →</a>
+    </p>
+  </li>
+  <li>
+    <p><b>Get the parts.</b> Use the <a href="docs/assembly/README.md#bill-of-materials-bom" target="_blank" rel="noopener noreferrer"><b>BOM</b></a> as your shopping list to source every component.
+    </p>
+  </li>
+  <li>
+    <p><b>Assemble the airframe.</b> Follow the build guide step-by-step. 
+      <a href="docs/assembly/README.md" target="_blank" rel="noopener noreferrer">Build guide →</a>
+    </p>
+  </li>
+  <li>
+    <p><b>Flash &amp; wire.</b> INAV on the FC + Pi image + basic wiring checklist. 
+      <a href="docs/quickstart/README.md" target="_blank" rel="noopener noreferrer">Quickstart →</a>
+    </p>
+  </li>
+  <li>
+    <p><b>Calibrate &amp; safety.</b> Props off, arming checks, failsafes, first hover indoor. 
+      <a href="docs/quickstart/README.md#safety--calibration" target="_blank" rel="noopener noreferrer">Safety checklist →</a>
+    </p>
+  </li>
+  <li>
+    <p><b>Go outside &amp; share.</b> Short flight, record a clip, ⭐ the repo, post your build. 
+      <a href="https://discord.com/invite/bittensor" target="_blank" rel="noopener noreferrer">Join Discord →</a>
+    </p>
+  </li>
+</ol>
 
-<p>
-  <sub>Want the broader SWARM roadmap? Link it here: <i>(optional)</i> <a href="<SWARM_ROADMAP_URL>">SWARM roadmap</a></sub>
+<p align="center">
+  <sub>Want the bigger picture? See the company roadmap:
+    <a href="#COMPANY_ROADMAP_URL" target="_blank" rel="noopener noreferrer">Swarm roadmap →</a>
+  </sub>
 </p>
+
 
 
 <!-- SECTION 8 -->
