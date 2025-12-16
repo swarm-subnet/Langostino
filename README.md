@@ -65,42 +65,41 @@
   <sub>▶ Real flight (click to watch)</sub>
 </p>
 
-<!-- Two GIFs side-by-side -->
-<table align="center" style="table-layout:fixed; width:100%; max-width:760px;">
-  <tr>
-    <td align="center"><b>Setup</b></td>
-    <td align="center"><b>Simulation</b></td>
-  </tr>
-  <tr>
-    <td align="center" style="padding:6px;">
-      <img
-        src="assets/demo-setup.gif"
-        alt="Quick setup: first run of Langostino"
-        style="width:100%; max-width:360px; border-radius:8px;"
-        loading="lazy"
-      />
-    </td>
-    <td align="center" style="padding:6px;">
-      <img
-        src="assets/demo-sim.gif"
-        alt="Simulation run of Langostino"
-        style="width:100%; max-width:360px; border-radius:8px;"
-        loading="lazy"
-      />
-    </td>
-  </tr>
-  <tr>
-    <td align="center"><sub>First run / quick setup</sub></td>
-    <td align="center"><sub>Sim run (repeatable)</sub></td>
-  </tr>
-</table>
+<!-- One GIF: quick setup -->
+<p align="center" style="max-width:760px;margin:0 auto;">
+  <img
+    src="assets/demo-setup.gif"
+    alt="Quick setup: first run of Langostino"
+    style="width:100%;max-width:540px;border-radius:8px;"
+    loading="lazy"
+  />
+  <br/>
+  <sub>First run / quick setup</sub>
+</p>
 
 <p align="center">
   <sub>If this made you curious, ⭐ star the repo and share the demo.</sub>
 </p>
 
 
+
 <!-- SECTION 3 -->
+<hr/>
+
+<h2 align="center">What is Langostino?</h2>
+
+<p align="center">
+  Langostino is an <b>open-source reference drone</b> for real-world autonomous flight — designed to be easy to understand, build, and extend.
+</p>
+
+<ul>
+  <li><b>A practical AI autopilot project</b> focused on flying in the real world (not a black box).</li>
+  <li><b>A complete reference platform</b>: code, docs, and a clear path from “zero” to “first flight”.</li>
+  <li><b>Made to be adapted</b>: use it as a starting point for your own drone and your own experiments.</li>
+  <li><b>Community-driven</b>: built in the open, improved by builders and contributors worldwide.</li>
+</ul>
+
+
 <!-- SECTION 4 -->
 <!-- SECTION 5 -->
 <!-- SECTION 6 -->
