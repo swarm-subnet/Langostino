@@ -355,10 +355,23 @@ Discord: https://discord.com/invite/bittensor
 
 
 <!-- SECTION 12 -->
+
+<hr/>
+
+<h2 align="center">License</h2>
+
+<p align="center">
+  This project is released under the <b>MIT License</b> — see <a href="LICENSE"><b>LICENSE</b></a>.
+</p>
+
+
 <!-- SECTION 13 -->
 
+<hr/>
 
-
+<p align="center">
+  <b>Happy hacking!</b> 🦐
+</p>
 
 
 
