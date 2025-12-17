@@ -7,8 +7,8 @@ Provides functionality to align drone heading to north (0 degrees) after arming.
 Sequence:
 1. Rise drone with ALT HOLD for 2 seconds (throttle at 1550)
 2. Adjust yaw to face north (heading 0°)
-   - If heading < 350°: turn right (yaw 1520) for 0.5s
-   - If heading > 10°: turn left (yaw 1480) for 0.5s
+   - If heading is 10°-180°: turn left (counter-clockwise) to reach 0°
+   - If heading is 180°-350°: turn right (clockwise) to reach 0°
 3. Return control to AI model
 
 This function is designed to be called after the arm phase is complete.
@@ -34,9 +34,9 @@ class YawAlignmentController:
         node: Node,
         send_rc_command_callback: Callable,
         get_heading_callback: Callable[[], float],
-        rise_duration: float = 2.0,
+        rise_duration: float = 3.0,
         rise_throttle: int = 1550,
-        yaw_turn_duration: float = 0.5,
+        yaw_turn_duration: float = 0.1,
         yaw_right_value: int = 1520,
         yaw_left_value: int = 1480,
         heading_tolerance_low: float = 350.0,
@@ -50,9 +50,9 @@ class YawAlignmentController:
             send_rc_command_callback: Function to send RC commands to drone
                                      Expected signature: func(roll, pitch, throttle, yaw)
             get_heading_callback: Function to get current heading in degrees (0-360)
-            rise_duration: Duration to rise in seconds (default: 2.0)
+            rise_duration: Duration to rise in seconds (default: 3.0)
             rise_throttle: Throttle value during rise (default: 1550)
-            yaw_turn_duration: Duration to apply yaw correction in seconds (default: 0.5)
+            yaw_turn_duration: Duration to apply yaw correction in seconds (default: 0.1)
             yaw_right_value: Yaw channel value for turning right (default: 1520)
             yaw_left_value: Yaw channel value for turning left (default: 1480)
             heading_tolerance_low: Lower heading tolerance in degrees (default: 350)
@@ -115,15 +115,15 @@ class YawAlignmentController:
         self.rise_complete = True
         self.node.get_logger().info('✅ RISE phase complete')
 
-    def execute_yaw_alignment_phase(self, max_iterations: int = 20) -> bool:
+    def execute_yaw_alignment_phase(self, max_iterations: int = 30) -> bool:
         """
         Execute yaw alignment phase: adjust yaw to face north.
 
-        This phase will adjust yaw in 0.5s increments until heading is aligned
+        This phase will adjust yaw in increments until heading is aligned
         or max iterations is reached.
 
         Args:
-            max_iterations: Maximum number of yaw correction attempts (default: 20)
+            max_iterations: Maximum number of yaw correction attempts (default: 30)
 
         Returns:
             True if alignment successful, False if max iterations reached
@@ -148,14 +148,15 @@ class YawAlignmentController:
                 self.send_rc_command(roll=1500, pitch=1500, throttle=1500, yaw=1500)
                 return True
 
-            # Determine yaw correction direction
-            if heading_deg < self.heading_tolerance_low:
-                # Turn right (clockwise)
+            # Determine yaw correction direction (shortest path to north)
+            # For headings > 180°: turn right (clockwise) is shorter
+            # For headings < 180°: turn left (counter-clockwise) is shorter
+            if heading_deg > 180:
+                # Turn right (clockwise) - shortest path for 180-350°
                 yaw_command = self.yaw_right_value
                 direction = 'right (CW)'
             else:
-                # heading_deg > self.heading_tolerance_high
-                # Turn left (counter-clockwise)
+                # Turn left (counter-clockwise) - shortest path for 10-180°
                 yaw_command = self.yaw_left_value
                 direction = 'left (CCW)'
 
@@ -177,7 +178,7 @@ class YawAlignmentController:
 
             # Brief pause to let drone settle (send neutral commands to maintain RC link)
             settle_start = time.time()
-            while (time.time() - settle_start) < 0.1:
+            while (time.time() - settle_start) < 0.5:
                 self.send_rc_command(
                     roll=1500,
                     pitch=1500,
