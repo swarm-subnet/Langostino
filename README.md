@@ -271,6 +271,37 @@ langostino/
 
 
 <!-- SECTION 10 -->
+
+<hr/>
+
+<h2 align="center">Community</h2>
+
+<p align="center">
+  Langostino is built with a <b>global</b> community of builders and contributors.<br/>
+  If you’re building, testing, or improving it — we want to hear from you.
+</p>
+
+<p align="center">
+  <a href="https://discord.com/invite/bittensor">
+    <img alt="Join Discord" src="https://img.shields.io/badge/💬%20Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://discord.com/invite/bittensor"><b>Discord</b></a>
+  &nbsp;•&nbsp;
+  <a href="https://x.com/<X_HANDLE>"><b>X</b></a>
+  &nbsp;•&nbsp;
+  <a href="https://www.linkedin.com/company/<LINKEDIN_SLUG>/"><b>LinkedIn</b></a>
+  &nbsp;•&nbsp;
+  <a href="https://github.com/swarm-subnet"><b>GitHub</b></a>
+</p>
+
+<p align="center">
+  <sub>Share your build log or flight clip in Discord — we feature the best builds.</sub>
+</p>
+
+
 <!-- SECTION 11 -->
 <!-- SECTION 12 -->
 <!-- SECTION 13 -->
