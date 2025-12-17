@@ -203,9 +203,8 @@ Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pi
     </p>
   </li>
   <li>
-    <p><b>Flash &amp; wire.</b> INAV on the FC + Pi image + basic wiring checklist. 
-      <a href="docs/quickstart/README.md" target="_blank" rel="noopener noreferrer">Quickstart →</a>
-    </p>
+    <b>Install, then wire it up.</b> Follow the quickstart checklist step by step.
+    <a href="docs/quickstart/README.md"><b>Quickstart →</b></a>
   </li>
   <li>
     <p><b>Calibrate &amp; safety.</b> Props off, arming checks, failsafes, first hover indoor. 
