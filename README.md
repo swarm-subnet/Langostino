@@ -227,7 +227,49 @@ Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pi
 
 
 <!-- SECTION 8 -->
+
+<hr/>
+
+<h2 align="center">Safety note</h2>
+
+<p>
+  <b>Langostino is a real flying machine.</b><br/>
+  Follow local regulations.<br/>
+  Test in safe environments.<br/>
+  Use prop guards and appropriate failsafes.
+</p>
+
 <!-- SECTION 9 -->
+
+<hr/>
+
+<h2 align="center">Repository structure</h2>
+
+<details>
+  <summary><b>Click to expand</b></summary>
+
+  <pre><code>
+langostino/
+├── hardware/
+│   ├── CAD/        # 3D models (STL, STEP)
+│   ├── PCB/        # Circuit designs
+│   └── BOM/        # Bill of Materials + purchase links
+├── firmware/
+│   ├── flight_controller/
+│   └── sensors/
+├── software/
+│   ├── ai_model/        # AI model (if applicable)
+│   ├── ground_station/
+│   └── simulation/
+├── docs/
+│   ├── assembly/   # Step-by-step (with photos)
+│   └── tutorials/
+└── examples/
+  </code></pre>
+
+</details>
+
+
 <!-- SECTION 10 -->
 <!-- SECTION 11 -->
 <!-- SECTION 12 -->
