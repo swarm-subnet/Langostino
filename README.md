@@ -303,6 +303,57 @@ langostino/
 
 
 <!-- SECTION 11 -->
+
+<hr/>
+
+<h2 align="center">Share pack</h2>
+
+<p align="center">
+  <sub>Want to help Langostino reach more builders? Copy/paste one of these.</sub>
+</p>
+
+<details>
+  <summary><b>X (Twitter)</b></summary>
+
+  <br/>
+
+  <pre><code>
+Open-source AI autopilot for real-world drones 🦐✈️
+
+Langostino is a reference drone you can understand, build, and fly — built with a global community.
+
+⭐ https://github.com/swarm-subnet/Langostino
+  </code></pre>
+</details>
+
+<details>
+  <summary><b>LinkedIn</b></summary>
+
+  <br/>
+
+  <pre><code>
+We’re open-sourcing Langostino — an AI autopilot + reference drone focused on real-world flight.
+
+The goal: make drone autonomy understandable and buildable, so more builders can go from “curious” to “first flight”.
+
+Repo: https://github.com/swarm-subnet/Langostino
+Discord: https://discord.com/invite/bittensor
+  </code></pre>
+</details>
+
+<details>
+  <summary><b>Where to share</b></summary>
+
+  <br/>
+
+  <ul>
+    <li><b>Hackaday</b> — open hardware / DIY audience</li>
+    <li><b>DIY Drones</b> — builders who actually fly</li>
+    <li><b>Reddit</b> — consider: r/drones, r/Multicopter, r/robotics (follow each subreddit’s rules)</li>
+  </ul>
+</details>
+
+
 <!-- SECTION 12 -->
 <!-- SECTION 13 -->
 
