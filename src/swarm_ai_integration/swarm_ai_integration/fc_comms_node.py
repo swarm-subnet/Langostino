@@ -283,13 +283,13 @@ class FCCommsNode(Node):
 
     def _handle_attitude(self, data: bytes):
         """Handle attitude data"""
-        euler_msg = self.parser.parse_attitude_data(
+        euler_msg, euler_degrees_msg = self.parser.parse_attitude_data(
             data,
             self.get_clock().now().to_msg(),
             'fc_attitude'
         )
-        if euler_msg:
-            self.publisher.publish_attitude(euler_msg)
+        if euler_msg and euler_degrees_msg:
+            self.publisher.publish_attitude(euler_msg, euler_degrees_msg)
 
     def _handle_altitude(self, data: bytes):
         """Handle altitude data"""

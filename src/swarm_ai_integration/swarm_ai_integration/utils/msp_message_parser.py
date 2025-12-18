@@ -169,9 +169,9 @@ class MSPMessageParser:
         data: bytes,
         timestamp,
         frame_id: str = 'fc_attitude'
-    ) -> Optional[Vector3Stamped]:
+    ) -> Tuple[Optional[Vector3Stamped], Optional[Vector3Stamped]]:
         """
-        Parse MSP_ATTITUDE data and create Euler angles message.
+        Parse MSP_ATTITUDE data and create Euler angles messages in radians and degrees.
 
         Args:
             data: Raw MSP payload
@@ -179,7 +179,7 @@ class MSPMessageParser:
             frame_id: TF frame ID
 
         Returns:
-            Vector3Stamped with Euler angles or None
+            Tuple of (radians message, degrees message) or (None, None)
         """
         try:
             roll, pitch, yaw = MSPDataTypes.unpack_attitude(data)
@@ -189,7 +189,7 @@ class MSPMessageParser:
             pitch_rad = np.radians(pitch)
             yaw_rad = np.radians(yaw)
 
-            # Create Euler angles message
+            # Create Euler angles message in radians
             euler_msg = Vector3Stamped()
             euler_msg.header.stamp = timestamp
             euler_msg.header.frame_id = frame_id
@@ -197,10 +197,18 @@ class MSPMessageParser:
             euler_msg.vector.y = pitch_rad  # pitch
             euler_msg.vector.z = yaw_rad    # yaw
 
-            return euler_msg
+            # Create Euler angles message in degrees
+            euler_degrees_msg = Vector3Stamped()
+            euler_degrees_msg.header.stamp = timestamp
+            euler_degrees_msg.header.frame_id = frame_id
+            euler_degrees_msg.vector.x = float(roll)   # roll
+            euler_degrees_msg.vector.y = float(pitch)  # pitch
+            euler_degrees_msg.vector.z = float(yaw)    # yaw
+
+            return euler_msg, euler_degrees_msg
 
         except Exception as e:
-            return None
+            return None, None
 
     def parse_altitude_data(self, data: bytes) -> Optional[Float32MultiArray]:
         """

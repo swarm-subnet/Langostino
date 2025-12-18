@@ -206,8 +206,8 @@ class MSPDataTypes:
     @staticmethod
     def pack_attitude(roll: float, pitch: float, yaw: float) -> bytes:
         """Pack attitude data (roll, pitch, yaw in decidegrees)"""
-        roll_dd = int(roll * 10)
-        pitch_dd = int(pitch * 10)
+        roll_dd = int(roll)
+        pitch_dd = int(pitch)
         yaw_dd = int(yaw * 10)
         logger.debug(f"Packing attitude: roll={roll}°, pitch={pitch}°, yaw={yaw}°")
         return struct.pack('<hhh', roll_dd, pitch_dd, yaw_dd)

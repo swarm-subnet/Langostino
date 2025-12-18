@@ -237,6 +237,9 @@ def normalize_heading_to_360(heading_rad: float) -> float:
     """
     Normalize heading from radians to 0-360 degrees.
 
+    DEPRECATED: Use /fc/attitude_degrees topic directly instead of converting
+    from /fc/attitude_euler. This function is kept for backward compatibility.
+
     Args:
         heading_rad: Heading in radians
 

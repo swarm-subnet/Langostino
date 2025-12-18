@@ -41,7 +41,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from std_msgs.msg import Float32MultiArray, Bool, String
 from geometry_msgs.msg import Vector3Stamped
 
-from swarm_ai_integration.utils import YawAlignmentController, normalize_heading_to_360
+from swarm_ai_integration.utils import YawAlignmentController
 
 
 class FCAdapterNode(Node):
@@ -51,7 +51,7 @@ class FCAdapterNode(Node):
     Subscriptions:
       /ai/action                 (std_msgs/Float32MultiArray) : [vx, vy, vz, speed]
       /safety/override           (std_msgs/Bool)
-      /fc/attitude_euler         (geometry_msgs/Vector3Stamped) : [roll, pitch, yaw] in radians
+      /fc/attitude_degrees       (geometry_msgs/Vector3Stamped) : [roll, pitch, yaw] in degrees
 
     Publications:
       /fc_adapter/status         (std_msgs/String)
@@ -106,7 +106,7 @@ class FCAdapterNode(Node):
 
         # Yaw alignment state
         self.yaw_alignment_complete = False
-        self.current_heading_rad = 0.0  # Current heading in radians from /fc/attitude_euler
+        self.current_heading_deg = 0.0  # Current heading in degrees from /fc/attitude_degrees
 
         # ------------ QoS & ROS I/O ------------
         control_qos = QoSProfile(
@@ -123,7 +123,7 @@ class FCAdapterNode(Node):
         # Subscriptions
         self.create_subscription(Float32MultiArray, '/ai/action', self.cb_ai_action, control_qos)
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
-        self.create_subscription(Vector3Stamped, '/fc/attitude_euler', self.cb_attitude, sensor_qos)
+        self.create_subscription(Vector3Stamped, '/fc/attitude_degrees', self.cb_attitude, sensor_qos)
 
         # Publications
         self.status_pub = self.create_publisher(String, '/fc_adapter/status', control_qos)
@@ -164,8 +164,8 @@ class FCAdapterNode(Node):
             self.get_logger().warn('⚠️ Safety override ON → emergency hover')
 
     def cb_attitude(self, msg: Vector3Stamped):
-        """Receive attitude data (roll, pitch, yaw in radians)"""
-        self.current_heading_rad = float(msg.vector.z)  # yaw in radians
+        """Receive attitude data (roll, pitch, yaw in degrees)"""
+        self.current_heading_deg = float(msg.vector.z)  # yaw in degrees
 
     # ------------ Yaw Alignment Helper Methods ------------
     def get_current_heading_degrees(self) -> float:
@@ -175,7 +175,7 @@ class FCAdapterNode(Node):
         Returns:
             Current heading in degrees
         """
-        return normalize_heading_to_360(self.current_heading_rad)
+        return self.current_heading_deg
 
     def send_rc_command_for_yaw_alignment(self, roll: int, pitch: int, throttle: int, yaw: int):
         """

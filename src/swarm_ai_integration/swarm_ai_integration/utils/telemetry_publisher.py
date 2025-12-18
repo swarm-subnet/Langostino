@@ -83,9 +83,14 @@ class TelemetryPublisher:
             Float32, '/fc/gps_hdop', self.sensor_qos
         )
 
-        # Attitude data (Euler angles only)
+        # Attitude data (Euler angles in radians)
         self.attitude_euler_pub = self.node.create_publisher(
             Vector3Stamped, '/fc/attitude_euler', self.reliable_qos
+        )
+
+        # Attitude data (Euler angles in degrees)
+        self.attitude_degrees_pub = self.node.create_publisher(
+            Vector3Stamped, '/fc/attitude_degrees', self.reliable_qos
         )
 
         # Altitude data (barometer altitude + vertical velocity)
@@ -170,14 +175,18 @@ class TelemetryPublisher:
             f'alt={gps_msg.altitude:.1f}m | fix={gps_msg.status.status}'
         )
 
-    def publish_attitude(self, euler_msg: Vector3Stamped):
-        """Publish attitude data (Euler angles only)"""
+    def publish_attitude(self, euler_msg: Vector3Stamped, euler_degrees_msg: Vector3Stamped):
+        """Publish attitude data (Euler angles in radians and degrees)"""
+        # Publish radians version
         self.attitude_euler_pub.publish(euler_msg)
         self.last_telemetry['attitude_euler'] = euler_msg
 
+        # Publish degrees version
+        self.attitude_degrees_pub.publish(euler_degrees_msg)
+
         import numpy as np
         self.node.get_logger().info(
-            f'   ➜ Published to /fc/attitude_euler | '
+            f'   ➜ Published to /fc/attitude_euler and /fc/attitude_degrees | '
             f'roll={np.degrees(euler_msg.vector.x):.1f}° | '
             f'pitch={np.degrees(euler_msg.vector.y):.1f}° | '
             f'yaw={np.degrees(euler_msg.vector.z):.1f}°'

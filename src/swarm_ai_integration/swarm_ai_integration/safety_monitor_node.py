@@ -29,7 +29,7 @@ class SafetyMonitorNode(Node):
     
     Subscriptions:
         /ai/observation          (std_msgs/Float32MultiArray) : [E, N, U, ...]
-        /fc/attitude_euler      (geometry_msgs/Vector3Stamped) : [roll, pitch, yaw] degrees
+        /fc/attitude_degrees    (geometry_msgs/Vector3Stamped) : [roll, pitch, yaw] degrees
 
     Publications:
         /safety/override        (std_msgs/Bool) : True=Override AI control
@@ -100,7 +100,7 @@ class SafetyMonitorNode(Node):
         self.obs_sub = self.create_subscription(
             Float32MultiArray, '/ai/observation', self.observation_callback, reliable_qos)
         self.attitude_sub = self.create_subscription(
-            Vector3Stamped, '/fc/attitude_euler', self.attitude_callback, sensor_qos)
+            Vector3Stamped, '/fc/attitude_degrees', self.attitude_callback, sensor_qos)
 
         # Publishers
         self.override_pub = self.create_publisher(
