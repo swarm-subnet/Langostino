@@ -138,6 +138,11 @@ class YawAlignmentController:
         while iteration < max_iterations:
             heading_deg = self.get_heading()
 
+            # Log current heading value received from callback
+            self.node.get_logger().debug(
+                f'🧭 Yaw alignment iteration {iteration}: heading={heading_deg:.1f}°'
+            )
+
             # Check if already aligned
             if self.is_heading_aligned(heading_deg):
                 self.node.get_logger().info(
