@@ -36,7 +36,7 @@ class YawAlignmentController:
         get_heading_callback: Callable[[], float],
         rise_duration: float = 3.0,
         rise_throttle: int = 1550,
-        yaw_turn_duration: float = 0.1,
+        yaw_turn_duration: float = 0.1,  # Kept for backward compatibility, not used
         yaw_right_value: int = 1520,
         yaw_left_value: int = 1480,
         heading_tolerance_low: float = 350.0,
@@ -52,7 +52,7 @@ class YawAlignmentController:
             get_heading_callback: Function to get current heading in degrees (0-360)
             rise_duration: Duration to rise in seconds (default: 3.0)
             rise_throttle: Throttle value during rise (default: 1550)
-            yaw_turn_duration: Duration to apply yaw correction in seconds (default: 0.1)
+            yaw_turn_duration: DEPRECATED - kept for backward compatibility (default: 0.1)
             yaw_right_value: Yaw channel value for turning right (default: 1520)
             yaw_left_value: Yaw channel value for turning left (default: 1480)
             heading_tolerance_low: Lower heading tolerance in degrees (default: 350)
@@ -65,7 +65,7 @@ class YawAlignmentController:
         # Configuration parameters
         self.rise_duration = rise_duration
         self.rise_throttle = rise_throttle
-        self.yaw_turn_duration = yaw_turn_duration
+        # yaw_turn_duration is no longer used (continuous sending instead)
         self.yaw_right_value = yaw_right_value
         self.yaw_left_value = yaw_left_value
         self.heading_tolerance_low = heading_tolerance_low
@@ -96,6 +96,8 @@ class YawAlignmentController:
         - Roll/Pitch/Yaw: 1500 (neutral)
         - ALT HOLD: enabled
         """
+        import rclpy
+
         self.node.get_logger().info(
             f'🚁 Starting RISE phase: throttle={self.rise_throttle} for {self.rise_duration}s'
         )
@@ -103,6 +105,9 @@ class YawAlignmentController:
         start_time = time.time()
 
         while (time.time() - start_time) < self.rise_duration:
+            # Allow ROS2 callbacks to process
+            rclpy.spin_once(self.node, timeout_sec=0.0)
+
             # Send rise command: neutral stick positions, elevated throttle
             self.send_rc_command(
                 roll=1500,
@@ -110,97 +115,93 @@ class YawAlignmentController:
                 throttle=self.rise_throttle,
                 yaw=1500
             )
-            time.sleep(0.025)  # 40Hz control rate
 
         self.rise_complete = True
         self.node.get_logger().info('✅ RISE phase complete')
 
-    def execute_yaw_alignment_phase(self, max_iterations: int = 30) -> bool:
+    def execute_yaw_alignment_phase(self, max_duration: float = 10.0, check_interval: float = 0.1) -> bool:
         """
-        Execute yaw alignment phase: adjust yaw to face north.
+        Execute yaw alignment phase: continuously adjust yaw to face north.
 
-        This phase will adjust yaw in increments until heading is aligned
-        or max iterations is reached.
+        This phase continuously sends yaw commands and checks heading every
+        check_interval seconds until aligned or timeout.
 
         Args:
-            max_iterations: Maximum number of yaw correction attempts (default: 30)
+            max_duration: Maximum duration for alignment in seconds (default: 10.0)
+            check_interval: How often to check heading in seconds (default: 0.1)
 
         Returns:
-            True if alignment successful, False if max iterations reached
+            True if alignment successful, False if timeout reached
         """
+        import rclpy
+
         self.node.get_logger().info('🧭 Starting YAW ALIGNMENT phase')
 
-        # Send initial neutral command to maintain RC link during setup
-        self.send_rc_command(roll=1500, pitch=1500, throttle=1500, yaw=1500)
+        start_time = time.time()
+        last_check_time = start_time
 
-        iteration = 0
+        while (time.time() - start_time) < max_duration:
+            # Allow ROS2 callbacks to process (CRITICAL for heading updates)
+            rclpy.spin_once(self.node, timeout_sec=0.0)
 
-        while iteration < max_iterations:
-            heading_deg = self.get_heading()
+            # Check heading at intervals
+            current_time = time.time()
+            if (current_time - last_check_time) >= check_interval:
+                heading_deg = self.get_heading()
+                last_check_time = current_time
 
-            # Log current heading value received from callback
-            self.node.get_logger().info(
-                f'🧭 Yaw alignment iteration {iteration}: heading={heading_deg:.1f}°'
-            )
-
-            # Check if already aligned
-            if self.is_heading_aligned(heading_deg):
+                # Log current heading
+                elapsed = current_time - start_time
                 self.node.get_logger().info(
-                    f'✅ YAW ALIGNMENT complete: heading={heading_deg:.1f}° (target: north/0°)'
+                    f'🧭 Yaw alignment check @ {elapsed:.1f}s: heading={heading_deg:.1f}°'
                 )
-                self.alignment_complete = True
-                # Send final neutral command before returning to maintain RC link
-                self.send_rc_command(roll=1500, pitch=1500, throttle=1500, yaw=1500)
-                return True
 
-            # Determine yaw correction direction (shortest path to north)
-            # For headings > 180°: turn right (clockwise) is shorter
-            # For headings < 180°: turn left (counter-clockwise) is shorter
-            if heading_deg > 180:
-                # Turn right (clockwise) - shortest path for 180-350°
-                yaw_command = self.yaw_right_value
-                direction = 'right (CW)'
+                # Check if already aligned
+                if self.is_heading_aligned(heading_deg):
+                    self.node.get_logger().info(
+                        f'✅ YAW ALIGNMENT complete: heading={heading_deg:.1f}° (target: north/0°) in {elapsed:.1f}s'
+                    )
+                    self.alignment_complete = True
+                    # Send final neutral command
+                    self.send_rc_command(roll=1500, pitch=1500, throttle=1500, yaw=1500)
+                    rclpy.spin_once(self.node, timeout_sec=0.01)  # Process final messages
+                    return True
+
+                # Determine yaw correction direction (shortest path to north)
+                if heading_deg > 180:
+                    # Turn right (clockwise) - shortest path for 180-350°
+                    yaw_command = self.yaw_right_value
+                    direction = 'right (CW)'
+                else:
+                    # Turn left (counter-clockwise) - shortest path for 10-180°
+                    yaw_command = self.yaw_left_value
+                    direction = 'left (CCW)'
+
+                self.node.get_logger().info(
+                    f'🔄 Adjusting yaw {direction}: heading={heading_deg:.1f}° → yaw={yaw_command}'
+                )
             else:
-                # Turn left (counter-clockwise) - shortest path for 10-180°
-                yaw_command = self.yaw_left_value
-                direction = 'left (CCW)'
+                # Continue sending current yaw command (no direction change yet)
+                heading_deg = self.get_heading()
+                if heading_deg > 180:
+                    yaw_command = self.yaw_right_value
+                else:
+                    yaw_command = self.yaw_left_value
 
-            self.node.get_logger().info(
-                f'🔄 Adjusting yaw {direction}: heading={heading_deg:.1f}° → '
-                f'yaw={yaw_command} for {self.yaw_turn_duration}s'
+            # Continuously send yaw command (no interruption)
+            self.send_rc_command(
+                roll=1500,
+                pitch=1500,
+                throttle=1500,  # Neutral throttle (maintain altitude in ALT HOLD)
+                yaw=yaw_command
             )
 
-            # Apply yaw correction for specified duration
-            start_time = time.time()
-            while (time.time() - start_time) < self.yaw_turn_duration:
-                self.send_rc_command(
-                    roll=1500,
-                    pitch=1500,
-                    throttle=1500,  # Neutral throttle (maintain altitude in ALT HOLD)
-                    yaw=yaw_command
-                )
-                time.sleep(0.025)  # 40Hz control rate
-
-            # Brief pause to let drone settle (send neutral commands to maintain RC link)
-            settle_start = time.time()
-            while (time.time() - settle_start) < 0.5:
-                self.send_rc_command(
-                    roll=1500,
-                    pitch=1500,
-                    throttle=1500,
-                    yaw=1500  # Return yaw to neutral during settling
-                )
-                time.sleep(0.025)  # 40Hz control rate
-
-            iteration += 1
-
-        # Max iterations reached without successful alignment
+        # Max duration reached without successful alignment
         heading_deg = self.get_heading()
         self.node.get_logger().warn(
-            f'⚠️ YAW ALIGNMENT incomplete after {max_iterations} iterations. '
-            f'Final heading: {heading_deg:.1f}°'
+            f'⚠️ YAW ALIGNMENT timeout after {max_duration}s. Final heading: {heading_deg:.1f}°'
         )
-        # Send final neutral command before returning to maintain RC link
+        # Send final neutral command
         self.send_rc_command(roll=1500, pitch=1500, throttle=1500, yaw=1500)
         return False
 
