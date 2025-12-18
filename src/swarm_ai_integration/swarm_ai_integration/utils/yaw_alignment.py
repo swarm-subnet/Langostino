@@ -139,7 +139,7 @@ class YawAlignmentController:
             heading_deg = self.get_heading()
 
             # Log current heading value received from callback
-            self.node.get_logger().debug(
+            self.node.get_logger().info(
                 f'🧭 Yaw alignment iteration {iteration}: heading={heading_deg:.1f}°'
             )
 

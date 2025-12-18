@@ -124,6 +124,7 @@ class FCAdapterNode(Node):
         self.create_subscription(Float32MultiArray, '/ai/action', self.cb_ai_action, control_qos)
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
         self.create_subscription(Vector3Stamped, '/fc/attitude_degrees', self.cb_attitude, sensor_qos)
+        self.get_logger().info('📡 Subscribed to /fc/attitude_degrees')
 
         # Publications
         self.status_pub = self.create_publisher(String, '/fc_adapter/status', control_qos)
@@ -166,9 +167,9 @@ class FCAdapterNode(Node):
     def cb_attitude(self, msg: Vector3Stamped):
         """Receive attitude data (roll, pitch, yaw in degrees)"""
         self.current_heading_deg = float(msg.vector.z)  # yaw in degrees
-        self.get_logger().debug(
-            f'📐 Attitude update: roll={msg.vector.x:.1f}°, pitch={msg.vector.y:.1f}°, yaw={msg.vector.z:.1f}°',
-            throttle_duration_sec=0.5
+        self.get_logger().info(
+            f'📐 Attitude callback: roll={msg.vector.x:.1f}°, pitch={msg.vector.y:.1f}°, yaw={msg.vector.z:.1f}°',
+            throttle_duration_sec=1.0
         )
 
     # ------------ Yaw Alignment Helper Methods ------------
@@ -179,7 +180,7 @@ class FCAdapterNode(Node):
         Returns:
             Current heading in degrees
         """
-        self.get_logger().debug(
+        self.get_logger().info(
             f'🎯 Returning heading to yaw alignment: {self.current_heading_deg:.1f}°'
         )
         return self.current_heading_deg
