@@ -205,23 +205,40 @@ class MSPDataTypes:
 
     @staticmethod
     def pack_attitude(roll: float, pitch: float, yaw: float) -> bytes:
-        """Pack attitude data (roll, pitch, yaw in decidegrees)"""
-        roll_dd = int(roll)
-        pitch_dd = int(pitch)
-        yaw_dd = int(yaw * 10)
+        """
+        Pack attitude data for sending to FC.
+
+        INAV expects mixed units when SENDING commands:
+        - Roll/Pitch: degrees (no conversion)
+        - Yaw: decidegrees (multiply by 10)
+        """
+        roll_dd = int(roll)      # degrees
+        pitch_dd = int(pitch)    # degrees
+        yaw_dd = int(yaw * 10)   # decidegrees
         logger.debug(f"Packing attitude: roll={roll}°, pitch={pitch}°, yaw={yaw}°")
         return struct.pack('<hhh', roll_dd, pitch_dd, yaw_dd)
 
     @staticmethod
     def unpack_attitude(data: bytes) -> Tuple[float, float, float]:
-        """Unpack attitude data to degrees"""
+        """
+        Unpack attitude data to degrees.
+
+        INAV sends mixed units:
+        - Roll/Pitch: decidegrees (IMU-based, need ÷10)
+        - Yaw: degrees (magnetometer-based, already correct)
+        """
         if len(data) < 6:
             logger.warning(f"Insufficient data for attitude: {len(data)} bytes")
             return 0.0, 0.0, 0.0
-        roll_dd, pitch_dd, yaw_dd = struct.unpack('<hhh', data[:6])
-        # Note: INAV 7+ sends attitude data already in degrees, not decidegrees
-        result = (float(roll_dd), float(pitch_dd), float(yaw_dd))
-        logger.debug(f"Unpacked attitude: roll={result[0]}°, pitch={result[1]}°, yaw={result[2]}°")
+        roll_dd, pitch_dd, yaw_deg = struct.unpack('<hhh', data[:6])
+
+        # Convert roll/pitch from decidegrees to degrees, yaw is already in degrees
+        roll = float(roll_dd) / 10.0
+        pitch = float(pitch_dd) / 10.0
+        yaw = float(yaw_deg)
+
+        result = (roll, pitch, yaw)
+        logger.debug(f"Unpacked attitude: roll={result[0]:.1f}°, pitch={result[1]:.1f}°, yaw={result[2]:.1f}°")
         return result
     
     @staticmethod
