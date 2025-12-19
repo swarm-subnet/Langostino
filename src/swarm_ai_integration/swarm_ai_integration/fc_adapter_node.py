@@ -71,7 +71,7 @@ class FCAdapterNode(Node):
 
         # Arming, rise and safety
         self.declare_parameter('arming_duration_sec', 20.0)
-        self.declare_parameter('rise_duration_sec', 3.0)
+        self.declare_parameter('rise_duration_sec', 30.0)
         self.declare_parameter('command_timeout', 1.0)
 
         # Get parameter values
@@ -113,7 +113,7 @@ class FCAdapterNode(Node):
             yaw_left_value=1480,         # Left turn value
             heading_tolerance_low=350.0, # Lower tolerance (350°)
             heading_tolerance_high=10.0, # Upper tolerance (10°)
-            max_align_duration=15.0      # Timeout for yaw alignment
+            max_align_duration=30.0      # Timeout for yaw alignment
         )
         # Rise throttle during rise phase
         self.rise_throttle = 1550
