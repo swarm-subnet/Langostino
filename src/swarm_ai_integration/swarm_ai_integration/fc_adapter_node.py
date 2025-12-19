@@ -118,7 +118,7 @@ class FCAdapterNode(Node):
             yaw_left_value=1480,         # Left turn value
             heading_tolerance_low=350.0, # Lower tolerance (350°)
             heading_tolerance_high=10.0, # Upper tolerance (10°)
-            max_align_duration=10.0      # Timeout for yaw alignment
+            max_align_duration=60.0      # Timeout for yaw alignment
         )
 
         # ------------ QoS & ROS I/O ------------
