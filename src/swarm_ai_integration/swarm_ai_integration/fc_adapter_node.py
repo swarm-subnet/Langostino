@@ -392,7 +392,7 @@ class FCAdapterNode(Node):
             self.rc_mid,  # CH4: YAW (always neutral)
             2000,         # CH5: ARM (high per mapping)
             1500,         # CH6: ANGLE mode (high range)
-            1900,         # CH7: NAV ALTHOLD (high range, POSHOLD off)
+            1500,         # CH7: NAV POSHOLD (poshold + altitude hold)
             2000,         # CH8: MSP RC OVERRIDE (high per mapping)
         ]
 
