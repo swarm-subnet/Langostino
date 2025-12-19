@@ -193,9 +193,9 @@ class FCAdapterNode(Node):
         Returns:
             Current heading in degrees
         """
-        self.get_logger().info(
-            f'🎯 Returning heading to yaw alignment: {self.current_heading_deg:.1f}°'
-        )
+        # self.get_logger().info(
+        #     f'🎯 Returning heading to yaw alignment: {self.current_heading_deg:.1f}°'
+        # )
         return self.current_heading_deg
 
     def send_rc_command_for_yaw_alignment(self, roll: int, pitch: int, throttle: int, yaw: int):
