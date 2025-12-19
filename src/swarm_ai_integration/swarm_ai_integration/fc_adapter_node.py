@@ -118,7 +118,7 @@ class FCAdapterNode(Node):
             yaw_left_value=1480,         # Left turn value
             heading_tolerance_low=350.0, # Lower tolerance (350°)
             heading_tolerance_high=10.0, # Upper tolerance (10°)
-            max_align_duration=60.0      # Timeout for yaw alignment
+            max_align_duration=15.0      # Timeout for yaw alignment
         )
         # RC publishing throttle (cap to ~20 Hz to avoid flooding FC comms)
         self.rc_publish_interval = 1.0 / 20.0
