@@ -125,7 +125,7 @@ class FCAdapterNode(Node):
         control_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=10
+            depth=1
         )
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
