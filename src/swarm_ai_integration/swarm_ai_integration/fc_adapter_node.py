@@ -8,13 +8,10 @@ No PID, no sensor feedback - pure open-loop control.
 Publishes RC values to /fc/rc_override topic for fc_comms_node to send via MSP.
 
 Startup Sequence:
-  1. Arming phase: Send ARM=1800 with throttle=1000 (2s default)
-  2. Warmup phase: Remain armed with throttle=1000, ALT HOLD disabled (10s default)
-  3. Yaw alignment phase: Rise drone (2s @ throttle 1550), then align to north (0°)
-     - If heading < 350°: turn right (yaw 1520) for 0.5s
-     - If heading > 10°: turn left (yaw 1480) for 0.5s
-     - Repeat until heading is within 350-360° or 0-10° range
-  4. AI control phase: Normal operation with AI model commands
+  1. Arming phase: ARM=2000, ANGLE on, nav modes off, throttle=1000 (arming_duration)
+  2. Rise phase: ARM=2000, ANGLE on, POSHOLD (with altitude hold) on, throttle=rise_throttle for rise_duration
+  3. Yaw alignment phase: Keep POSHOLD/alt hold on, send yaw corrections until heading within tolerance
+  4. AI control phase: ANGLE on, NAV ALTHOLD on, AI drives roll/pitch/throttle, yaw neutral
 
 ENU Coordinate System:
   X = forward (East)
@@ -26,10 +23,10 @@ RC Channel Mapping (AETR + AUX):
   CH2: PITCH    (vx control - forward/back)
   CH3: THROTTLE (vz control - up/down in ALT HOLD)
   CH4: YAW      (1500 during AI control, variable during alignment)
-  CH5: ARM      (AUX1 - always 1800 when armed)
-  CH6: ANGLE    (AUX2 - always 1500 for angle mode)
-  CH7: ALT_HOLD (AUX3 - 1000 during warmup, 1800 after)
-  CH8: MSP_OVERRIDE (AUX4 - always 1800)
+  CH5: ARM      (AUX1 - 2000 when armed)
+  CH6: ANGLE    (AUX2 - 1500 for angle mode)
+  CH7: NAV modes (AUX3 - 1000 off, ~1500 POSHOLD+althold, ~1900 ALTHOLD)
+  CH8: MSP_OVERRIDE (AUX4 - 2000)
 """
 
 import time
@@ -72,9 +69,9 @@ class FCAdapterNode(Node):
         self.declare_parameter('vy_to_roll_gain', 50.0)    # RC units per m/s
         self.declare_parameter('vz_to_throttle_gain', 100.0)  # RC units per m/s
 
-        # Arming, warmup and safety
-        self.declare_parameter('arming_duration_sec', 2.0)
-        self.declare_parameter('warmup_duration_sec', 10.0)
+        # Arming, rise and safety
+        self.declare_parameter('arming_duration_sec', 20.0)
+        self.declare_parameter('rise_duration_sec', 3.0)
         self.declare_parameter('command_timeout', 1.0)
 
         # Get parameter values
@@ -88,7 +85,7 @@ class FCAdapterNode(Node):
         self.vz_gain = float(self.get_parameter('vz_to_throttle_gain').value)
 
         self.arming_duration = float(self.get_parameter('arming_duration_sec').value)
-        self.warmup_duration = float(self.get_parameter('warmup_duration_sec').value)
+        self.rise_duration = float(self.get_parameter('rise_duration_sec').value)
         self.cmd_timeout = float(self.get_parameter('command_timeout').value)
 
         # ------------ State ------------
@@ -100,9 +97,9 @@ class FCAdapterNode(Node):
         self.arming_complete = False
         self.arming_start_time = time.time()
 
-        # Warmup state
-        self.warmup_complete = False
-        self.warmup_start_time = None  # Will be set after arming complete
+        # Rise state
+        self.rise_complete = False
+        self.rise_start_time = None  # Will be set after arming complete
 
         # Yaw alignment state
         self.yaw_alignment_started = False
@@ -118,7 +115,7 @@ class FCAdapterNode(Node):
             heading_tolerance_high=10.0, # Upper tolerance (10°)
             max_align_duration=15.0      # Timeout for yaw alignment
         )
-        # Rise throttle during warmup/rise phase
+        # Rise throttle during rise phase
         self.rise_throttle = 1550
         # RC publishing throttle (cap to ~20 Hz to avoid flooding FC comms)
         self.rc_publish_interval = 1.0 / 20.0
@@ -155,7 +152,7 @@ class FCAdapterNode(Node):
             f'FC Adapter Node (Joystick Mode) started @ {self.control_rate}Hz\n'
             f'  RC range: [{self.rc_min}, {self.rc_mid}, {self.rc_max}]\n'
             f'  Gains: vx→pitch={self.vx_gain}, vy→roll={self.vy_gain}, vz→throttle={self.vz_gain}\n'
-            f'  Arming: {self.arming_duration}s, Warmup: {self.warmup_duration}s\n'
+            f'  Arming: {self.arming_duration}s, Rise: {self.rise_duration}s\n'
             f'  Publishing to: /fc/rc_override'
         )
 
@@ -234,24 +231,24 @@ class FCAdapterNode(Node):
         if not self.arming_complete:
             if (now - self.arming_start_time) >= self.arming_duration:
                 self.arming_complete = True
-                self.warmup_start_time = now  # Start warmup timer
-                self.get_logger().info(f'✅ Arming complete ({self.arming_duration}s) - proceeding to warmup')
+                self.rise_start_time = now  # Start rise timer
+                self.get_logger().info(f'✅ Arming complete ({self.arming_duration}s) - proceeding to rise')
             else:
                 # During arming: send ARM high with throttle at 1000
                 self._send_arming_command()
                 return
 
-        # Phase 1: Warmup
-        if not self.warmup_complete:
-            if (now - self.warmup_start_time) >= self.warmup_duration:
-                self.warmup_complete = True
-                self.get_logger().info(f'✅ Warmup complete ({self.warmup_duration}s) - proceeding to yaw alignment')
+        # Phase 1: Rise
+        if not self.rise_complete:
+            if (now - self.rise_start_time) >= self.rise_duration:
+                self.rise_complete = True
+                self.get_logger().info(f'✅ Rise complete ({self.rise_duration}s) - proceeding to yaw alignment')
             else:
-                # During warmup: send neutral position with throttle low
-                self._send_warmup_command()
+                # During rise: send neutral position with elevated throttle and poshold
+                self._send_rise_command()
                 return
 
-        # Phase 2: Yaw Alignment (after warmup, before AI control)
+        # Phase 2: Yaw Alignment (after rise, before AI control)
         if not self.yaw_alignment_complete:
             if not self.yaw_alignment_started:
                 self.yaw_alignment_started = True
@@ -301,8 +298,8 @@ class FCAdapterNode(Node):
         ]
         self._publish_rc_override(channels)
 
-    def _send_warmup_command(self):
-        """Send warmup RC values (rise phase with POSHOLD + ALT HOLD active)"""
+    def _send_rise_command(self):
+        """Send rise RC values (rise phase with POSHOLD + ALT HOLD active)"""
         channels = [
             self.rc_mid,  # CH1: ROLL (neutral)
             self.rc_mid,  # CH2: PITCH (neutral)
@@ -430,10 +427,10 @@ class FCAdapterNode(Node):
             elapsed = now - self.arming_start_time
             remaining = max(0, self.arming_duration - elapsed)
             flags.append(f'ARMING({remaining:.1f}s)')
-        elif not self.warmup_complete:
-            elapsed = now - self.warmup_start_time
-            remaining = max(0, self.warmup_duration - elapsed)
-            flags.append(f'WARMUP({remaining:.1f}s)')
+        elif not self.rise_complete:
+            elapsed = now - self.rise_start_time
+            remaining = max(0, self.rise_duration - elapsed)
+            flags.append(f'RISE({remaining:.1f}s)')
         elif not self.yaw_alignment_complete:
             heading = self.get_current_heading_degrees()
             flags.append(f'YAW_ALIGN({heading:.1f}°)')
