@@ -387,15 +387,11 @@ class FCAdapterNode(Node):
 
         # Heading hold: keep facing north using yaw alignment tolerances/commands
         heading_deg = self.get_current_heading_degrees()
-        if self.yaw_controller.is_heading_aligned(heading_deg):
+        yaw_command, direction = self.yaw_controller.get_heading_hold_command(heading_deg)
+        if yaw_command is None:
             yaw_rc = self.rc_mid
         else:
-            if heading_deg > 180:
-                yaw_rc = self.yaw_controller.yaw_right_value
-                direction = 'right (CW)'
-            else:
-                yaw_rc = self.yaw_controller.yaw_left_value
-                direction = 'left (CCW)'
+            yaw_rc = yaw_command
             now = time.time()
             if (now - self.last_yaw_hold_log_time) >= 0.5:
                 self.get_logger().info(

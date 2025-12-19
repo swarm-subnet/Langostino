@@ -74,6 +74,25 @@ class YawAlignmentController:
         """
         return heading_deg >= self.heading_tolerance_low or heading_deg <= self.heading_tolerance_high
 
+    def get_heading_hold_command(self, heading_deg: float):
+        """
+        Determine yaw command to hold heading to north using configured tolerances.
+
+        Args:
+            heading_deg: Current heading in degrees (0-360)
+
+        Returns:
+            (yaw_command, direction) where yaw_command is None if aligned,
+            otherwise the yaw RC value to apply and a string direction hint.
+        """
+        if self.is_heading_aligned(heading_deg):
+            return None, None
+
+        if heading_deg > 180:
+            return self.yaw_right_value, 'right (CW)'
+
+        return self.yaw_left_value, 'left (CCW)'
+
     def start_sequence(self):
         """Begin the align sequence."""
         if self.phase != 'idle':
