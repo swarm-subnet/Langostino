@@ -120,6 +120,9 @@ class FCAdapterNode(Node):
             heading_tolerance_high=10.0, # Upper tolerance (10°)
             max_align_duration=60.0      # Timeout for yaw alignment
         )
+        # RC publishing throttle (cap to ~20 Hz to avoid flooding FC comms)
+        self.rc_publish_interval = 1.0 / 20.0
+        self.last_rc_publish_time = 0.0
 
         # ------------ QoS & ROS I/O ------------
         control_qos = QoSProfile(
@@ -408,7 +411,11 @@ class FCAdapterNode(Node):
 
     # ------------ RC Publishing ------------
     def _publish_rc_override(self, channels: list):
-        """Publish RC override values to topic for fc_comms_node"""
+        """Publish RC override values to topic for fc_comms_node, throttled to ~20 Hz"""
+        now = time.time()
+        if (now - self.last_rc_publish_time) < self.rc_publish_interval:
+            return  # Skip to avoid flooding MSP queue
+        self.last_rc_publish_time = now
         rc_msg = Float32MultiArray()
         rc_msg.data = [float(ch) for ch in channels]
         self.rc_override_pub.publish(rc_msg)
