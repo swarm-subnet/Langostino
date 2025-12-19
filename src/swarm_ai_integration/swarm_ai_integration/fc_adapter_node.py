@@ -112,14 +112,14 @@ class FCAdapterNode(Node):
             node=self,
             send_rc_command_callback=self.send_rc_command_for_yaw_alignment,
             get_heading_callback=self.get_current_heading_degrees,
-            rise_duration=3.0,           # Rise for 3 seconds
-            rise_throttle=1550,          # Throttle at 1550
             yaw_right_value=1520,        # Right turn value
             yaw_left_value=1480,         # Left turn value
             heading_tolerance_low=350.0, # Lower tolerance (350°)
             heading_tolerance_high=10.0, # Upper tolerance (10°)
             max_align_duration=15.0      # Timeout for yaw alignment
         )
+        # Rise throttle during warmup/rise phase
+        self.rise_throttle = 1550
         # RC publishing throttle (cap to ~20 Hz to avoid flooding FC comms)
         self.rc_publish_interval = 1.0 / 20.0
         self.last_rc_publish_time = 0.0
@@ -218,10 +218,10 @@ class FCAdapterNode(Node):
             pitch,       # CH2: PITCH
             throttle,    # CH3: THROTTLE
             yaw,         # CH4: YAW
-            1800,        # CH5: ARM (high)
-            1500,        # CH6: ANGLE mode (high)
-            1800,        # CH7: ALT HOLD (high - active during yaw alignment)
-            1800,        # CH8: MSP RC OVERRIDE (high)
+            2000,        # CH5: ARM (high per mapping)
+            1500,        # CH6: ANGLE mode (high range)
+            1500,        # CH7: NAV POSHOLD (mid range includes altitude hold)
+            2000,        # CH8: MSP RC OVERRIDE (high per mapping)
         ]
         self._publish_rc_override(channels)
 
@@ -294,24 +294,24 @@ class FCAdapterNode(Node):
             self.rc_mid,  # CH2: PITCH (neutral)
             1000,         # CH3: THROTTLE (1000 for arming)
             self.rc_mid,  # CH4: YAW (neutral)
-            1800,         # CH5: ARM (high - arming)
-            1500,         # CH6: ANGLE mode (high)
-            1000,         # CH7: ALT HOLD (off during arming)
-            1800,         # CH8: MSP RC OVERRIDE (high)
+            2000,         # CH5: ARM (high per mapping)
+            1500,         # CH6: ANGLE mode (high range)
+            1000,         # CH7: NAV modes off (no POSHOLD/ALTHOLD)
+            2000,         # CH8: MSP RC OVERRIDE (high per mapping)
         ]
         self._publish_rc_override(channels)
 
     def _send_warmup_command(self):
-        """Send warmup RC values (armed, low throttle, no ALT HOLD)"""
+        """Send warmup RC values (rise phase with POSHOLD + ALT HOLD active)"""
         channels = [
             self.rc_mid,  # CH1: ROLL (neutral)
             self.rc_mid,  # CH2: PITCH (neutral)
-            1000,         # CH3: THROTTLE (1000 for low throttle)
+            self.rise_throttle,  # CH3: THROTTLE (rise throttle)
             self.rc_mid,  # CH4: YAW (neutral)
-            1800,         # CH5: ARM (high)
-            1500,         # CH6: ANGLE mode (high)
-            1000,         # CH7: ALT HOLD (off during warmup)
-            1800,         # CH8: MSP RC OVERRIDE (high)
+            2000,         # CH5: ARM (high per mapping)
+            1500,         # CH6: ANGLE mode (high range)
+            1500,         # CH7: NAV POSHOLD (poshold + altitude hold)
+            2000,         # CH8: MSP RC OVERRIDE (high per mapping)
         ]
         self._publish_rc_override(channels)
 
@@ -322,10 +322,10 @@ class FCAdapterNode(Node):
             self.rc_mid,  # CH2: PITCH (neutral)
             self.rc_mid,  # CH3: THROTTLE (neutral in ALT HOLD = maintain altitude)
             self.rc_mid,  # CH4: YAW (neutral)
-            1800,         # CH5: ARM (high)
-            1500,         # CH6: ANGLE mode (high)
-            1800,         # CH7: ALT HOLD (high)
-            1800,         # CH8: MSP RC OVERRIDE (high)
+            2000,         # CH5: ARM (high per mapping)
+            1500,         # CH6: ANGLE mode (high range)
+            1500,         # CH7: NAV POSHOLD (poshold + altitude hold)
+            2000,         # CH8: MSP RC OVERRIDE (high per mapping)
         ]
         self._publish_rc_override(channels)
         self.get_logger().info(f'Hover command sent ({reason})', throttle_duration_sec=2.0)
@@ -393,10 +393,10 @@ class FCAdapterNode(Node):
             pitch_rc,     # CH2: PITCH
             throttle_rc,  # CH3: THROTTLE
             self.rc_mid,  # CH4: YAW (always neutral)
-            1800,         # CH5: ARM (high)
-            1500,         # CH6: ANGLE mode (high)
-            1800,         # CH7: ALT HOLD (high)
-            1800,         # CH8: MSP RC OVERRIDE (high)
+            2000,         # CH5: ARM (high per mapping)
+            1500,         # CH6: ANGLE mode (high range)
+            1900,         # CH7: NAV ALTHOLD (high range, POSHOLD off)
+            2000,         # CH8: MSP RC OVERRIDE (high per mapping)
         ]
 
         # Publish to topic

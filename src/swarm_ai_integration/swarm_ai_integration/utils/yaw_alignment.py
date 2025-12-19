@@ -17,9 +17,8 @@ class YawAlignmentController:
 
     This runs as a small state machine advanced once per control loop tick.
     Phases:
-      1. RISE: send elevated throttle to lift off for rise_duration seconds
-      2. ALIGN: send yaw left/right until heading is within tolerance or timeout
-      3. DONE: neutral command, control returns to main loop
+      1. ALIGN: send yaw left/right until heading is within tolerance or timeout
+      2. DONE: neutral command, control returns to main loop
     """
 
     def __init__(
@@ -27,8 +26,6 @@ class YawAlignmentController:
         node: Node,
         send_rc_command_callback: Callable,
         get_heading_callback: Callable[[], float],
-        rise_duration: float = 3.0,
-        rise_throttle: int = 1550,
         yaw_right_value: int = 1520,
         yaw_left_value: int = 1480,
         heading_tolerance_low: float = 350.0,
@@ -43,8 +40,6 @@ class YawAlignmentController:
             send_rc_command_callback: Function to send RC commands to drone
                                      Expected signature: func(roll, pitch, throttle, yaw)
             get_heading_callback: Function to get current heading in degrees (0-360)
-            rise_duration: Duration to rise in seconds (default: 3.0)
-            rise_throttle: Throttle value during rise (default: 1550)
             yaw_right_value: Yaw channel value for turning right (default: 1520)
             yaw_left_value: Yaw channel value for turning left (default: 1480)
             heading_tolerance_low: Lower heading tolerance in degrees (default: 350)
@@ -56,8 +51,6 @@ class YawAlignmentController:
         self.get_heading = get_heading_callback
 
         # Configuration parameters
-        self.rise_duration = rise_duration
-        self.rise_throttle = rise_throttle
         self.yaw_right_value = yaw_right_value
         self.yaw_left_value = yaw_left_value
         self.heading_tolerance_low = heading_tolerance_low
@@ -65,8 +58,7 @@ class YawAlignmentController:
         self.max_align_duration = max_align_duration
 
         # State tracking
-        self.phase: str = 'idle'  # idle -> rise -> align -> done
-        self.rise_start_time: Optional[float] = None
+        self.phase: str = 'idle'  # idle -> align -> done
         self.align_start_time: Optional[float] = None
         self.last_log_time: float = 0.0
 
@@ -83,16 +75,15 @@ class YawAlignmentController:
         return heading_deg >= self.heading_tolerance_low or heading_deg <= self.heading_tolerance_high
 
     def start_sequence(self):
-        """Begin the rise → align sequence."""
+        """Begin the align sequence."""
         if self.phase != 'idle':
             return
         now = time.time()
-        self.phase = 'rise'
-        self.rise_start_time = now
-        self.align_start_time = None
+        self.phase = 'align'
+        self.align_start_time = now
         self.last_log_time = 0.0
         self.node.get_logger().info(
-            f'🎯 Starting yaw alignment: rise for {self.rise_duration}s then align to north'
+            '🎯 Starting yaw alignment: align to north'
         )
 
     def tick(self) -> bool:
@@ -106,21 +97,6 @@ class YawAlignmentController:
             return False
 
         now = time.time()
-
-        if self.phase == 'rise':
-            elapsed = now - (self.rise_start_time or now)
-            if elapsed < self.rise_duration:
-                # Send rise command: neutral sticks, elevated throttle
-                self.send_rc_command(roll=1500, pitch=1500, throttle=self.rise_throttle, yaw=1500)
-                return False
-
-            # Transition to ALIGN
-            self.phase = 'align'
-            self.align_start_time = now
-            self.node.get_logger().info('✅ RISE phase complete → start yaw alignment')
-            # Send a neutral command on transition
-            self.send_rc_command(roll=1500, pitch=1500, throttle=1500, yaw=1500)
-            return False
 
         if self.phase == 'align':
             heading_deg = self.get_heading()
@@ -167,7 +143,6 @@ class YawAlignmentController:
     def reset(self):
         """Reset controller state for reuse."""
         self.phase = 'idle'
-        self.rise_start_time = None
         self.align_start_time = None
         self.last_log_time = 0.0
 
