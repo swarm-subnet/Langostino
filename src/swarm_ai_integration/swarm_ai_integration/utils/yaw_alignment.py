@@ -6,7 +6,6 @@ Non-blocking state machine to align drone heading to north (0 degrees) after arm
 """
 
 import time
-import math
 from typing import Optional, Callable
 from rclpy.node import Node
 
@@ -164,21 +163,3 @@ class YawAlignmentController:
         self.phase = 'idle'
         self.align_start_time = None
         self.last_log_time = 0.0
-
-
-def normalize_heading_to_360(heading_rad: float) -> float:
-    """
-    Normalize heading from radians to 0-360 degrees.
-
-    DEPRECATED: Use /fc/attitude_degrees topic directly instead of converting
-    from /fc/attitude_euler. This function is kept for backward compatibility.
-
-    Args:
-        heading_rad: Heading in radians
-
-    Returns:
-        Heading in degrees (0-360 range)
-    """
-    heading_deg = math.degrees(heading_rad)
-    # Normalize to 0-360 range
-    return heading_deg % 360.0
