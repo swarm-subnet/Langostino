@@ -105,8 +105,21 @@ class FCAdapterNode(Node):
         self.warmup_start_time = None  # Will be set after arming complete
 
         # Yaw alignment state
+        self.yaw_alignment_started = False
         self.yaw_alignment_complete = False
         self.current_heading_deg = 0.0  # Current heading in degrees from /fc/attitude_degrees
+        self.yaw_controller = YawAlignmentController(
+            node=self,
+            send_rc_command_callback=self.send_rc_command_for_yaw_alignment,
+            get_heading_callback=self.get_current_heading_degrees,
+            rise_duration=3.0,           # Rise for 3 seconds
+            rise_throttle=1550,          # Throttle at 1550
+            yaw_right_value=1520,        # Right turn value
+            yaw_left_value=1480,         # Left turn value
+            heading_tolerance_low=350.0, # Lower tolerance (350°)
+            heading_tolerance_high=10.0, # Upper tolerance (10°)
+            max_align_duration=10.0      # Timeout for yaw alignment
+        )
 
         # ------------ QoS & ROS I/O ------------
         control_qos = QoSProfile(
@@ -209,41 +222,6 @@ class FCAdapterNode(Node):
         ]
         self._publish_rc_override(channels)
 
-    def _execute_yaw_alignment(self):
-        """
-        Execute yaw alignment sequence.
-
-        This method is called once after warmup to align drone heading to north.
-        It blocks the control loop until alignment is complete.
-        """
-        self.get_logger().info('🎯 Starting yaw alignment sequence...')
-
-        # Create YawAlignmentController instance
-        yaw_controller = YawAlignmentController(
-            node=self,
-            send_rc_command_callback=self.send_rc_command_for_yaw_alignment,
-            get_heading_callback=self.get_current_heading_degrees,
-            rise_duration=3.0,           # Rise for 3 seconds
-            rise_throttle=1550,          # Throttle at 1550
-            yaw_turn_duration=0.1,       # Turn for 0.1 seconds per correction
-            yaw_right_value=1520,        # Right turn value
-            yaw_left_value=1480,         # Left turn value
-            heading_tolerance_low=350.0, # Lower tolerance (350°)
-            heading_tolerance_high=10.0  # Upper tolerance (10°)
-        )
-
-        # Execute the full yaw alignment sequence (blocking)
-        success = yaw_controller.execute_full_sequence()
-
-        # Mark alignment as complete regardless of success
-        # (to avoid getting stuck in alignment loop)
-        self.yaw_alignment_complete = True
-
-        if success:
-            self.get_logger().info('✅ Yaw alignment complete - ready for AI control')
-        else:
-            self.get_logger().warn('⚠️ Yaw alignment incomplete - proceeding to AI control anyway')
-
     # ------------ Control Loop ------------
     def control_loop(self):
         """Main control loop - translates action to RC values"""
@@ -272,7 +250,14 @@ class FCAdapterNode(Node):
 
         # Phase 2: Yaw Alignment (after warmup, before AI control)
         if not self.yaw_alignment_complete:
-            self._execute_yaw_alignment()
+            if not self.yaw_alignment_started:
+                self.yaw_alignment_started = True
+                self.yaw_controller.start_sequence()
+
+            alignment_done = self.yaw_controller.tick()
+            if alignment_done:
+                self.yaw_alignment_complete = True
+                self.get_logger().info('✅ Yaw alignment complete - ready for AI control')
             return
 
         # Check for command timeout or safety
