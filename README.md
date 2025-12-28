@@ -1,7 +1,7 @@
 <!-- SECTION 1 -->
 
 <p align="center">
-  <img src="assets/banner.png" alt="Langostino — open autonomous drone" width="100%" />
+  <img src="assets/banner_section_1.png" alt="Langostino — open autonomous drone" width="100%" />
 </p>
 
 <h1 align="center">Langostino — The Swarm Drone 🦐</h1>
@@ -32,8 +32,6 @@
     <img alt="Build from scratch" src="https://img.shields.io/badge/🔧%20Build%20from%20scratch-Guide-111111?style=for-the-badge" />
   </a>
 </p>
-
-
 
 <!-- SECTION 2 -->
 <hr/>
@@ -81,8 +79,6 @@
   <sub>If this made you curious, ⭐ star the repo and share the demo.</sub>
 </p>
 
-
-
 <!-- SECTION 3 -->
 <hr/>
 
@@ -99,7 +95,6 @@
   <li><b>Community-driven</b>: built in the open, improved by builders and contributors worldwide.</li>
 </ul>
 
-
 <!-- SECTION 4 -->
 
 <hr/>
@@ -111,7 +106,6 @@
   Langostino exists to make real-world autonomy <b>understandable</b> and <b>buildable</b> — so more people can learn, iterate, and ship useful aerial systems.<br/>
   By sharing a reference drone in the open, we lower the barrier from “curious” to “first flight”, and turn progress into something the whole community can reuse.
 </p>
-
 
 <!-- SECTION 5 -->
 
@@ -128,6 +122,7 @@
     <td width="50%" valign="top">
 
 <b>👀 I’m just curious</b><br/>
+
 - ▶ Watch the demo (above)<br/>
 - ⭐ Star this repo<br/>
 - 📣 Share it with a friend
@@ -137,6 +132,7 @@
 
 <b>🚀 I want to use the model</b><br/>
 Start here:<br/>
+
 - <a href="docs/quickstart/README.md"><b>docs/quickstart → Quickstart</b></a>
 
     </td>
@@ -147,23 +143,24 @@ Start here:<br/>
 
 <b>🔧 I want to build it from scratch</b><br/>
 Assembly guide:<br/>
+
 - <a href="docs/assembly/README.md"><b>docs/assembly → Build guide</b></a><br/><br/>
-<i>Includes the parts list (BOM) and step-by-step build instructions.</i>
+  <i>Includes the parts list (BOM) and step-by-step build instructions.</i>
 
-
-    </td>
-    <td width="50%" valign="top">
+      </td>
+      <td width="50%" valign="top">
 
 <b>🧩 I want to contribute</b><br/>
+
 - 💬 Join Discord: <a href="https://discord.com/invite/bittensor">discord.com/invite/bittensor</a><br/>
 - 📝 Read: <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a><br/>
-- 🟢 Pick a starter task: 
-<a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issues</b></a>
+- 🟢 Pick a starter task:
+  <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issues</b></a>
 
-    </td>
-  </tr>
-</table>
+      </td>
 
+    </tr>
+  </table>
 
 <!-- SECTION 6 -->
 
@@ -179,7 +176,6 @@ Start with the Quick Start Guide if you already have compatible hardware. Otherw
 
 <p><b>How do I contribute?</b><br/>
 Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pick a <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issue</b></a>.</p>
-
 
 <!-- SECTION 7 -->
 
@@ -224,8 +220,6 @@ Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pi
   </sub>
 </p>
 
-
-
 <!-- SECTION 8 -->
 
 <hr/>
@@ -269,7 +263,6 @@ langostino/
 
 </details>
 
-
 <!-- SECTION 10 -->
 
 <hr/>
@@ -300,7 +293,6 @@ langostino/
 <p align="center">
   <sub>Share your build log or flight clip in Discord — we feature the best builds.</sub>
 </p>
-
 
 <!-- SECTION 11 -->
 
@@ -353,7 +345,6 @@ Discord: https://discord.com/invite/bittensor
   </ul>
 </details>
 
-
 <!-- SECTION 12 -->
 
 <hr/>
@@ -364,7 +355,6 @@ Discord: https://discord.com/invite/bittensor
   This project is released under the <b>MIT License</b> — see <a href="LICENSE"><b>LICENSE</b></a>.
 </p>
 
-
 <!-- SECTION 13 -->
 
 <hr/>
@@ -372,6 +362,3 @@ Discord: https://discord.com/invite/bittensor
 <p align="center">
   <b>Happy hacking!</b> 🦐
 </p>
-
-
-
