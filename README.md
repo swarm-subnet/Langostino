@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/quickstart/README.md">
+  <a href="docs/SETUP_GUIDE.md">
     <img alt="Use the model" src="https://img.shields.io/badge/🚀%20Use%20the%20model-Start%20here-111111?style=for-the-badge" />
   </a>
   <a href="docs/assembly/README.md">
@@ -122,6 +122,7 @@
     <td width="50%" valign="top">
 
 <b>👀 I’m just curious</b><br/>
+
 - ▶ Watch the demo (above)<br/>
 - ⭐ Star this repo<br/>
 - 📣 Share it with a friend
@@ -131,6 +132,7 @@
 
 <b>🚀 I want to use the model</b><br/>
 Start here:<br/>
+
 - <a href="docs/quickstart/README.md"><b>docs/quickstart → Quickstart</b></a>
 
     </td>
@@ -141,6 +143,7 @@ Start here:<br/>
 
 <b>🔧 I want to build it from scratch</b><br/>
 Assembly guide:<br/>
+
 - <a href="docs/assembly/README.md"><b>docs/assembly → Build guide</b></a><br/><br/>
   <i>Includes the parts list (BOM) and step-by-step build instructions.</i>
 
@@ -148,15 +151,16 @@ Assembly guide:<br/>
     <td width="50%" valign="top">
 
 <b>🧩 I want to contribute</b><br/>
+
 - 💬 Join Discord: <a href="https://discord.com/invite/bittensor">discord.com/invite/bittensor</a><br/>
 - 📝 Read: <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a><br/>
-- 🟢 Pick a starter task: 
-<a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issues</b></a>
+- 🟢 Pick a starter task:
+  <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issues</b></a>
 
-    </td>
-  </tr>
-</table>
+      </td>
 
+    </tr>
+  </table>
 
 <!-- SECTION 6 -->
 
