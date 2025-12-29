@@ -144,7 +144,7 @@ Start here:<br/>
 <b>🔧 I want to build it from scratch</b><br/>
 Assembly guide:<br/>
 
-- <a href="docs/assembly/README.md"><b>docs/assembly → Build guide</b></a><br/><br/>
+- <a href="docs/assembly/README.md"><b>docs/assembly/README.md → Build guide</b></a><br/><br/>
   <i>Includes the parts list (BOM) and step-by-step build instructions.</i>
 
     </td>
