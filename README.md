@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/SETUP_GUIDE.md">
+  <a href="docs/SETUP_GUIDE.md#quick-setup">
     <img alt="Use the model" src="https://img.shields.io/badge/🚀%20Use%20the%20model-Start%20here-111111?style=for-the-badge" />
   </a>
   <a href="docs/assembly/README.md">
