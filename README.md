@@ -352,7 +352,7 @@ Discord: https://discord.com/invite/bittensor
 <h2 align="center">License</h2>
 
 <p align="center">
-  This project is released under the <b>MIT License</b> — see <a href="LICENSE"><b>LICENSE</b></a>.
+  This project is released under the <b>MIT License</b> — see <a href="LICENSE.md"><b>LICENSE</b></a>.
 </p>
 
 <!-- SECTION 13 -->
