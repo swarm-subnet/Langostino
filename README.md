@@ -133,7 +133,7 @@
 <b>🚀 I want to use the model</b><br/>
 Start here:<br/>
 
-- <a href="docs/quickstart/README.md"><b>docs/quickstart → Quickstart</b></a>
+- <a href="docs/SETUP_GUIDE.md#quick-setup"><b>SETUP_GUIDE → Quick Setup</b></a>
 
     </td>
   </tr>
