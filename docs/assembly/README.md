@@ -195,7 +195,7 @@ If you hit issues, go to:
 Use:
 [`../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands`](../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands)
 
-### 6.3 MSP / RC override (what we can confirm from this repo)
+### 6.3 MSP / RC override
 
 From [`../INAV_GUIDE.md#msp-configuration`](../INAV_GUIDE.md#msp-configuration):
 
@@ -252,7 +252,7 @@ _(Exact topic names may differ per version; this is the architecture pattern.)_
 
 - Power on, confirm FC boots normally
 - Confirm sensors are detected (as per setup docs)
-- Run [`./verify_setup.sh`](./verify_setup.sh)
+- Run [`../../scripts/verify_setup.sh`](../../scripts/verify_setup.sh)
 - Confirm launch is stable and logs are clean
 
 ### Manual flight first
