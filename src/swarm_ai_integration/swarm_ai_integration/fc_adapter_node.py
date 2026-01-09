@@ -120,6 +120,7 @@ class FCAdapterNode(Node):
         # RC publishing throttle (cap to ~20 Hz to avoid flooding FC comms)
         self.rc_publish_interval = 1.0 / 20.0
         self.last_rc_publish_time = 0.0
+        self.last_yaw_hold_log_time = 0.0
 
         # ------------ QoS & ROS I/O ------------
         control_qos = QoSProfile(
@@ -384,12 +385,26 @@ class FCAdapterNode(Node):
         pitch_rc = max(self.rc_min, min(self.rc_max, pitch_rc))
         throttle_rc = max(self.rc_min, min(self.rc_max, throttle_rc))
 
+        # Heading hold: keep facing north using yaw alignment tolerances/commands
+        heading_deg = self.get_current_heading_degrees()
+        yaw_command, direction = self.yaw_controller.get_heading_hold_command(heading_deg)
+        if yaw_command is None:
+            yaw_rc = self.rc_mid
+        else:
+            yaw_rc = yaw_command
+            now = time.time()
+            if (now - self.last_yaw_hold_log_time) >= 0.5:
+                self.get_logger().info(
+                    f'🧭 Heading hold: heading={heading_deg:.1f}° → yaw {direction} ({yaw_rc})'
+                )
+                self.last_yaw_hold_log_time = now
+
         # Build channel array (AETR order)
         channels = [
             roll_rc,      # CH1: ROLL
             pitch_rc,     # CH2: PITCH
             throttle_rc,  # CH3: THROTTLE
-            self.rc_mid,  # CH4: YAW (always neutral)
+            yaw_rc,       # CH4: YAW (heading hold correction if needed)
             2000,         # CH5: ARM (high per mapping)
             1500,         # CH6: ANGLE mode (high range)
             1500,         # CH7: NAV POSHOLD (poshold + altitude hold)
