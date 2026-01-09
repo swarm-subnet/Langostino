@@ -8,13 +8,14 @@ This guide is your “flight plan” to go from parts → build → first safe f
 
 ## Quick links
 
-- ✅ Parts list (BOM): `./BOM.md`
-- 🧰 Raspberry Pi setup (Ubuntu 22.04 + ROS2 Humble): `../SETUP_GUIDE.md#quick-setup`
-- 🧭 INAV configuration script (copy/paste): `../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands`
-- 🛰️ INAV MSP / RC override params: `../INAV_GUIDE.md#msp-configuration`
-- 🧯 Troubleshooting: `../TROUBLESHOOTING_GUIDE.md`
-- 🤝 Contributing: `../../CONTRIBUTING.md`
+- ✅ Parts list (BOM): [`./BOM.md`](./BOM.md)
+- 🧰 Raspberry Pi setup (Ubuntu 22.04 + ROS2 Humble): [`../SETUP_GUIDE.md#quick-setup`](../SETUP_GUIDE.md#quick-setup)
+- 🧭 INAV configuration script (copy/paste): [`../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands`](../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands)
+- 🛰️ INAV MSP / RC override params: [`../INAV_GUIDE.md#msp-configuration`](../INAV_GUIDE.md#msp-configuration)
+- 🧯 Troubleshooting: [`../TROUBLESHOOTING_GUIDE.md`](../TROUBLESHOOTING_GUIDE.md)
+- 🤝 Contributing: [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
 - 💬 Discord: https://discord.com/invite/bittensor
+
 
 ---
 
