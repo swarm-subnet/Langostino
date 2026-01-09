@@ -68,7 +68,7 @@ This list covers:
 
 ---
 
-## Autonomy stack (required for Langostino-style autonomy)
+## Autonomy stack
 
 ### 7) Onboard computer
 
@@ -84,7 +84,7 @@ This list covers:
 
 ---
 
-## Sensors (required for the reference build)
+## Sensors
 
 | Part | Qty | Link | Notes |
 |---|---:|---|---|
@@ -129,4 +129,5 @@ This list covers:
 - This BOM targets a 6" class build (VD6 frame, 2306 motors, 6" props).
 - INAV is used for navigation/autonomy features and MSP control paths.
 - The autonomy stack assumes Ubuntu 22.04 + ROS2 Humble on Raspberry Pi.
+
 
