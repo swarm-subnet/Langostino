@@ -60,7 +60,7 @@ Langostino is a drone that:
 
 ## Step 1 — Parts (BOM)
 
-Open: `./BOM.md`
+Open: [`./BOM.md`](./BOM.md)
 
 The BOM is your shopping list. It should include:
 
@@ -167,7 +167,7 @@ Used for multiple sensors on the same bus.
 ## Step 5 — Raspberry Pi software (Ubuntu + ROS2 + Swarm stack)
 
 Follow the quick setup:
-`../SETUP_GUIDE.md#quick-setup`
+[`../SETUP_GUIDE.md#quick-setup`](../SETUP_GUIDE.md#quick-setup)
 
 In most cases you’ll run:
 
@@ -178,7 +178,7 @@ sudo ./setup.sh
 ```
 
 If you hit issues, go to:
-`../TROUBLESHOOTING_GUIDE.md`
+[`../TROUBLESHOOTING_GUIDE.md`](../TROUBLESHOOTING_GUIDE.md)
 
 ---
 
@@ -193,11 +193,11 @@ If you hit issues, go to:
 ### 6.2 Apply baseline parameters (copy/paste script)
 
 Use:
-`../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands`
+[`../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands`](../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands)
 
 ### 6.3 MSP / RC override (what we can confirm from this repo)
 
-From `../INAV_GUIDE.md#msp-configuration`:
+From [`../INAV_GUIDE.md#msp-configuration`](../INAV_GUIDE.md#msp-configuration):
 
 - `msp_override_channels` defines which RC channels can be overridden via MSP.
 
@@ -252,7 +252,7 @@ _(Exact topic names may differ per version; this is the architecture pattern.)_
 
 - Power on, confirm FC boots normally
 - Confirm sensors are detected (as per setup docs)
-- Run `./verify_setup.sh`
+- Run [`./verify_setup.sh`](./verify_setup.sh)
 - Confirm launch is stable and logs are clean
 
 ### Manual flight first
@@ -277,7 +277,7 @@ Before autonomy:
 Documentation is part of the product.
 If anything is unclear, missing, or outdated, open a PR or ask in Discord.
 
-- Contributing: `../../CONTRIBUTING.md`
+- Contributing: [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
 - Discord: https://discord.com/invite/bittensor
 
 ---
