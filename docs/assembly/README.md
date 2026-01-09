@@ -19,7 +19,7 @@ This guide is your “flight plan” to go from parts → build → first safe f
 
 ---
 
-## What you’re building (plain words)
+## What you’re building
 
 Langostino is a drone that:
 
