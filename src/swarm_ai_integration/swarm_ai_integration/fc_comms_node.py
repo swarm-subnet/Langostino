@@ -12,6 +12,9 @@ Architecture:
     FC (Serial/MSP) ←→ MSPSerialHandler ←→ FCCommsNode ←→ MSPMessageParser ←→ TelemetryPublisher ←→ ROS Topics
 """
 
+import time
+from typing import Optional
+
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32MultiArray
@@ -114,6 +117,16 @@ class FCCommsNode(Node):
         self.stats = {
             'unknown_commands': {}
         }
+
+        # GPS altitude fallback for barometer
+        self.last_gps_altitude: Optional[float] = None
+        self.last_gps_timestamp: Optional[float] = None
+        self.declare_parameter('gps_altitude_timeout', 5.0)  # GPS altitude valid for 5 seconds
+        self.gps_altitude_timeout = float(self.get_parameter('gps_altitude_timeout').value)
+        
+        # Barometer status from MSP_STATUS sensor mask
+        self.barometer_available: bool = True  # Assume available by default
+        self.last_status_timestamp: Optional[float] = None
 
         # Create timers
         telemetry_period = 1.0 / self.telemetry_rate
@@ -279,6 +292,11 @@ class FCCommsNode(Node):
             'fc_gps'
         )
         if gps_msg:
+            # Store GPS altitude for barometer fallback
+            # Only store if GPS has a valid fix (2D or 3D fix, not STATUS_NO_FIX=-1)
+            if gps_msg.status.status != gps_msg.status.STATUS_NO_FIX:
+                self.last_gps_altitude = float(gps_msg.altitude)
+                self.last_gps_timestamp = time.time()
             self.publisher.publish_gps(gps_msg, speed_msg, sat_msg, hdop_msg)
 
     def _handle_attitude(self, data: bytes):
@@ -292,10 +310,55 @@ class FCCommsNode(Node):
             self.publisher.publish_attitude(euler_msg, euler_degrees_msg)
 
     def _handle_altitude(self, data: bytes):
-        """Handle altitude data"""
+        """
+        Handle altitude data with GPS fallback.
+        
+        Priority:
+        1. Barometer data (MSP_ALTITUDE) if valid and available
+        2. GPS altitude if barometer unavailable/invalid and GPS altitude is recent
+        
+        Note: Barometer data is considered valid if parsing succeeds and returns
+        a properly formatted message. Zero altitude is valid (ground level).
+        """
         altitude_msg = self.parser.parse_altitude_data(data)
-        if altitude_msg:
+        
+        # Check if barometer data is valid (parsing succeeded, correct format, and sensor is available)
+        barometer_valid = (
+            altitude_msg is not None and
+            len(altitude_msg.data) >= 2 and
+            self.barometer_available  # Sensor must be available according to MSP_STATUS
+        )
+        
+        if barometer_valid:
+            # Use barometer data (primary source)
             self.publisher.publish_altitude(altitude_msg)
+        else:
+            # Barometer unavailable or invalid - try GPS fallback
+            now = time.time()
+            gps_altitude_valid = (
+                self.last_gps_altitude is not None and
+                self.last_gps_timestamp is not None and
+                (now - self.last_gps_timestamp) <= self.gps_altitude_timeout
+            )
+            
+            if gps_altitude_valid:
+                # Create altitude message from GPS data
+                # Format: [altitude_m, vertical_velocity_m/s]
+                # GPS doesn't provide vertical velocity, so we use 0.0
+                gps_altitude_msg = Float32MultiArray()
+                gps_altitude_msg.data = [
+                    float(self.last_gps_altitude),
+                    0.0  # No vario available from GPS
+                ]
+                self.publisher.publish_altitude(gps_altitude_msg)
+                self.get_logger().warn(
+                    f'⚠️  Barometer unavailable - using GPS altitude: {self.last_gps_altitude:.2f}m'
+                )
+            else:
+                # Neither barometer nor GPS altitude available
+                self.get_logger().warn(
+                    '⚠️  Altitude data unavailable: barometer invalid and GPS altitude not available or expired'
+                )
 
     def _handle_status(self, data: bytes):
         """Handle status data"""
@@ -303,7 +366,13 @@ class FCCommsNode(Node):
             data,
             self.get_clock().now().to_msg()
         )
-        if status_msg:
+        if status_msg and msp_status_msg:
+            # Extract barometer availability from sensor mask (bit 1)
+            # msp_status_msg.data format: [cycle_time, i2c_errors, sensor_mask, box_flags, current_setting]
+            if len(msp_status_msg.data) >= 3:
+                sensor_mask = int(msp_status_msg.data[2])
+                self.barometer_available = bool(sensor_mask & (1 << 1))  # bit 1 = barometer
+                self.last_status_timestamp = time.time()
             self.publisher.publish_status(status_msg, msp_status_msg)
 
     def _handle_battery(self, data: bytes):
