@@ -2,11 +2,11 @@
 ################################################################################
 # Swarm ROS2 Environment Setup Script
 #
-# This script sets up a complete ROS2 environment on Ubuntu 22.04/24.04 for
+# This script sets up a complete ROS2 environment on Ubuntu 24.04 for
 # the Swarm AI Integration drone control system.
 #
 # Features:
-# - ROS2 installation (Humble on 22.04, Jazzy on 24.04)
+# - ROS2 Jazzy installation
 # - Python dependencies (PyTorch, stable-baselines3, etc.)
 # - Hardware configuration (I2C for LiDAR, UART for Flight Controller)
 # - Workspace build and configuration
@@ -39,10 +39,10 @@ SKIP_ROS=false
 SKIP_HARDWARE_CHECK=false
 INSTALL_PM2=true  # Install PM2 by default for process management
 WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROS_DISTRO="humble"
-ROS_DISTRO_NAME="Humble"
-UBUNTU_CODENAME=""
-UBUNTU_VERSION_ID=""
+ROS_DISTRO="jazzy"
+ROS_DISTRO_NAME="Jazzy"
+UBUNTU_CODENAME="noble"
+UBUNTU_VERSION_ID="24.04"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -158,22 +158,11 @@ check_ubuntu_version() {
         exit 1
     fi
 
-    if [[ "$VERSION_ID" == "22.04" ]]; then
-        ROS_DISTRO="humble"
-        ROS_DISTRO_NAME="Humble"
-        print_success "Ubuntu 22.04 detected (ROS2 Humble)"
-    elif [[ "$VERSION_ID" == "24.04" ]]; then
-        ROS_DISTRO="jazzy"
-        ROS_DISTRO_NAME="Jazzy"
+    if [[ "$VERSION_ID" == "24.04" ]]; then
         print_success "Ubuntu 24.04 detected (ROS2 Jazzy)"
     else
-        print_warning "This script is tested on Ubuntu 22.04 (ROS2 Humble) and 24.04 (ROS2 Jazzy). You are running $VERSION_ID"
-        read -p "Continue anyway? (y/n) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
-        print_warning "Proceeding with default ROS2 ${ROS_DISTRO_NAME}. Adjust scripts/setup.sh if needed."
+        print_error "This script is only supported on Ubuntu 24.04. Detected: $VERSION_ID"
+        exit 1
     fi
 }
 
