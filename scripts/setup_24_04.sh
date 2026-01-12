@@ -536,6 +536,26 @@ EOF
     print_success "UART configured successfully"
 }
 
+configure_dmesg_permissions() {
+    print_header "Configuring dmesg Permissions"
+
+    local current=""
+    current=$(sysctl -n kernel.dmesg_restrict 2>/dev/null || true)
+
+    if [[ "$current" == "0" ]]; then
+        print_info "kernel.dmesg_restrict already set to 0"
+        return
+    fi
+
+    echo "kernel.dmesg_restrict=0" > /etc/sysctl.d/99-dmesg.conf
+    if sysctl -w kernel.dmesg_restrict=0 >/dev/null 2>&1; then
+        print_success "Enabled dmesg access for non-root users"
+    else
+        print_warning "Failed to apply kernel.dmesg_restrict immediately"
+        print_info "Reboot or run: sudo sysctl -w kernel.dmesg_restrict=0"
+    fi
+}
+
 ################################################################################
 # Network Configuration
 ################################################################################
@@ -909,6 +929,7 @@ main() {
 
     configure_i2c
     configure_uart
+    configure_dmesg_permissions
 
     check_i2c_device
     check_uart_device
