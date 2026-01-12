@@ -2,11 +2,11 @@
 ################################################################################
 # Swarm ROS2 Environment Setup Script
 #
-# This script sets up a complete ROS2 Humble environment on Ubuntu 22.04 for
+# This script sets up a complete ROS2 environment on Ubuntu 22.04/24.04 for
 # the Swarm AI Integration drone control system.
 #
 # Features:
-# - ROS2 Humble installation
+# - ROS2 installation (Humble on 22.04, Jazzy on 24.04)
 # - Python dependencies (PyTorch, stable-baselines3, etc.)
 # - Hardware configuration (I2C for LiDAR, UART for Flight Controller)
 # - Workspace build and configuration
@@ -39,6 +39,10 @@ SKIP_ROS=false
 SKIP_HARDWARE_CHECK=false
 INSTALL_PM2=true  # Install PM2 by default for process management
 WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROS_DISTRO="humble"
+ROS_DISTRO_NAME="Humble"
+UBUNTU_CODENAME=""
+UBUNTU_VERSION_ID=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -100,6 +104,43 @@ check_root() {
     fi
 }
 
+get_apt_base_url() {
+    local arch
+    arch=$(dpkg --print-architecture)
+    if [[ "$arch" == "amd64" ]]; then
+        echo "http://archive.ubuntu.com/ubuntu"
+    else
+        echo "http://ports.ubuntu.com/ubuntu-ports"
+    fi
+}
+
+ensure_updates_repo() {
+    if [[ -z "$UBUNTU_CODENAME" ]]; then
+        return
+    fi
+
+    if grep -Rqs "${UBUNTU_CODENAME}-updates" /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null; then
+        return
+    fi
+
+    local base_url
+    base_url=$(get_apt_base_url)
+    print_info "Enabling ${UBUNTU_CODENAME}-updates repository..."
+    cat > "/etc/apt/sources.list.d/${UBUNTU_CODENAME}-updates.list" << EOF
+deb ${base_url} ${UBUNTU_CODENAME}-updates main restricted universe multiverse
+EOF
+}
+
+check_apt_candidate() {
+    local pkg="$1"
+    local candidate
+    candidate=$(apt-cache policy "$pkg" | awk '/Candidate:/ {print $2}')
+    if [[ -z "$candidate" || "$candidate" == "(none)" ]]; then
+        return 1
+    fi
+    return 0
+}
+
 check_ubuntu_version() {
     print_header "Checking Ubuntu Version"
 
@@ -109,39 +150,48 @@ check_ubuntu_version() {
     fi
 
     source /etc/os-release
+    UBUNTU_VERSION_ID="$VERSION_ID"
+    UBUNTU_CODENAME="${UBUNTU_CODENAME:-$VERSION_CODENAME}"
 
     if [[ "$ID" != "ubuntu" ]]; then
         print_error "This script is designed for Ubuntu. Detected: $ID"
         exit 1
     fi
 
-    if [[ "$VERSION_ID" != "22.04" ]]; then
-        print_warning "This script is tested on Ubuntu 22.04. You are running $VERSION_ID"
+    if [[ "$VERSION_ID" == "22.04" ]]; then
+        ROS_DISTRO="humble"
+        ROS_DISTRO_NAME="Humble"
+        print_success "Ubuntu 22.04 detected (ROS2 Humble)"
+    elif [[ "$VERSION_ID" == "24.04" ]]; then
+        ROS_DISTRO="jazzy"
+        ROS_DISTRO_NAME="Jazzy"
+        print_success "Ubuntu 24.04 detected (ROS2 Jazzy)"
+    else
+        print_warning "This script is tested on Ubuntu 22.04 (ROS2 Humble) and 24.04 (ROS2 Jazzy). You are running $VERSION_ID"
         read -p "Continue anyway? (y/n) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             exit 1
         fi
-    else
-        print_success "Ubuntu 22.04 detected"
+        print_warning "Proceeding with default ROS2 ${ROS_DISTRO_NAME}. Adjust scripts/setup.sh if needed."
     fi
 }
 
 ################################################################################
-# ROS2 Humble Installation
+# ROS2 Installation
 ################################################################################
 
-install_ros2_humble() {
+install_ros2() {
     if [[ "$SKIP_ROS" = true ]]; then
         print_info "Skipping ROS2 installation (--skip-ros flag)"
         return
     fi
 
-    print_header "Installing ROS2 Humble"
+    print_header "Installing ROS2 ${ROS_DISTRO_NAME}"
 
     # Check if ROS2 is already installed
-    if [[ -f /opt/ros/humble/setup.bash ]]; then
-        print_info "ROS2 Humble already installed"
+    if [[ -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]]; then
+        print_info "ROS2 ${ROS_DISTRO_NAME} already installed"
         read -p "Reinstall ROS2? (y/n) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -153,7 +203,8 @@ install_ros2_humble() {
     print_info "Setting up ROS2 apt repository..."
 
     # Set up locale
-    apt update && apt install -y locales
+    ensure_updates_repo
+    apt update && apt upgrade -y && apt install -y locales
     locale-gen en_US en_US.UTF-8
     update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
     export LANG=en_US.UTF-8
@@ -167,9 +218,27 @@ install_ros2_humble() {
 
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(source /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
 
-    print_info "Installing ROS2 Humble base packages..."
+    print_info "Installing ROS2 ${ROS_DISTRO_NAME} base packages..."
     apt update
-    apt install -y ros-humble-ros-base
+    if ! check_apt_candidate "ros-${ROS_DISTRO}-ros-base"; then
+        print_error "ROS2 ${ROS_DISTRO_NAME} apt packages are not available for ${UBUNTU_CODENAME} ($(dpkg --print-architecture))."
+        print_info "Verify you are on 64-bit Ubuntu and that packages.ros.org is reachable."
+        print_info "If this persists, build ROS2 ${ROS_DISTRO_NAME} from source."
+        exit 1
+    fi
+
+    if ! apt install -y "ros-${ROS_DISTRO}-ros-base"; then
+        print_warning "ROS2 install failed. Attempting to fix broken packages and retry..."
+        if ! apt --fix-broken install -y; then
+            print_warning "Could not automatically fix broken packages"
+        fi
+        apt update
+        if ! apt install -y "ros-${ROS_DISTRO}-ros-base"; then
+            print_error "ROS2 ${ROS_DISTRO_NAME} installation failed after retry."
+            print_info "Check apt sources and architecture; ROS2 binaries require arm64 or amd64."
+            exit 1
+        fi
+    fi
 
     print_info "Installing ROS2 development tools..."
     apt install -y \
@@ -187,7 +256,7 @@ install_ros2_humble() {
     print_info "Updating rosdep..."
     rosdep update
 
-    print_success "ROS2 Humble installed successfully"
+    print_success "ROS2 ${ROS_DISTRO_NAME} installed successfully"
 }
 
 ################################################################################
@@ -201,6 +270,11 @@ install_system_dependencies() {
     apt update
 
     print_info "Installing build tools and libraries..."
+    local smbus_pkg="python3-smbus2"
+    if ! check_apt_candidate "$smbus_pkg"; then
+        smbus_pkg="python3-smbus"
+        print_warning "python3-smbus2 not available; falling back to python3-smbus"
+    fi
     apt install -y \
         build-essential \
         cmake \
@@ -210,7 +284,7 @@ install_system_dependencies() {
         python3-venv \
         libi2c-dev \
         i2c-tools \
-        python3-smbus \
+        "$smbus_pkg" \
         python3-serial \
         python3-numpy \
         python3-scipy \
@@ -227,18 +301,8 @@ install_system_dependencies() {
 install_python_dependencies() {
     print_header "Installing Python Dependencies"
 
-    print_info "Upgrading pip..."
-    python3 -m pip install --upgrade pip
-
-    # Install system-wide packages for ROS nodes (non-AI)
-    print_info "Installing system Python packages (ROS nodes)..."
-    python3 -m pip install \
-        numpy \
-        scipy \
-        pyserial \
-        smbus2
-
-    print_success "System Python dependencies installed"
+    print_info "System Python packages are installed via apt (see System Dependencies)"
+    print_info "Skipping system-wide pip installs to avoid PEP 668 issues on Ubuntu 24.04"
 
     # Create virtual environment for AI Flight Node
     print_info "Creating virtual environment for AI Flight Node..."
@@ -572,7 +636,7 @@ setup_ros2_workspace() {
     fi
 
     print_info "Installing ROS2 dependencies..."
-    source /opt/ros/humble/setup.bash
+    source "/opt/ros/${ROS_DISTRO}/setup.bash"
 
     # Install dependencies using rosdep
     if [[ -f src/swarm_ai_integration/package.xml ]]; then
@@ -647,15 +711,15 @@ configure_environment() {
     print_info "Adding ROS2 environment to $BASHRC..."
 
     # Check if ROS2 setup is already sourced
-    if ! grep -q "source /opt/ros/humble/setup.bash" "$BASHRC"; then
+    if ! grep -q "source /opt/ros/${ROS_DISTRO}/setup.bash" "$BASHRC"; then
         cat >> "$BASHRC" << EOF
 
-# ROS2 Humble Environment
-source /opt/ros/humble/setup.bash
+# ROS2 ${ROS_DISTRO_NAME} Environment
+source /opt/ros/${ROS_DISTRO}/setup.bash
 EOF
-        print_success "Added ROS2 Humble to .bashrc"
+        print_success "Added ROS2 ${ROS_DISTRO_NAME} to .bashrc"
     else
-        print_info "ROS2 Humble already in .bashrc"
+        print_info "ROS2 ${ROS_DISTRO_NAME} already in .bashrc"
     fi
 
     # Add workspace setup
@@ -748,7 +812,7 @@ print_summary() {
     else
         echo "  1. Log out and log back in for group changes to take effect"
         echo "  2. Source the environment:"
-        echo "     ${BLUE}source /opt/ros/humble/setup.bash${NC}"
+        echo "     ${BLUE}source /opt/ros/${ROS_DISTRO}/setup.bash${NC}"
         echo "     ${BLUE}source $WORKSPACE_DIR/install/setup.bash${NC}"
         echo "  3. Verify hardware connections:"
         echo "     ${BLUE}i2cdetect -y 1${NC}  (check LiDAR at 0x08)"
@@ -807,8 +871,9 @@ main() {
 
     check_root
     check_ubuntu_version
+    ensure_updates_repo
 
-    install_ros2_humble
+    install_ros2
     install_system_dependencies
     install_python_dependencies
 
