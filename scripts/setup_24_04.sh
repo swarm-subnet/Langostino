@@ -44,6 +44,8 @@ ROS_DISTRO="jazzy"
 ROS_DISTRO_NAME="Jazzy"
 UBUNTU_CODENAME="noble"
 UBUNTU_VERSION_ID="24.04"
+TARGET_USER=""
+TARGET_HOME=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -102,6 +104,32 @@ check_root() {
     if [[ $EUID -ne 0 ]]; then
         print_error "This script must be run as root (use sudo)"
         exit 1
+    fi
+}
+
+resolve_target_user() {
+    if [[ -n "$SUDO_USER" && "$SUDO_USER" != "root" ]]; then
+        TARGET_USER="$SUDO_USER"
+    else
+        local logname_user=""
+        logname_user=$(logname 2>/dev/null || true)
+        if [[ -n "$logname_user" && "$logname_user" != "root" ]]; then
+            TARGET_USER="$logname_user"
+        elif [[ -n "$USER" && "$USER" != "root" ]]; then
+            TARGET_USER="$USER"
+        elif [[ -n "$LOGNAME" && "$LOGNAME" != "root" ]]; then
+            TARGET_USER="$LOGNAME"
+        fi
+    fi
+
+    if [[ -n "$TARGET_USER" ]]; then
+        TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+    fi
+
+    if [[ -n "$TARGET_USER" && -n "$TARGET_HOME" ]]; then
+        print_info "Using target user: $TARGET_USER"
+    else
+        print_warning "Could not determine non-root user; user-specific steps may be skipped"
     fi
 }
 
@@ -298,12 +326,12 @@ install_python_dependencies() {
     print_info "Creating virtual environment for AI Flight Node..."
 
     # Determine correct user's home directory
-    if [[ -n "$SUDO_USER" ]]; then
-        local USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-        local ACTUAL_USER="$SUDO_USER"
-    else
-        local USER_HOME="${HOME}"
-        local ACTUAL_USER="${USER}"
+    local USER_HOME="$TARGET_HOME"
+    local ACTUAL_USER="$TARGET_USER"
+    if [[ -z "$USER_HOME" || -z "$ACTUAL_USER" ]]; then
+        print_warning "Falling back to current user (${USER}) for venv ownership"
+        USER_HOME="${HOME}"
+        ACTUAL_USER="${USER}"
     fi
 
     local VENV_PATH="${USER_HOME}/ai_flight_node_env"
@@ -334,7 +362,7 @@ install_python_dependencies() {
     print_success "Virtual environment created at $VENV_PATH"
 
     # Ensure venv has correct ownership
-    if [[ -n "$SUDO_USER" ]] && [[ "$EUID" -eq 0 ]]; then
+    if [[ -n "$ACTUAL_USER" ]] && [[ "$EUID" -eq 0 ]] && [[ "$ACTUAL_USER" != "root" ]]; then
         chown -R "$ACTUAL_USER:$ACTUAL_USER" "$VENV_PATH"
         print_info "Set venv ownership to $ACTUAL_USER"
     fi
@@ -344,7 +372,7 @@ install_python_dependencies() {
     print_info "Using: $REQUIREMENTS_FILE"
 
     # Use venv's pip directly (run as actual user if using sudo)
-    if [[ -n "$SUDO_USER" ]] && [[ "$EUID" -eq 0 ]]; then
+    if [[ -n "$ACTUAL_USER" ]] && [[ "$EUID" -eq 0 ]] && [[ "$ACTUAL_USER" != "root" ]]; then
         sudo -u "$ACTUAL_USER" "$VENV_PATH/bin/pip" install --upgrade pip
         sudo -u "$ACTUAL_USER" "$VENV_PATH/bin/pip" install -r "$REQUIREMENTS_FILE"
     else
@@ -390,9 +418,11 @@ configure_i2c() {
     fi
 
     # Add user to i2c group
-    if [[ -n "$SUDO_USER" ]]; then
-        usermod -a -G i2c "$SUDO_USER"
-        print_success "User $SUDO_USER added to i2c group"
+    if [[ -n "$TARGET_USER" ]]; then
+        usermod -a -G i2c "$TARGET_USER"
+        print_success "User $TARGET_USER added to i2c group"
+    else
+        print_warning "Skipping i2c group update (no target user detected)"
     fi
 
     # Set I2C permissions
@@ -411,9 +441,11 @@ configure_uart() {
     print_info "Setting up serial port access..."
 
     # Add user to dialout group for serial access
-    if [[ -n "$SUDO_USER" ]]; then
-        usermod -a -G dialout "$SUDO_USER"
-        print_success "User $SUDO_USER added to dialout group"
+    if [[ -n "$TARGET_USER" ]]; then
+        usermod -a -G dialout "$TARGET_USER"
+        print_success "User $TARGET_USER added to dialout group"
+    else
+        print_warning "Skipping dialout group update (no target user detected)"
     fi
 
     # Raspberry Pi specific: Disable Bluetooth to free up PL011 UART
@@ -609,13 +641,15 @@ setup_ros2_workspace() {
 
     # Fix workspace ownership (in case script was run with sudo)
     print_info "Ensuring correct workspace permissions..."
-    if [[ -n "$SUDO_USER" ]]; then
-        sudo chown -R "$SUDO_USER:$SUDO_USER" "$WORKSPACE_DIR"
-        print_success "Workspace ownership set to $SUDO_USER"
+    if [[ -n "$TARGET_USER" ]]; then
+        sudo chown -R "$TARGET_USER:$TARGET_USER" "$WORKSPACE_DIR"
+        print_success "Workspace ownership set to $TARGET_USER"
     elif [[ "$EUID" -ne 0 ]]; then
         # Running as normal user, ensure ownership
         sudo chown -R "$USER:$USER" "$WORKSPACE_DIR"
         print_success "Workspace ownership set to $USER"
+    else
+        print_warning "Skipping workspace ownership update (no target user detected)"
     fi
 
     # Clean old build artifacts if they exist with wrong permissions
@@ -677,9 +711,11 @@ create_required_directories() {
     fi
 
     # Set correct ownership if running with sudo
-    if [[ -n "$SUDO_USER" ]]; then
-        chown -R "$SUDO_USER:$SUDO_USER" flight-logs model
-        print_success "Set directory ownership to $SUDO_USER"
+    if [[ -n "$TARGET_USER" ]]; then
+        chown -R "$TARGET_USER:$TARGET_USER" flight-logs model
+        print_success "Set directory ownership to $TARGET_USER"
+    else
+        print_warning "Skipping directory ownership update (no target user detected)"
     fi
 }
 
@@ -690,12 +726,12 @@ create_required_directories() {
 configure_environment() {
     print_header "Configuring Environment"
 
-    if [[ -z "$SUDO_USER" ]]; then
+    if [[ -z "$TARGET_USER" ]]; then
         print_warning "Cannot determine user, skipping bashrc setup"
         return
     fi
 
-    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    USER_HOME="$TARGET_HOME"
     BASHRC="$USER_HOME/.bashrc"
 
     print_info "Adding ROS2 environment to $BASHRC..."
@@ -768,9 +804,11 @@ install_pm2() {
     fi
 
     # Setup PM2 startup script
-    if [[ -n "$SUDO_USER" ]]; then
-        sudo -u "$SUDO_USER" pm2 startup systemd -u "$SUDO_USER" --hp "$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+    if [[ -n "$TARGET_USER" ]]; then
+        sudo -u "$TARGET_USER" pm2 startup systemd -u "$TARGET_USER" --hp "$(getent passwd "$TARGET_USER" | cut -d: -f6)"
         print_success "PM2 startup configured"
+    else
+        print_warning "Skipping PM2 startup (no target user detected)"
     fi
 }
 
@@ -824,8 +862,9 @@ print_summary() {
     echo "  - Model files: $WORKSPACE_DIR/model"
     echo ""
 
+    local venv_home="${TARGET_HOME:-$HOME}"
     print_info "Python Virtual Environment:"
-    echo "  - Location: ${HOME}/ai_flight_node_env"
+    echo "  - Location: ${venv_home}/ai_flight_node_env"
     echo "  - Used by: AI Flight Node (ai_flight_node_wrapper.sh)"
     echo "  - Requirements: $WORKSPACE_DIR/ai_model_requirements.txt"
     echo "  - Packages: numpy, typing-extensions, gymnasium, stable-baselines3, torch"
@@ -861,6 +900,7 @@ main() {
 
     check_root
     check_ubuntu_version
+    resolve_target_user
     ensure_updates_repo
 
     install_ros2
