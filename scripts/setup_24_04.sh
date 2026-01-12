@@ -38,7 +38,8 @@ NC='\033[0m' # No Color
 SKIP_ROS=false
 SKIP_HARDWARE_CHECK=false
 INSTALL_PM2=true  # Install PM2 by default for process management
-WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ROS_DISTRO="jazzy"
 ROS_DISTRO_NAME="Jazzy"
 UBUNTU_CODENAME="noble"
@@ -510,7 +511,7 @@ EOF
 configure_network() {
     print_header "Configuring Network Settings"
 
-    local NETWORK_SETUP_SCRIPT="$WORKSPACE_DIR/network_setup.sh"
+    local NETWORK_SETUP_SCRIPT="$SCRIPT_DIR/network_setup.sh"
 
     if [[ ! -f "$NETWORK_SETUP_SCRIPT" ]]; then
         print_warning "Network setup script not found: $NETWORK_SETUP_SCRIPT"
