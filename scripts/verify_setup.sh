@@ -417,9 +417,11 @@ check_launch_files() {
         check_fail "Configuration file not found"
     fi
 
-    # Check launch script
+    # Check launch script (repo root or scripts/)
     if [[ -f "$workspace_dir/launch.sh" ]]; then
-        check_pass "launch.sh script exists"
+        check_pass "launch.sh script exists (root)"
+    elif [[ -f "$workspace_dir/scripts/launch.sh" ]]; then
+        check_pass "launch.sh script exists (scripts/)"
     else
         check_warn "launch.sh script not found"
     fi
