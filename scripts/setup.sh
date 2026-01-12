@@ -2,11 +2,11 @@
 ################################################################################
 # Swarm ROS2 Environment Setup Script
 #
-# This script sets up a complete ROS2 Humble environment on Ubuntu 22.04 for
+# This script sets up a complete ROS2 environment on Ubuntu 22.04/24.04 for
 # the Swarm AI Integration drone control system.
 #
 # Features:
-# - ROS2 Humble installation
+# - ROS2 installation (Humble on 22.04, Jazzy on 24.04)
 # - Python dependencies (PyTorch, stable-baselines3, etc.)
 # - Hardware configuration (I2C for LiDAR, UART for Flight Controller)
 # - Workspace build and configuration
@@ -39,6 +39,8 @@ SKIP_ROS=false
 SKIP_HARDWARE_CHECK=false
 INSTALL_PM2=true  # Install PM2 by default for process management
 WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROS_DISTRO="humble"
+ROS_DISTRO_NAME="Humble"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -115,33 +117,40 @@ check_ubuntu_version() {
         exit 1
     fi
 
-    if [[ "$VERSION_ID" != "22.04" ]]; then
-        print_warning "This script is tested on Ubuntu 22.04. You are running $VERSION_ID"
+    if [[ "$VERSION_ID" == "22.04" ]]; then
+        ROS_DISTRO="humble"
+        ROS_DISTRO_NAME="Humble"
+        print_success "Ubuntu 22.04 detected (ROS2 Humble)"
+    elif [[ "$VERSION_ID" == "24.04" ]]; then
+        ROS_DISTRO="jazzy"
+        ROS_DISTRO_NAME="Jazzy"
+        print_success "Ubuntu 24.04 detected (ROS2 Jazzy)"
+    else
+        print_warning "This script is tested on Ubuntu 22.04 (ROS2 Humble) and 24.04 (ROS2 Jazzy). You are running $VERSION_ID"
         read -p "Continue anyway? (y/n) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             exit 1
         fi
-    else
-        print_success "Ubuntu 22.04 detected"
+        print_warning "Proceeding with default ROS2 ${ROS_DISTRO_NAME}. Adjust scripts/setup.sh if needed."
     fi
 }
 
 ################################################################################
-# ROS2 Humble Installation
+# ROS2 Installation
 ################################################################################
 
-install_ros2_humble() {
+install_ros2() {
     if [[ "$SKIP_ROS" = true ]]; then
         print_info "Skipping ROS2 installation (--skip-ros flag)"
         return
     fi
 
-    print_header "Installing ROS2 Humble"
+    print_header "Installing ROS2 ${ROS_DISTRO_NAME}"
 
     # Check if ROS2 is already installed
-    if [[ -f /opt/ros/humble/setup.bash ]]; then
-        print_info "ROS2 Humble already installed"
+    if [[ -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]]; then
+        print_info "ROS2 ${ROS_DISTRO_NAME} already installed"
         read -p "Reinstall ROS2? (y/n) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -167,9 +176,9 @@ install_ros2_humble() {
 
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(source /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
 
-    print_info "Installing ROS2 Humble base packages..."
+    print_info "Installing ROS2 ${ROS_DISTRO_NAME} base packages..."
     apt update
-    apt install -y ros-humble-ros-base
+    apt install -y "ros-${ROS_DISTRO}-ros-base"
 
     print_info "Installing ROS2 development tools..."
     apt install -y \
@@ -187,7 +196,7 @@ install_ros2_humble() {
     print_info "Updating rosdep..."
     rosdep update
 
-    print_success "ROS2 Humble installed successfully"
+    print_success "ROS2 ${ROS_DISTRO_NAME} installed successfully"
 }
 
 ################################################################################
@@ -572,7 +581,7 @@ setup_ros2_workspace() {
     fi
 
     print_info "Installing ROS2 dependencies..."
-    source /opt/ros/humble/setup.bash
+    source "/opt/ros/${ROS_DISTRO}/setup.bash"
 
     # Install dependencies using rosdep
     if [[ -f src/swarm_ai_integration/package.xml ]]; then
@@ -647,15 +656,15 @@ configure_environment() {
     print_info "Adding ROS2 environment to $BASHRC..."
 
     # Check if ROS2 setup is already sourced
-    if ! grep -q "source /opt/ros/humble/setup.bash" "$BASHRC"; then
+    if ! grep -q "source /opt/ros/${ROS_DISTRO}/setup.bash" "$BASHRC"; then
         cat >> "$BASHRC" << EOF
 
-# ROS2 Humble Environment
-source /opt/ros/humble/setup.bash
+# ROS2 ${ROS_DISTRO_NAME} Environment
+source /opt/ros/${ROS_DISTRO}/setup.bash
 EOF
-        print_success "Added ROS2 Humble to .bashrc"
+        print_success "Added ROS2 ${ROS_DISTRO_NAME} to .bashrc"
     else
-        print_info "ROS2 Humble already in .bashrc"
+        print_info "ROS2 ${ROS_DISTRO_NAME} already in .bashrc"
     fi
 
     # Add workspace setup
@@ -748,7 +757,7 @@ print_summary() {
     else
         echo "  1. Log out and log back in for group changes to take effect"
         echo "  2. Source the environment:"
-        echo "     ${BLUE}source /opt/ros/humble/setup.bash${NC}"
+        echo "     ${BLUE}source /opt/ros/${ROS_DISTRO}/setup.bash${NC}"
         echo "     ${BLUE}source $WORKSPACE_DIR/install/setup.bash${NC}"
         echo "  3. Verify hardware connections:"
         echo "     ${BLUE}i2cdetect -y 1${NC}  (check LiDAR at 0x08)"
@@ -808,7 +817,7 @@ main() {
     check_root
     check_ubuntu_version
 
-    install_ros2_humble
+    install_ros2
     install_system_dependencies
     install_python_dependencies
 
