@@ -22,6 +22,9 @@ NC='\033[0m' # No Color
 CHECKS_PASSED=0
 CHECKS_FAILED=0
 CHECKS_WARNING=0
+ROS_DISTRO=""
+ROS_DISTRO_NAME=""
+ROS_SETUP_PATH=""
 
 ################################################################################
 # Helper Functions
@@ -65,10 +68,10 @@ check_ubuntu_version() {
         echo "Kernel: $(uname -r)"
         echo "Architecture: $(uname -m)"
 
-        if [[ "$ID" == "ubuntu" ]] && [[ "$VERSION_ID" == "22.04" ]]; then
-            check_pass "Ubuntu 22.04 detected"
+        if [[ "$ID" == "ubuntu" ]] && [[ "$VERSION_ID" == "22.04" || "$VERSION_ID" == "24.04" ]]; then
+            check_pass "Ubuntu $VERSION_ID detected"
         else
-            check_warn "Not running Ubuntu 22.04 (found: $ID $VERSION_ID)"
+            check_warn "Not running Ubuntu 22.04/24.04 (found: $ID $VERSION_ID)"
         fi
     else
         check_fail "Cannot determine OS version"
@@ -76,22 +79,43 @@ check_ubuntu_version() {
 }
 
 check_ros2() {
-    print_header "ROS2 Humble Installation"
+    print_header "ROS2 Installation"
 
-    if [[ -f /opt/ros/humble/setup.bash ]]; then
-        check_pass "ROS2 Humble installed"
+    local distros=("jazzy" "humble")
+    local found=()
 
-        # Source ROS2 and check version
-        source /opt/ros/humble/setup.bash
-        if command -v ros2 &> /dev/null; then
-            check_pass "ros2 command available"
-            echo "  Version: $(ros2 --version 2>&1 | head -n1)"
-        else
-            check_fail "ros2 command not found"
+    for distro in "${distros[@]}"; do
+        if [[ -f "/opt/ros/${distro}/setup.bash" ]]; then
+            found+=("$distro")
         fi
-    else
-        check_fail "ROS2 Humble not installed"
+    done
+
+    if [[ ${#found[@]} -eq 0 ]]; then
+        check_fail "ROS2 not installed (Humble or Jazzy)"
         return
+    fi
+
+    ROS_DISTRO="${found[0]}"
+    case "$ROS_DISTRO" in
+        jazzy) ROS_DISTRO_NAME="Jazzy" ;;
+        humble) ROS_DISTRO_NAME="Humble" ;;
+        *) ROS_DISTRO_NAME="$ROS_DISTRO" ;;
+    esac
+    ROS_SETUP_PATH="/opt/ros/${ROS_DISTRO}/setup.bash"
+
+    if [[ ${#found[@]} -gt 1 ]]; then
+        check_warn "Multiple ROS2 distros found (${found[*]}). Using ${ROS_DISTRO_NAME}"
+    fi
+
+    check_pass "ROS2 ${ROS_DISTRO_NAME} installed"
+
+    # Source ROS2 and check version
+    source "$ROS_SETUP_PATH"
+    if command -v ros2 &> /dev/null; then
+        check_pass "ros2 command available"
+        echo "  Version: $(ros2 --version 2>&1 | head -n1)"
+    else
+        check_fail "ros2 command not found"
     fi
 
     # Check for common ROS2 packages
@@ -115,7 +139,6 @@ check_python_packages() {
         "numpy"
         "scipy"
         "serial:pyserial"
-        "smbus2"
     )
 
     for pkg_spec in "${system_packages[@]}"; do
@@ -171,6 +194,16 @@ check_python_packages() {
             check_fail "$display_name not installed [venv]"
         fi
     done
+
+    if python3 -c "import smbus2" 2>/dev/null; then
+        version=$(python3 -c "import smbus2; print(getattr(smbus2, '__version__', 'unknown'))" 2>/dev/null)
+        check_pass "smbus2 ($version) [system]"
+    elif python3 -c "import smbus" 2>/dev/null; then
+        check_pass "smbus [system]"
+        check_warn "smbus2 not installed (using smbus fallback)"
+    else
+        check_fail "smbus2/smbus not installed [system]"
+    fi
 }
 
 check_i2c() {
@@ -323,7 +356,8 @@ check_uart() {
 check_workspace() {
     print_header "ROS2 Workspace"
 
-    local workspace_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local workspace_dir="$(cd "${script_dir}/.." && pwd)"
 
     # Check if workspace is built
     if [[ -d "$workspace_dir/install" ]]; then
@@ -348,21 +382,26 @@ check_workspace() {
     fi
 
     # Check if package is available
-    source /opt/ros/humble/setup.bash 2>/dev/null
-    if [[ -f "$workspace_dir/install/setup.bash" ]]; then
-        source "$workspace_dir/install/setup.bash" 2>/dev/null
-        if ros2 pkg list 2>/dev/null | grep -q swarm_ai_integration; then
-            check_pass "swarm_ai_integration package found"
-        else
-            check_warn "swarm_ai_integration package not found in workspace"
+    if [[ -n "$ROS_SETUP_PATH" && -f "$ROS_SETUP_PATH" ]]; then
+        source "$ROS_SETUP_PATH" 2>/dev/null
+        if [[ -f "$workspace_dir/install/setup.bash" ]]; then
+            source "$workspace_dir/install/setup.bash" 2>/dev/null
+            if ros2 pkg list 2>/dev/null | grep -q swarm_ai_integration; then
+                check_pass "swarm_ai_integration package found"
+            else
+                check_warn "swarm_ai_integration package not found in workspace"
+            fi
         fi
+    else
+        check_warn "ROS2 setup.bash not found; skipping package list check"
     fi
 }
 
 check_launch_files() {
     print_header "Launch Configuration"
 
-    local workspace_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local workspace_dir="$(cd "${script_dir}/.." && pwd)"
 
     # Check launch file
     if [[ -f "$workspace_dir/src/swarm_ai_integration/launch/swarm_ai_launch.py" ]]; then
