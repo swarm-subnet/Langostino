@@ -19,28 +19,27 @@
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" />
   </a>
   <img alt="Version" src="https://img.shields.io/badge/Version-v0.1.6-black?style=flat-square" />
-  <a href="https://discord.com/invite/bittensor">
+  <a href="https://discord.gg/vSJtvBbF">
     <img alt="Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square" />
   </a>
 </p>
 
 <p align="center">
-  <a href="docs/SETUP_GUIDE.md#quick-setup">
-    <img alt="Use the model" src="https://img.shields.io/badge/🚀%20Use%20the%20model-Start%20here-111111?style=for-the-badge" />
-  </a>
   <a href="docs/assembly/README.md">
     <img alt="Build from scratch" src="https://img.shields.io/badge/🔧%20Build%20from%20scratch-Guide-111111?style=for-the-badge" />
+  </a>
+  <a href="docs/SETUP_GUIDE.md#quick-setup">
+    <img alt="Use the model (Drone required)" src="https://img.shields.io/badge/🚀%20Use%20the%20model-Start%20here-111111?style=for-the-badge" />
   </a>
 </p>
 
 <!-- SECTION 2 -->
 <hr/>
 
-<h2 align="center">Demo</h2>
+<h2 align="center">Demo I</h2>
 
 <p align="center">
-  <b>See it before you read it.</b><br/>
-  Short clips beat long docs—watch Langostino fly, then peek under the hood.
+  <b>"Build from scratch" drone holding it's position</b><br/>
 </p>
 
 <!-- Real flight video (thumbnail clickable) -->
@@ -54,7 +53,7 @@
         https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/maxresdefault.jpg 1280w
       "
       sizes="(max-width: 760px) 100vw, 720px"
-      alt="Langostino real flight — thumbnail (click to watch)"
+      alt="Langostino position HOLD, must be working before going into autonomous navigation"
       style="max-width:720px;width:100%;border-radius:8px;"
       loading="lazy"
     />
@@ -78,6 +77,76 @@
 <p align="center">
   <sub>If this made you curious, ⭐ star the repo and share the demo.</sub>
 </p>
+
+<h2 align="center">Demo II</h2>
+
+<p align="center">
+  <b>AI-powered navigation</b><br/>
+</p>
+
+<!-- Real flight video (thumbnail clickable) -->
+<p align="center">
+  <a href="<REAL_FLIGHT_VIDEO_URL>" aria-label="Open real flight demo video in a new tab" target="_blank" rel="noopener noreferrer">
+    <img
+      src="https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/hqdefault.jpg"
+      srcset="
+        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/hqdefault.jpg 480w,
+        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/sddefault.jpg 640w,
+        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/maxresdefault.jpg 1280w
+      "
+      sizes="(max-width: 760px) 100vw, 720px"
+      alt="Langostino real flight — thumbnail (click to watch)"
+      style="max-width:720px;width:100%;border-radius:8px;"
+      loading="lazy"
+    />
+  </a>
+  <br/>
+  <sub>▶ Real flight (click to watch)</sub>
+</p>
+
+<h2 align="center">Do it yourseld, from ZERO!</h2>
+
+<p align="center">
+  <b>Example of what you will be building</b><br/>
+</p>
+
+<!-- Real flight video (thumbnail clickable) -->
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=jgdND4LXlIA" aria-label="Build it yourself just like how we did it" target="_blank" rel="noopener noreferrer">
+    <img
+      src="https://img.youtube.com/vi/jgdND4LXlIA/hqdefault.jpg"
+      srcset="
+        https://img.youtube.com/vi/jgdND4LXlIA/hqdefault.jpg 480w,
+        https://img.youtube.com/vi/jgdND4LXlIA/sddefault.jpg 640w,
+        https://img.youtube.com/vi/jgdND4LXlIA/maxresdefault.jpg 1280w
+      "
+      sizes="(max-width: 760px) 100vw, 720px"
+      alt="Langostino real flight — thumbnail (click to watch)"
+      style="max-width:720px;width:100%;border-radius:8px;"
+      loading="lazy"
+    />
+  </a>
+  <br/>
+  <sub>▶ Build it</sub>
+</p>
+
+<!-- One GIF: quick setup -->
+<p align="center" style="max-width:760px;margin:0 auto;">
+  <img
+    src="assets/demo-setup.gif"
+    alt="Quick setup: first run of Langostino"
+    style="width:100%;max-width:540px;border-radius:8px;"
+    loading="lazy"
+  />
+  <br/>
+  <sub>First run / quick setup</sub>
+</p>
+
+<p align="center">
+  <sub>If this made you curious, ⭐ star the repo and share the demo.</sub>
+</p>
+
+
 
 <!-- SECTION 3 -->
 <hr/>
@@ -156,8 +225,6 @@ Assembly guide:<br/>
 - 📝 Read: <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a><br/>
 - 🟢 Pick a starter task:
   <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issues</b></a>
-
-      </td>
 
     </tr>
   </table>
