@@ -1,179 +1,364 @@
-# Langostino - The Swarm Drone
+<!-- SECTION 1 -->
 
-This repo is designed to allow anyone to build their on drone and power it with AI.
+<p align="center">
+  <img src="assets/banner_section_1.png" alt="Langostino — open autonomous drone" width="100%" />
+</p>
 
----
+<h1 align="center">Langostino — The Swarm Drone 🦐</h1>
 
-## Quick Start
+<p align="center">
+  <b>Open-source AI autopilot for the real world: understand it, build it, and fly it.</b><br/>
+  An open-source autonomous flight reference platform, built with a <b>global</b> community.
+</p>
 
-**How to build and configure your drone** Check this articles:
-1. [Chapter 1](https://substack.com/home/post/p-175604069) - Inside the drone
-2. [Chapter 2](https://substack.com/home/post/p-176136139) - The wiring brain
-3. [Chapter 3](https://substack.com/home/post/p-177453660) - From data to motion
+<p align="center">
+  <a href="https://github.com/swarm-subnet/Langostino">
+    <img alt="GitHub Stars" src="https://img.shields.io/github/stars/swarm-subnet/Langostino?style=flat-square" />
+  </a>
+  <a href="LICENSE">
+    <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" />
+  </a>
+  <img alt="Version" src="https://img.shields.io/badge/Version-v0.1.6-black?style=flat-square" />
+  <a href="https://discord.com/invite/bittensor">
+    <img alt="Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square" />
+  </a>
+</p>
 
-**New to the system?** Start here:
-1. [Setup Guide](SETUP_GUIDE.md) - Install and configure the system
-2. [Commands Guide](COMMANDS_GUIDE.md) - Learn how to run the system
-3. [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md) - Fix common issues
+<p align="center">
+  <a href="docs/SETUP_GUIDE.md#quick-setup">
+    <img alt="Use the model" src="https://img.shields.io/badge/🚀%20Use%20the%20model-Start%20here-111111?style=for-the-badge" />
+  </a>
+  <a href="docs/assembly/README.md">
+    <img alt="Build from scratch" src="https://img.shields.io/badge/🔧%20Build%20from%20scratch-Guide-111111?style=for-the-badge" />
+  </a>
+</p>
 
-**Ready to fly?** Configure your drone:
-1. [INAV Guide](INAV_GUIDE.md) - Tune flight controller parameters
-2. [Config Params Guide](CONFIG_PARAMS_GUIDE.md) - Adjust ROS2 parameters
+<!-- SECTION 2 -->
+<hr/>
 
----
+<h2 align="center">Demo</h2>
 
-## How to configure your drone.
-These videos by Joshua Bradwell are very useful for setting up your INAV drone.
-[Complete INAV walk-throught](https://www.youtube.com/watch?v=xdf3yhlgJyc)
-[Compass troubles](https://www.youtube.com/watch?v=HWV5b9ZT1eE)
+<p align="center">
+  <b>See it before you read it.</b><br/>
+  Short clips beat long docs—watch Langostino fly, then peek under the hood.
+</p>
 
-## Documentation Index
+<!-- Real flight video (thumbnail clickable) -->
+<p align="center">
+  <a href="<REAL_FLIGHT_VIDEO_URL>" aria-label="Open real flight demo video in a new tab" target="_blank" rel="noopener noreferrer">
+    <img
+      src="https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/hqdefault.jpg"
+      srcset="
+        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/hqdefault.jpg 480w,
+        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/sddefault.jpg 640w,
+        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/maxresdefault.jpg 1280w
+      "
+      sizes="(max-width: 760px) 100vw, 720px"
+      alt="Langostino real flight — thumbnail (click to watch)"
+      style="max-width:720px;width:100%;border-radius:8px;"
+      loading="lazy"
+    />
+  </a>
+  <br/>
+  <sub>▶ Real flight (click to watch)</sub>
+</p>
 
-### [Setup Guide](SETUP_GUIDE.md)
-**Complete installation and configuration guide**
+<!-- One GIF: quick setup -->
+<p align="center" style="max-width:760px;margin:0 auto;">
+  <img
+    src="assets/demo-setup.gif"
+    alt="Quick setup: first run of Langostino"
+    style="width:100%;max-width:540px;border-radius:8px;"
+    loading="lazy"
+  />
+  <br/>
+  <sub>First run / quick setup</sub>
+</p>
 
-- System prerequisites and hardware requirements
-- Automated setup with `setup.sh`
-- Manual installation steps
-- Hardware configuration (I2C, UART, Network)
-- Verification procedures
-- PM2 process management setup
+<p align="center">
+  <sub>If this made you curious, ⭐ star the repo and share the demo.</sub>
+</p>
 
-**When to use:** First time setup, reinstalling system, adding new hardware
+<!-- SECTION 3 -->
+<hr/>
 
----
+<h2 align="center">What is Langostino?</h2>
 
-### [Commands Guide](COMMANDS_GUIDE.md)
-**System operation and command reference**
+<p align="center">
+  Langostino is an <b>open-source reference drone</b> for real-world autonomous flight — designed to be easy to understand, build, and extend.
+</p>
 
-- Launch methods (PM2, ROS2, manual)
-- Individual node commands
-- PM2 process management
-- ROS2 diagnostic commands
-- Quick command reference table
+<ul>
+  <li><b>A practical AI autopilot project</b> focused on flying in the real world (not a black box).</li>
+  <li><b>A complete reference platform</b>: code, docs, and a clear path from “zero” to “first flight”.</li>
+  <li><b>Made to be adapted</b>: use it as a starting point for your own drone and your own experiments.</li>
+  <li><b>Community-driven</b>: built in the open, improved by builders and contributors worldwide.</li>
+</ul>
 
-**When to use:** Daily operations, starting/stopping system, monitoring processes
+<!-- SECTION 4 -->
 
----
+<hr/>
 
-### [INAV Guide](INAV_GUIDE.md)
-**Flight controller parameter configuration**
+<h2 align="center">Why it matters</h2>
 
-- Navigation parameters (bank angle, inclination)
-- Climb rate settings
-- GPS position control (PID tuning)
-- Attitude control (level PIDs)
-- MSP configuration
-- Flight behavior tuning
-- Quick tuning reference table
+<p align="center">
+  Autonomous drones shouldn’t feel like magic or closed black boxes.<br/>
+  Langostino exists to make real-world autonomy <b>understandable</b> and <b>buildable</b> — so more people can learn, iterate, and ship useful aerial systems.<br/>
+  By sharing a reference drone in the open, we lower the barrier from “curious” to “first flight”, and turn progress into something the whole community can reuse.
+</p>
 
-**When to use:** Tuning flight behavior, adjusting GPS navigation, fixing oscillations/drift
+<!-- SECTION 5 -->
 
----
+<hr/>
 
-### [Config Params Guide](CONFIG_PARAMS_GUIDE.md)
-**ROS2 parameter reference**
+<h2 align="center">Choose your path</h2>
 
-- Complete parameter documentation for all nodes:
-  - AI Adapter Node
-  - AI Flight Node
-  - Safety Monitor Node
-  - FC Communications Node
-  - FC Adapter Node
-  - Black Box Recorder Node
-  - LiDAR Reader Node
-- Parameter ranges and recommendations
-- Tuning scenarios
-- Runtime parameter modification
+<p align="center">
+  Pick what you want to do next — you don’t need to be an expert to start.
+</p>
 
-**When to use:** Adjusting system behavior, tuning PID controllers, changing safety limits
+<table align="center">
+  <tr>
+    <td width="50%" valign="top">
 
----
+<b>👀 I’m just curious</b><br/>
 
-### [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md)
-**Comprehensive troubleshooting reference**
+- ▶ Watch the demo (above)<br/>
+- ⭐ Star this repo<br/>
+- 📣 Share it with a friend
 
-- Quick diagnostics
-- System & ROS2 issues
-- Hardware issues (I2C, UART, GPS)
-- Build & installation issues
-- Network & connectivity issues
-- Runtime & node issues
-- Flight control issues
-- Parameter & configuration issues
-- Performance issues
-- Safety & emergency procedures
+    </td>
+    <td width="50%" valign="top">
 
-**When to use:** System not working, debugging issues, performance problems, flight issues
+<b>🚀 I want to use the model</b><br/>
+Start here:<br/>
 
----
+- <a href="docs/SETUP_GUIDE.md#quick-setup"><b>SETUP_GUIDE → Quick Setup</b></a>
 
-## Documentation Organization
+    </td>
+  </tr>
 
-The documentation is organized to eliminate redundancy and focus each guide on its specific topic:
+  <tr>
+    <td width="50%" valign="top">
 
-- **Setup** → Installation and hardware configuration
-- **Commands** → Daily operations and system control
-- **INAV** → Flight controller tuning
-- **Config Params** → ROS2 parameter reference
-- **Troubleshooting** → Centralized problem-solving
+<b>🔧 I want to build it from scratch</b><br/>
+Assembly guide:<br/>
 
-All guides cross-reference each other for related information.
+- <a href="docs/assembly/README.md"><b>docs/assembly/README.md → Build guide</b></a><br/><br/>
+  <i>Includes the parts list (BOM) and step-by-step build instructions.</i>
 
----
+    </td>
+    <td width="50%" valign="top">
 
-## Common Tasks
+<b>🧩 I want to contribute</b><br/>
 
-### First Time Setup
-1. Follow [Setup Guide](SETUP_GUIDE.md) completely
-2. Run verification: `./verify_setup.sh`
-3. Check [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md) if issues arise
+- 💬 Join Discord: <a href="https://discord.com/invite/bittensor">discord.com/invite/bittensor</a><br/>
+- 📝 Read: <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a><br/>
+- 🟢 Pick a starter task:
+  <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issues</b></a>
 
-### Launching the System
-1. See [Commands Guide](COMMANDS_GUIDE.md) for launch methods
-2. Monitor with: `pm2 list` and `pm2 logs`
-3. Verify topics: `ros2 topic list`
+      </td>
 
-### Tuning Flight Behavior
-1. Start with [INAV Guide](INAV_GUIDE.md) for FC parameters
-2. Use [Config Params Guide](CONFIG_PARAMS_GUIDE.md) for ROS2 PID tuning
-3. Check [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md#flight-control-issues) for specific issues
+    </tr>
+  </table>
 
-### Debugging Issues
-1. Check [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md) first
-2. Collect diagnostic information (logs, hardware status)
-3. Reference specific guides for detailed parameter information
+<!-- SECTION 6 -->
 
----
+<hr/>
 
-## File Reference
+<h2 align="center">FAQ</h2>
 
-### Configuration Files
-- `src/swarm_ai_integration/config/swarm_params.yaml` - ROS2 parameters
-- `inav-params.txt` - INAV CLI commands
-- `.bashrc` - ROS2 environment setup
+<p><b>Do I need to be an engineer?</b><br/>
+No. Langostino is designed to be approachable: clear docs, a guided setup, and a community that can help you get started.</p>
 
-### Scripts
-- `setup.sh` - Automated installation
-- `launch.sh` - System launcher
-- `verify_setup.sh` - System verification
+<p><b>How do I get started?</b><br/>
+Start with the Quick Start Guide if you already have compatible hardware. Otherwise, refer to the Assembly Guide for a list of materials and steps to follow. Join Discord if you have any questions.</p>
 
-### Log Files
-- `~/.pm2/logs/` - PM2 process logs
-- `~/swarm-ros/flight-logs/` - Flight data recordings
+<p><b>How do I contribute?</b><br/>
+Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pick a <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issue</b></a>.</p>
 
----
+<!-- SECTION 7 -->
 
-## Getting Help
+<hr/>
 
-**Before reporting issues:**
-1. Check [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md)
-2. Run diagnostics: `./verify_setup.sh`
-3. Collect logs: `pm2 logs --lines 200`
-4. Check hardware: `i2cdetect -y 1`, `ls -l /dev/ttyAMA0`
+<h2 align="center">Your flight plan — from zero to first flight</h2>
 
-**When reporting issues:**
-- Include system information (`uname -a`, `echo $ROS_DISTRO`)
-- Provide relevant logs
-- Describe what you tried
-- Include error messages
+<ol>
+  <li>
+    <p><b>Watch a 60-second demo.</b> Get the idea fast. 
+      <a href="#REAL_FLIGHT_VIDEO_URL" target="_blank" rel="noopener noreferrer">Watch video →</a>
+    </p>
+  </li>
+  <li>
+    <p><b>Get the parts.</b> Use the <a href="docs/assembly/README.md#bill-of-materials-bom" target="_blank" rel="noopener noreferrer"><b>BOM</b></a> as your shopping list to source every component.
+    </p>
+  </li>
+  <li>
+    <p><b>Assemble the airframe.</b> Follow the build guide step-by-step. 
+      <a href="docs/assembly/README.md" target="_blank" rel="noopener noreferrer">Build guide →</a>
+    </p>
+  </li>
+  <li>
+    <b>Install, then wire it up.</b> Follow the quickstart checklist step by step.
+    <a href="docs/quickstart/README.md"><b>Quickstart →</b></a>
+  </li>
+  <li>
+    <p><b>Calibrate &amp; safety.</b> Props off, arming checks, failsafes, first hover indoor. 
+      <a href="docs/quickstart/README.md#safety--calibration" target="_blank" rel="noopener noreferrer">Safety checklist →</a>
+    </p>
+  </li>
+  <li>
+    <p><b>Go outside &amp; share.</b> Short flight, record a clip, ⭐ the repo, post your build. 
+      <a href="https://discord.com/invite/bittensor" target="_blank" rel="noopener noreferrer">Join Discord →</a>
+    </p>
+  </li>
+</ol>
+
+<p align="center">
+  <sub>Want the bigger picture? See the company roadmap:
+    <a href="#COMPANY_ROADMAP_URL" target="_blank" rel="noopener noreferrer">Swarm roadmap →</a>
+  </sub>
+</p>
+
+<!-- SECTION 8 -->
+
+<hr/>
+
+<h2 align="center">Safety note</h2>
+
+<p>
+  <b>Langostino is a real flying machine.</b><br/>
+  Follow local regulations.<br/>
+  Test in safe environments.<br/>
+  Use prop guards and appropriate failsafes.
+</p>
+
+<!-- SECTION 9 -->
+
+<hr/>
+
+<h2 align="center">Repository structure</h2>
+
+<details>
+  <summary><b>Click to expand</b></summary>
+
+  <pre><code>
+langostino/
+├── hardware/
+│   ├── CAD/        # 3D models (STL, STEP)
+│   ├── PCB/        # Circuit designs
+│   └── BOM/        # Bill of Materials + purchase links
+├── firmware/
+│   ├── flight_controller/
+│   └── sensors/
+├── software/
+│   ├── ai_model/        # AI model (if applicable)
+│   ├── ground_station/
+│   └── simulation/
+├── docs/
+│   ├── assembly/   # Step-by-step (with photos)
+│   └── tutorials/
+└── examples/
+  </code></pre>
+
+</details>
+
+<!-- SECTION 10 -->
+
+<hr/>
+
+<h2 align="center">Community</h2>
+
+<p align="center">
+  Langostino is built with a <b>global</b> community of builders and contributors.<br/>
+  If you’re building, testing, or improving it — we want to hear from you.
+</p>
+
+<p align="center">
+  <a href="https://discord.com/invite/bittensor">
+    <img alt="Join Discord" src="https://img.shields.io/badge/💬%20Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://discord.com/invite/bittensor"><b>Discord</b></a>
+  &nbsp;•&nbsp;
+  <a href="https://x.com/<X_HANDLE>"><b>X</b></a>
+  &nbsp;•&nbsp;
+  <a href="https://www.linkedin.com/company/<LINKEDIN_SLUG>/"><b>LinkedIn</b></a>
+  &nbsp;•&nbsp;
+  <a href="https://github.com/swarm-subnet"><b>GitHub</b></a>
+</p>
+
+<p align="center">
+  <sub>Share your build log or flight clip in Discord — we feature the best builds.</sub>
+</p>
+
+<!-- SECTION 11 -->
+
+<hr/>
+
+<h2 align="center">Share pack</h2>
+
+<p align="center">
+  <sub>Want to help Langostino reach more builders? Copy/paste one of these.</sub>
+</p>
+
+<details>
+  <summary><b>X (Twitter)</b></summary>
+
+  <br/>
+
+  <pre><code>
+Open-source AI autopilot for real-world drones 🦐✈️
+
+Langostino is a reference drone you can understand, build, and fly — built with a global community.
+
+⭐ https://github.com/swarm-subnet/Langostino
+  </code></pre>
+</details>
+
+<details>
+  <summary><b>LinkedIn</b></summary>
+
+  <br/>
+
+  <pre><code>
+We’re open-sourcing Langostino — an AI autopilot + reference drone focused on real-world flight.
+
+The goal: make drone autonomy understandable and buildable, so more builders can go from “curious” to “first flight”.
+
+Repo: https://github.com/swarm-subnet/Langostino
+Discord: https://discord.com/invite/bittensor
+  </code></pre>
+</details>
+
+<details>
+  <summary><b>Where to share</b></summary>
+
+  <br/>
+
+  <ul>
+    <li><b>Hackaday</b> — open hardware / DIY audience</li>
+    <li><b>DIY Drones</b> — builders who actually fly</li>
+    <li><b>Reddit</b> — consider: r/drones, r/Multicopter, r/robotics (follow each subreddit’s rules)</li>
+  </ul>
+</details>
+
+<!-- SECTION 12 -->
+
+<hr/>
+
+<h2 align="center">License</h2>
+
+<p align="center">
+  This project is released under the <b>MIT License</b> — see <a href="LICENSE.md"><b>LICENSE</b></a>.
+</p>
+
+<!-- SECTION 13 -->
+
+<hr/>
+
+<p align="center">
+  <b>Happy hacking!</b> 🦐
+</p>
