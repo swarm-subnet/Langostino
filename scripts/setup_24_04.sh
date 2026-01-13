@@ -75,6 +75,22 @@ while [[ $# -gt 0 ]]; do
 done
 
 ################################################################################
+# ROS 2 auto setup
+################################################################################
+
+# Source ROS distro if available
+if [ -f /opt/ros/jazzy/setup.bash ]; then
+  source /opt/ros/jazzy/setup.bash
+fi
+
+# Source workspace if exists
+if [ -f "$WORKSPACE_DIR/install/setup.bash" ]; then
+  source "$WORKSPACE_DIR/install/setup.bash"
+elif [ -f "$WORKSPACE_DIR/install/setup.sh" ]; then
+  source "$WORKSPACE_DIR/install/setup.sh"
+fi
+
+################################################################################
 # Helper Functions
 ################################################################################
 
