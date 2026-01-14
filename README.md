@@ -59,19 +59,7 @@
     />
   </a>
   <br/>
-  <sub>▶ Real flight (click to watch)</sub>
-</p>
-
-<!-- One GIF: quick setup -->
-<p align="center" style="max-width:760px;margin:0 auto;">
-  <img
-    src="assets/demo-setup.gif"
-    alt="Quick setup: first run of Langostino"
-    style="width:100%;max-width:540px;border-radius:8px;"
-    loading="lazy"
-  />
-  <br/>
-  <sub>First run / quick setup</sub>
+  <sub>Step 1 - Assemble the drone and get it to hold position</sub>
 </p>
 
 <p align="center">
@@ -101,10 +89,10 @@
     />
   </a>
   <br/>
-  <sub>▶ Real flight (click to watch)</sub>
+  <sub>Step 2 - AI-powered autonomous flight</sub>
 </p>
 
-<h2 align="center">Do it yourseld, from ZERO!</h2>
+<h2 align="center">Do it yourself, from ZERO!</h2>
 
 <p align="center">
   <b>Example of what you will be building</b><br/>
@@ -114,15 +102,9 @@
 <p align="center">
   <a href="https://www.youtube.com/watch?v=jgdND4LXlIA" aria-label="Build it yourself just like how we did it" target="_blank" rel="noopener noreferrer">
     <img
-      src="https://img.youtube.com/vi/jgdND4LXlIA/hqdefault.jpg"
-      srcset="
-        https://img.youtube.com/vi/jgdND4LXlIA/hqdefault.jpg 480w,
-        https://img.youtube.com/vi/jgdND4LXlIA/sddefault.jpg 640w,
-        https://img.youtube.com/vi/jgdND4LXlIA/maxresdefault.jpg 1280w
-      "
-      sizes="(max-width: 760px) 100vw, 720px"
+      src="https://img.youtube.com/vi/jgdND4LXlIA/maxresdefault.jpg"
       alt="Langostino real flight — thumbnail (click to watch)"
-      style="max-width:720px;width:100%;border-radius:8px;"
+      width="720"
       loading="lazy"
     />
   </a>
