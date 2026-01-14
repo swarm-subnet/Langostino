@@ -62,10 +62,6 @@
   <sub>Step 1 - Assemble the drone and get it to hold position</sub>
 </p>
 
-<p align="center">
-  <sub>If this made you curious, ⭐ star the repo and share the demo.</sub>
-</p>
-
 <h2 align="center">Demo II</h2>
 
 <p align="center">
@@ -112,22 +108,9 @@
   <sub>▶ Build it</sub>
 </p>
 
-<!-- One GIF: quick setup -->
-<p align="center" style="max-width:760px;margin:0 auto;">
-  <img
-    src="assets/demo-setup.gif"
-    alt="Quick setup: first run of Langostino"
-    style="width:100%;max-width:540px;border-radius:8px;"
-    loading="lazy"
-  />
-  <br/>
-  <sub>First run / quick setup</sub>
-</p>
-
 <p align="center">
   <sub>If this made you curious, ⭐ star the repo and share the demo.</sub>
 </p>
-
 
 
 <!-- SECTION 3 -->
@@ -181,10 +164,11 @@
     </td>
     <td width="50%" valign="top">
 
-<b>🚀 I want to use the model</b><br/>
-Start here:<br/>
+<b>🔧 I want to build it from scratch</b><br/>
+Assembly guide:<br/>
 
-- <a href="docs/SETUP_GUIDE.md#quick-setup"><b>SETUP_GUIDE → Quick Setup</b></a>
+- <a href="docs/assembly/README.md"><b>docs/assembly/README.md → Build guide</b></a><br/><br/>
+  <i>Includes the parts list (BOM) and step-by-step build instructions.</i>
 
     </td>
   </tr>
@@ -192,11 +176,10 @@ Start here:<br/>
   <tr>
     <td width="50%" valign="top">
 
-<b>🔧 I want to build it from scratch</b><br/>
-Assembly guide:<br/>
+<b>🚀 I want to use the model</b><br/>
+Start here:<br/>
 
-- <a href="docs/assembly/README.md"><b>docs/assembly/README.md → Build guide</b></a><br/><br/>
-  <i>Includes the parts list (BOM) and step-by-step build instructions.</i>
+- <a href="docs/SETUP_GUIDE.md#quick-setup"><b>SETUP_GUIDE → Quick Setup</b></a>
 
     </td>
     <td width="50%" valign="top">
