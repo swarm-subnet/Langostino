@@ -248,7 +248,7 @@ Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pi
 
 <p align="center">
   <sub>Want the bigger picture? See the company roadmap:
-    <a href="#COMPANY_ROADMAP_URL" target="_blank" rel="noopener noreferrer">Swarm roadmap →</a>
+    <a href="https://swarm124.com/decentralized-training" target="_blank" rel="noopener noreferrer">Swarm roadmap →</a>
   </sub>
 </p>
 
