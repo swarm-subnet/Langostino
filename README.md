@@ -18,7 +18,7 @@
   <a href="LICENSE">
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" />
   </a>
-  <img alt="Version" src="https://img.shields.io/badge/Version-v0.1.6-black?style=flat-square" />
+  <img alt="Version" src="https://img.shields.io/badge/Version-v1.0.0-black?style=flat-square" />
   <a href="https://discord.gg/vSJtvBbF">
     <img alt="Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square" />
   </a>

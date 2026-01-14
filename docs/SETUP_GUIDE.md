@@ -38,7 +38,7 @@ This guide provides step-by-step instructions for setting up the complete Swarm 
 ---
 
 ## Quick Setup
-
+> **Note:** This section assumes a fully working Langostino (or your specific drone). Otherwise, you will be running flight code without a drone.
 ### 1. Clone the Repository
 
 ```bash
