@@ -431,6 +431,12 @@ class FCAdapterNode(Node):
         rc_msg = Float32MultiArray()
         rc_msg.data = [float(ch) for ch in channels]
         self.rc_override_pub.publish(rc_msg)
+        # Log at INFO level so user can see it's being published
+        self.get_logger().info(
+            f'📤 Publishing RC override: R={channels[0]}, P={channels[1]}, T={channels[2]}, '
+            f'Y={channels[3]}, ARM={channels[4]}, ANG={channels[5]}, NAV={channels[6]}, MSP={channels[7]}',
+            throttle_duration_sec=1.0
+        )
 
     # ------------ Status Publishing ------------
     def publish_status(self):

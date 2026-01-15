@@ -258,8 +258,8 @@ class FCCommsNode(Node):
                 self._handle_rc(message.data)
 
             elif message.command == MSPCommand.MSP_SET_RAW_RC:
-                # RC command ACK - just log at debug level (no data to process)
-                self.get_logger().debug(f'✓ RC command acknowledged')
+                # RC command ACK - log at INFO level to confirm FC received it
+                self.get_logger().info(f'✅ RC command acknowledged by FC', throttle_duration_sec=1.0)
 
             else:
                 # Unknown or unhandled command
@@ -480,7 +480,12 @@ class FCCommsNode(Node):
         message = MSPMessage(MSPCommand.MSP_SET_RAW_RC, payload, MSPDirection.REQUEST)
         self.serial_handler.send_message(message)
 
-        self.get_logger().debug(f'📤 Sent RC override: {channels}')
+        # Log at INFO level to show RC commands are being sent to FC
+        self.get_logger().info(
+            f'📤 Sent RC override to FC: R={channels[0]}, P={channels[1]}, T={channels[2]}, '
+            f'Y={channels[3]}, ARM={channels[4] if len(channels) > 4 else "N/A"}',
+            throttle_duration_sec=1.0
+        )
 
     # ═══════════════════════════════════════════════════════════════════
     # Helper Methods
