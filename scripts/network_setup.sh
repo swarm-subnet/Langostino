@@ -4,13 +4,79 @@
 # Installs and configures dnsmasq and hostapd for AP functionality
 # Handles systemd-resolved conflicts and service masking issues
 
-set -e
+# Note: We intentionally do NOT use 'set -e' here to allow the script
+# to continue and provide better error reporting even if individual
+# commands fail. Critical failures are handled explicitly.
+
+# Track if any critical step failed
+CRITICAL_FAILURE=false
 
 AP_SSID="Swarm_AP"
 AP_PASS="swarmascend"
 AP_IP="192.168.10.1"
 
 echo "=== [Swarm Setup] Initial network configuration ==="
+
+###############################################
+# 0.1 CHECK ROOT PRIVILEGES
+###############################################
+if [[ $EUID -ne 0 ]]; then
+    echo "[Swarm Setup] ❌ ERROR: This script must be run as root (use sudo)"
+    exit 1
+fi
+echo "[Swarm Setup] ✅ Running with root privileges"
+
+###############################################
+# 0.2 SSH CONNECTION DETECTION AND WARNING
+###############################################
+RUNNING_OVER_SSH=false
+SKIP_NETPLAN_APPLY=false
+
+# Detect if running over SSH
+if [[ -n "$SSH_CONNECTION" ]] || [[ -n "$SSH_CLIENT" ]] || [[ -n "$SSH_TTY" ]]; then
+    RUNNING_OVER_SSH=true
+
+    # Get current SSH connection IP
+    SSH_CLIENT_IP=$(echo "$SSH_CONNECTION" | awk '{print $1}')
+    SSH_SERVER_IP=$(echo "$SSH_CONNECTION" | awk '{print $3}')
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  ⚠️  WARNING: Running over SSH connection"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Current SSH connection:"
+    echo "  • Client IP: $SSH_CLIENT_IP"
+    echo "  • Server IP: $SSH_SERVER_IP"
+    echo ""
+    echo "This script will configure eth0 with static IP: 192.168.10.1"
+    echo ""
+    echo "Options:"
+    echo "  1) Apply network changes NOW (may disconnect SSH)"
+    echo "  2) Configure files only, apply on REBOOT (safer)"
+    echo "  3) Abort"
+    echo ""
+    read -p "Choose option [1/2/3]: " -n 1 -r SSH_CHOICE
+    echo ""
+
+    case $SSH_CHOICE in
+        1)
+            echo "[Swarm Setup] Will apply network changes immediately"
+            echo "[Swarm Setup] ⚠️  You may need to reconnect via 192.168.10.1"
+            SKIP_NETPLAN_APPLY=false
+            ;;
+        2)
+            echo "[Swarm Setup] Will configure files but NOT apply netplan"
+            echo "[Swarm Setup] Changes will take effect after reboot"
+            SKIP_NETPLAN_APPLY=true
+            ;;
+        3|*)
+            echo "[Swarm Setup] Aborted by user"
+            exit 0
+            ;;
+    esac
+    echo ""
+fi
 
 ###############################################
 # 0. NETPLAN FIX - BACKUP EXISTING CONFIGURATIONS AND DISABLE CLOUD-INIT NETWORK MANAGEMENT
@@ -151,9 +217,16 @@ EOF
 sudo chmod 600 $NETPLAN_FILE
 sudo chown root:root $NETPLAN_FILE
 
-echo "[Swarm Setup] Applying netplan configuration..."
-sudo netplan generate
-sudo netplan apply || true  # Continue even if netplan apply has warnings
+echo "[Swarm Setup] Generating netplan configuration..."
+netplan generate
+
+if [[ "$SKIP_NETPLAN_APPLY" = true ]]; then
+    echo "[Swarm Setup] ⏸️  Skipping netplan apply (will take effect on reboot)"
+    echo "[Swarm Setup] To apply manually later: sudo netplan apply"
+else
+    echo "[Swarm Setup] Applying netplan configuration..."
+    netplan apply || true  # Continue even if netplan apply has warnings
+fi
 
 # Note: wlan0 will be managed by hostapd when in AP mode, 
 # or by wpa_supplicant/NetworkManager when in client mode
@@ -471,7 +544,7 @@ sudo chmod +x /usr/local/bin/wifi_connect.sh
 ###############################################
 echo "[Swarm Setup] Creating systemd service for wifi_manager.sh..."
 
-sudo bash -c "cat > /etc/systemd/system/wifi-manager.service" <<EOF
+cat > /etc/systemd/system/wifi-manager.service <<EOF
 [Unit]
 Description=WiFi Auto Manager (client or AP)
 After=network.target
@@ -490,8 +563,17 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl daemon-reload
-sudo systemctl enable wifi-manager.service
+if [[ ! -f /etc/systemd/system/wifi-manager.service ]]; then
+    echo "[Swarm Setup] ❌ ERROR: Failed to create wifi-manager.service"
+    CRITICAL_FAILURE=true
+else
+    echo "[Swarm Setup] ✅ wifi-manager.service created"
+fi
+
+systemctl daemon-reload
+if ! systemctl enable wifi-manager.service; then
+    echo "[Swarm Setup] ⚠️ WARNING: Failed to enable wifi-manager.service"
+fi
 
 ###############################################
 # 12. TEST SERVICES
@@ -548,13 +630,84 @@ echo "Starting WiFi manager service..."
 sudo systemctl restart wifi-manager.service
 
 ###############################################
-# 13. FINAL MESSAGE
+# 13. FINAL VERIFICATION AND MESSAGE
 ###############################################
+
 echo ""
+echo "[Swarm Setup] Running final verification..."
+
+# Verify critical files were created
+VERIFICATION_ERRORS=0
+
+if [[ ! -f /etc/systemd/system/wifi-manager.service ]]; then
+    echo "  ❌ MISSING: /etc/systemd/system/wifi-manager.service"
+    VERIFICATION_ERRORS=$((VERIFICATION_ERRORS + 1))
+else
+    echo "  ✅ OK: wifi-manager.service"
+fi
+
+if [[ ! -f /etc/netplan/99-swarm-network.yaml ]]; then
+    echo "  ❌ MISSING: /etc/netplan/99-swarm-network.yaml"
+    VERIFICATION_ERRORS=$((VERIFICATION_ERRORS + 1))
+else
+    echo "  ✅ OK: netplan configuration"
+fi
+
+if [[ ! -f /etc/hostapd/hostapd.conf ]]; then
+    echo "  ❌ MISSING: /etc/hostapd/hostapd.conf"
+    VERIFICATION_ERRORS=$((VERIFICATION_ERRORS + 1))
+else
+    echo "  ✅ OK: hostapd configuration"
+fi
+
+if [[ ! -f /etc/dnsmasq.conf ]]; then
+    echo "  ❌ MISSING: /etc/dnsmasq.conf"
+    VERIFICATION_ERRORS=$((VERIFICATION_ERRORS + 1))
+else
+    echo "  ✅ OK: dnsmasq configuration"
+fi
+
+if [[ ! -f /usr/local/bin/wifi_manager.sh ]]; then
+    echo "  ❌ MISSING: /usr/local/bin/wifi_manager.sh"
+    VERIFICATION_ERRORS=$((VERIFICATION_ERRORS + 1))
+else
+    echo "  ✅ OK: wifi_manager.sh"
+fi
+
+echo ""
+
+if [[ $VERIFICATION_ERRORS -gt 0 ]] || [[ "$CRITICAL_FAILURE" = true ]]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  ❌ Network Setup FAILED with $VERIFICATION_ERRORS errors"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Please check the output above for errors and try again."
+    echo "Common issues:"
+    echo " • Script not run as root (use sudo)"
+    echo " • Package installation failed"
+    echo " • Filesystem permission issues"
+    exit 1
+fi
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  ✅ Network Setup Completed Successfully!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
+
+if [[ "$SKIP_NETPLAN_APPLY" = true ]]; then
+    echo "⚠️  IMPORTANT: Network changes NOT YET ACTIVE"
+    echo ""
+    echo "You chose to defer network changes. To activate:"
+    echo "  Option A: Reboot the system"
+    echo "            sudo reboot"
+    echo ""
+    echo "  Option B: Apply manually (will disconnect SSH!)"
+    echo "            sudo netplan apply"
+    echo ""
+    echo "After reboot/apply, connect via: ssh pi@192.168.10.1"
+    echo ""
+fi
+
 echo "Configuration:"
 echo " • eth0: Static IP 192.168.10.1/24"
 echo " • wlan0: Managed by WiFi Manager"

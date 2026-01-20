@@ -582,20 +582,67 @@ configure_network() {
     local NETWORK_SETUP_SCRIPT="$SCRIPT_DIR/network_setup.sh"
 
     if [[ ! -f "$NETWORK_SETUP_SCRIPT" ]]; then
-        print_warning "Network setup script not found: $NETWORK_SETUP_SCRIPT"
-        print_info "Skipping network configuration"
-        return
+        print_error "Network setup script not found: $NETWORK_SETUP_SCRIPT"
+        print_info "Expected location: $SCRIPT_DIR/network_setup.sh"
+        print_warning "Network configuration SKIPPED - please run network_setup.sh manually"
+        return 1
+    fi
+
+    # Verify required packages are available
+    print_info "Checking network setup dependencies..."
+    local missing_deps=()
+    for pkg in dnsmasq hostapd wireless-tools iw; do
+        if ! dpkg -l "$pkg" &>/dev/null; then
+            missing_deps+=("$pkg")
+        fi
+    done
+
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        print_info "Installing missing network packages: ${missing_deps[*]}"
+        apt update
+        apt install -y "${missing_deps[@]}" || {
+            print_error "Failed to install network dependencies"
+            return 1
+        }
     fi
 
     print_info "Running network setup script..."
     chmod +x "$NETWORK_SETUP_SCRIPT"
-    bash "$NETWORK_SETUP_SCRIPT"
 
-    if [[ $? -eq 0 ]]; then
+    # Run network setup and capture output for debugging
+    local network_log="/tmp/network_setup_$(date +%Y%m%d_%H%M%S).log"
+    if bash "$NETWORK_SETUP_SCRIPT" 2>&1 | tee "$network_log"; then
         print_success "Network configuration completed successfully"
+
+        # Verify critical components were created
+        local verification_failed=false
+
+        if [[ ! -f /etc/systemd/system/wifi-manager.service ]]; then
+            print_warning "wifi-manager.service was not created"
+            verification_failed=true
+        fi
+
+        if [[ ! -f /etc/netplan/99-swarm-network.yaml ]]; then
+            print_warning "Netplan configuration was not created"
+            verification_failed=true
+        fi
+
+        if [[ ! -f /etc/hostapd/hostapd.conf ]]; then
+            print_warning "hostapd configuration was not created"
+            verification_failed=true
+        fi
+
+        if [[ "$verification_failed" = true ]]; then
+            print_warning "Some network components may be missing. Check log: $network_log"
+        else
+            print_success "All network components verified"
+            rm -f "$network_log"  # Clean up log on success
+        fi
     else
         print_error "Network configuration failed"
-        print_warning "Continuing with setup (network configuration is optional)"
+        print_info "Check log for details: $network_log"
+        print_warning "Continuing with setup (network configuration can be retried manually)"
+        print_info "To retry: sudo bash $NETWORK_SETUP_SCRIPT"
     fi
 }
 
