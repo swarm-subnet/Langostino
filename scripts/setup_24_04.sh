@@ -678,11 +678,11 @@ setup_ros2_workspace() {
     # Fix workspace ownership (in case script was run with sudo)
     print_info "Ensuring correct workspace permissions..."
     if [[ -n "$TARGET_USER" ]]; then
-        sudo chown -R "$TARGET_USER:$TARGET_USER" "$WORKSPACE_DIR"
+        sudo chown -R "$TARGET_USER:$TARGET_USER"  ~/"$WORKSPACE_DIR"
         print_success "Workspace ownership set to $TARGET_USER"
     elif [[ "$EUID" -ne 0 ]]; then
         # Running as normal user, ensure ownership
-        sudo chown -R "$USER:$USER" "$WORKSPACE_DIR"
+        sudo chown -R "$USER:$USER"  ~/"$WORKSPACE_DIR"
         print_success "Workspace ownership set to $USER"
     else
         print_warning "Skipping workspace ownership update (no target user detected)"
