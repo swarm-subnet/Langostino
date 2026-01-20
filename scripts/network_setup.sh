@@ -27,7 +27,79 @@ fi
 echo "[Swarm Setup] ✅ Running with root privileges"
 
 ###############################################
-# 0.2 SSH CONNECTION DETECTION AND WARNING
+# 0.2 DETECT UBUNTU VERSION AND SET COMPATIBILITY FLAGS
+###############################################
+UBUNTU_VERSION=""
+UBUNTU_CODENAME=""
+
+if [[ -f /etc/os-release ]]; then
+    source /etc/os-release
+    UBUNTU_VERSION="$VERSION_ID"
+    UBUNTU_CODENAME="$VERSION_CODENAME"
+fi
+
+echo "[Swarm Setup] Detected: Ubuntu $UBUNTU_VERSION ($UBUNTU_CODENAME)"
+
+# Validate supported versions
+case "$UBUNTU_VERSION" in
+    "22.04"|"24.04")
+        echo "[Swarm Setup] ✅ Supported Ubuntu version"
+        ;;
+    *)
+        echo "[Swarm Setup] ⚠️  WARNING: Ubuntu $UBUNTU_VERSION not officially tested"
+        echo "[Swarm Setup] Supported versions: 22.04, 24.04"
+        read -p "Continue anyway? [y/N]: " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+        ;;
+esac
+
+###############################################
+# 0.3 DETECT NETWORK INTERFACES
+###############################################
+echo "[Swarm Setup] Detecting network interfaces..."
+
+# Find ethernet interface (prefer eth0, then enp*, then ens*)
+ETH_INTERFACE=""
+if ip link show eth0 &>/dev/null; then
+    ETH_INTERFACE="eth0"
+elif ip link show | grep -q "enp"; then
+    ETH_INTERFACE=$(ip link show | grep -oP 'enp[a-z0-9]+' | head -1)
+elif ip link show | grep -q "ens"; then
+    ETH_INTERFACE=$(ip link show | grep -oP 'ens[a-z0-9]+' | head -1)
+elif ip link show | grep -q "end"; then
+    ETH_INTERFACE=$(ip link show | grep -oP 'end[a-z0-9]+' | head -1)
+fi
+
+# Find WiFi interface (prefer wlan0, then wlp*)
+WIFI_INTERFACE=""
+if ip link show wlan0 &>/dev/null; then
+    WIFI_INTERFACE="wlan0"
+elif ip link show | grep -q "wlp"; then
+    WIFI_INTERFACE=$(ip link show | grep -oP 'wlp[a-z0-9]+' | head -1)
+elif ip link show | grep -q "wlx"; then
+    WIFI_INTERFACE=$(ip link show | grep -oP 'wlx[a-z0-9]+' | head -1)
+fi
+
+echo "[Swarm Setup] Ethernet interface: ${ETH_INTERFACE:-not found}"
+echo "[Swarm Setup] WiFi interface: ${WIFI_INTERFACE:-not found}"
+
+if [[ -z "$ETH_INTERFACE" ]]; then
+    echo "[Swarm Setup] ⚠️  WARNING: No ethernet interface found"
+    echo "[Swarm Setup] Will use 'eth0' as default (may not work)"
+    ETH_INTERFACE="eth0"
+fi
+
+if [[ -z "$WIFI_INTERFACE" ]]; then
+    echo "[Swarm Setup] ⚠️  WARNING: No WiFi interface found"
+    echo "[Swarm Setup] WiFi/AP features will not work without a wireless adapter"
+    WIFI_INTERFACE="wlan0"
+fi
+
+###############################################
+# 0.4 SSH CONNECTION DETECTION AND WARNING
 ###############################################
 RUNNING_OVER_SSH=false
 SKIP_NETPLAN_APPLY=false
@@ -105,9 +177,19 @@ sudo rm -f /etc/netplan/*cloud*.yaml
 ###############################################
 # 1. INSTALL DNSMASQ Y HOSTAPD
 ###############################################
-echo "[Swarm Setup] Installing dnsmasq and hostapd..."
-sudo apt update
-sudo apt install -y dnsmasq hostapd wireless-tools iw
+echo "[Swarm Setup] Installing required packages..."
+apt update
+
+# Core packages (available on both 22.04 and 24.04)
+apt install -y dnsmasq hostapd wireless-tools iw lsof wpasupplicant
+
+# DHCP client - try dhclient first (22.04), fallback to dhcpcd5 (some 24.04 installs)
+if ! command -v dhclient &>/dev/null; then
+    echo "[Swarm Setup] dhclient not found, installing isc-dhcp-client..."
+    apt install -y isc-dhcp-client || apt install -y dhcpcd5 || true
+fi
+
+echo "[Swarm Setup] ✅ Packages installed"
 
 # Stop services first
 sudo systemctl stop dnsmasq || true
@@ -196,17 +278,17 @@ sudo systemctl disable hostapd || true
 ###############################################
 # 5. CONFIGURE NETPLAN (FIXED VERSION)
 ###############################################
-echo "[Swarm Setup] Configuring Netplan..."
+echo "[Swarm Setup] Configuring Netplan for interface: $ETH_INTERFACE"
 
 NETPLAN_FILE="/etc/netplan/99-swarm-network.yaml"
 
-# Create proper netplan configuration without access points requirement
-sudo bash -c "cat > $NETPLAN_FILE" <<EOF
+# Create proper netplan configuration using detected interface
+cat > $NETPLAN_FILE <<EOF
 network:
   version: 2
   renderer: networkd
   ethernets:
-    eth0:
+    $ETH_INTERFACE:
       dhcp4: no
       addresses:
         - 192.168.10.1/24
@@ -234,16 +316,17 @@ fi
 ###############################################
 # 6. DNSMASQ CONFIGURATION (permanent)
 ###############################################
-echo "[Swarm Setup] Dnsmasq setup..."
+echo "[Swarm Setup] Dnsmasq setup for interface: $WIFI_INTERFACE"
 
 # Backup original config if exists
 if [ -f /etc/dnsmasq.conf ]; then
-    sudo cp /etc/dnsmasq.conf /etc/dnsmasq.conf.backup
+    cp /etc/dnsmasq.conf /etc/dnsmasq.conf.backup
 fi
 
-sudo bash -c "cat > /etc/dnsmasq.conf" <<EOF
+cat > /etc/dnsmasq.conf <<EOF
 # Swarm AP Configuration
-interface=wlan0
+# Generated for Ubuntu $UBUNTU_VERSION
+interface=$WIFI_INTERFACE
 bind-interfaces
 dhcp-range=192.168.10.10,192.168.10.50,255.255.255.0,24h
 domain-needed
@@ -256,10 +339,12 @@ EOF
 ###############################################
 # 7. HOSTAPD CONFIGURATION (permanent)
 ###############################################
-echo "[Swarm Setup] Hostapd setup..."
+echo "[Swarm Setup] Hostapd setup for interface: $WIFI_INTERFACE"
 
-sudo bash -c "cat > /etc/hostapd/hostapd.conf" <<EOF
-interface=wlan0
+cat > /etc/hostapd/hostapd.conf <<EOF
+# Swarm AP Configuration
+# Generated for Ubuntu $UBUNTU_VERSION
+interface=$WIFI_INTERFACE
 driver=nl80211
 ssid=$AP_SSID
 hw_mode=g
@@ -273,36 +358,124 @@ rsn_pairwise=CCMP
 ctrl_interface=/var/run/hostapd
 ctrl_interface_group=0
 
-# Required for Ubuntu 24.04 / modern kernels (compatible with 22.04)
+# Required for regulatory compliance (compatible with 22.04 and 24.04)
 country_code=ES
 ieee80211n=1
 ieee80211d=1
 EOF
 
-sudo bash -c "echo 'DAEMON_CONF=\"/etc/hostapd/hostapd.conf\"' > /etc/default/hostapd"
+echo "DAEMON_CONF=\"/etc/hostapd/hostapd.conf\"" > /etc/default/hostapd
 
 ###############################################
-# 8. CREATE KNOWN NETWORKS FILE
+# 8. CREATE KNOWN NETWORKS FILE AND ADD NETWORKS
 ###############################################
-echo "[Swarm Setup] Creating known networks file..."
+echo "[Swarm Setup] Configuring known WiFi networks..."
 
+# Create the config file if it doesn't exist
 if [ ! -f /etc/wifi_networks.conf ]; then
-    sudo bash -c "cat > /etc/wifi_networks.conf" <<EOF
+    cat > /etc/wifi_networks.conf <<EOF
 # WiFi Networks Configuration
 # Format: SSID:password
 # Example: MyNetwork:mypassword123
 EOF
 fi
 
+# Ask user if they want to add a WiFi network
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  📶 WiFi Network Configuration"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "Current known networks:"
+grep -v "^#" /etc/wifi_networks.conf | grep -v "^$" || echo "  (none configured)"
+echo ""
+echo "Would you like to add a WiFi network to connect to?"
+echo "This allows the system to connect to your network instead of creating an AP."
+echo ""
+read -p "Add a WiFi network? [y/N]: " -n 1 -r ADD_WIFI
+echo ""
+
+if [[ $ADD_WIFI =~ ^[Yy]$ ]]; then
+    # Scan for available networks if possible
+    if command -v nmcli &> /dev/null; then
+        echo ""
+        echo "Scanning for available networks..."
+        nmcli -t -f SSID dev wifi list 2>/dev/null | sort | uniq | head -10 || true
+        echo ""
+    elif command -v iw &> /dev/null && ip link show wlan0 &>/dev/null; then
+        echo ""
+        echo "Scanning for available networks..."
+        ip link set wlan0 up 2>/dev/null || true
+        iw wlan0 scan 2>/dev/null | grep "SSID:" | sed 's/.*SSID: //' | sort | uniq | head -10 || true
+        echo ""
+    fi
+
+    while true; do
+        read -p "Enter WiFi SSID (or 'done' to finish): " WIFI_SSID
+
+        if [[ "$WIFI_SSID" == "done" ]] || [[ -z "$WIFI_SSID" ]]; then
+            break
+        fi
+
+        read -s -p "Enter WiFi password for '$WIFI_SSID': " WIFI_PASS
+        echo ""
+
+        if [[ -n "$WIFI_PASS" ]]; then
+            # Check if network already exists
+            if grep -q "^${WIFI_SSID}:" /etc/wifi_networks.conf 2>/dev/null; then
+                echo "  ⚠️  Network '$WIFI_SSID' already configured, updating password..."
+                sed -i "/^${WIFI_SSID}:/d" /etc/wifi_networks.conf
+            fi
+
+            echo "${WIFI_SSID}:${WIFI_PASS}" >> /etc/wifi_networks.conf
+            echo "  ✅ Added network: $WIFI_SSID"
+        else
+            echo "  ⚠️  Skipped (empty password)"
+        fi
+
+        read -p "Add another network? [y/N]: " -n 1 -r ADD_ANOTHER
+        echo ""
+        if [[ ! $ADD_ANOTHER =~ ^[Yy]$ ]]; then
+            break
+        fi
+    done
+fi
+
+# Show final configuration
+echo ""
+echo "Configured WiFi networks:"
+NETWORK_COUNT=$(grep -v "^#" /etc/wifi_networks.conf | grep -v "^$" | wc -l)
+if [[ $NETWORK_COUNT -gt 0 ]]; then
+    grep -v "^#" /etc/wifi_networks.conf | grep -v "^$" | cut -d: -f1 | while read ssid; do
+        echo "  • $ssid"
+    done
+else
+    echo "  (none - system will start in AP mode)"
+fi
+echo ""
+
 ###############################################
 # 9. CREATE IMPROVED WIFI MANAGER
 ###############################################
 echo "[Swarm Setup] Creating wifi_manager.sh..."
 
-sudo bash -c "cat > /usr/local/bin/wifi_manager.sh" <<'EOF'
+cat > /usr/local/bin/wifi_manager.sh <<'EOF'
 #!/bin/bash
 
-WIFI_INTERFACE="wlan0"
+# Auto-detect WiFi interface at runtime
+detect_wifi_interface() {
+    if ip link show wlan0 &>/dev/null; then
+        echo "wlan0"
+    elif ip link show | grep -q "wlp"; then
+        ip link show | grep -oP 'wlp[a-z0-9]+' | head -1
+    elif ip link show | grep -q "wlx"; then
+        ip link show | grep -oP 'wlx[a-z0-9]+' | head -1
+    else
+        echo "wlan0"  # fallback
+    fi
+}
+
+WIFI_INTERFACE=$(detect_wifi_interface)
 CONFIG_FILE="/etc/wifi_networks.conf"
 AP_SSID="Swarm_AP"
 AP_PASS="swarmascend"
@@ -310,6 +483,7 @@ AP_IP="192.168.10.1"
 MAX_RETRIES=3
 
 echo "[WiFi Manager] Starting network check..."
+echo "[WiFi Manager] Using WiFi interface: $WIFI_INTERFACE"
 
 # Function to check if port 53 is free
 check_port_53() {
@@ -398,10 +572,20 @@ connect_with_wpa() {
     
     # Wait for connection
     sleep 5
-    
-    # Request DHCP
-    sudo dhclient "$WIFI_INTERFACE" 2>/dev/null
-    
+
+    # Request DHCP (try multiple methods for compatibility)
+    if command -v dhclient &>/dev/null; then
+        sudo dhclient "$WIFI_INTERFACE" 2>/dev/null
+    elif command -v dhcpcd &>/dev/null; then
+        sudo dhcpcd "$WIFI_INTERFACE" 2>/dev/null
+    else
+        # Fallback: use networkctl if available (systemd-networkd)
+        sudo networkctl reconfigure "$WIFI_INTERFACE" 2>/dev/null || true
+    fi
+
+    # Wait a bit more for IP assignment
+    sleep 3
+
     # Check if connected
     if ip addr show "$WIFI_INTERFACE" | grep -q "inet "; then
         return 0
@@ -708,9 +892,9 @@ if [[ "$SKIP_NETPLAN_APPLY" = true ]]; then
     echo ""
 fi
 
-echo "Configuration:"
-echo " • eth0: Static IP 192.168.10.1/24"
-echo " • wlan0: Managed by WiFi Manager"
+echo "Configuration (Ubuntu $UBUNTU_VERSION):"
+echo " • $ETH_INTERFACE: Static IP 192.168.10.1/24"
+echo " • $WIFI_INTERFACE: Managed by WiFi Manager"
 echo " • AP Mode: SSID='$AP_SSID', Pass='$AP_PASS'"
 echo ""
 echo "Quick Commands:"
