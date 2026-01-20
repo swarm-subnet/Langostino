@@ -199,6 +199,11 @@ wpa_key_mgmt=WPA-PSK
 rsn_pairwise=CCMP
 ctrl_interface=/var/run/hostapd
 ctrl_interface_group=0
+
+# Required for Ubuntu 24.04 / modern kernels (compatible with 22.04)
+country_code=ES
+ieee80211n=1
+ieee80211d=1
 EOF
 
 sudo bash -c "echo 'DAEMON_CONF=\"/etc/hostapd/hostapd.conf\"' > /etc/default/hostapd"
@@ -399,7 +404,13 @@ fi
 # If not connected, start AP mode
 if [ "$CONNECTED" = false ]; then
     echo "[WiFi Manager] No known network available, starting Access Point..."
-    
+
+    # Tell NetworkManager to release the interface (if NM is running)
+    if command -v nmcli &> /dev/null; then
+        echo "[WiFi Manager] Releasing wlan0 from NetworkManager..."
+        sudo nmcli device set "$WIFI_INTERFACE" managed no 2>/dev/null || true
+    fi
+
     # Configure interface for AP mode
     sudo ip link set "$WIFI_INTERFACE" down
     sudo ip addr flush dev "$WIFI_INTERFACE"
