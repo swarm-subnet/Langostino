@@ -461,7 +461,7 @@ class MSPDataTypes:
 
     @staticmethod
     def unpack_waypoint(data: bytes) -> Dict[str, Any]:
-        """
+        r"""
         Unpack MSP_WP (code=118) payload.
 
         NOTE: INAV adds 1 byte after wp_no, so fields start one byte later than

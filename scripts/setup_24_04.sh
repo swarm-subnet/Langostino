@@ -79,11 +79,11 @@ done
 ################################################################################
 
 # Source ROS distro if available
-if [ -f /opt/ros/jazzy/setup.bash ]; then
-  source /opt/ros/jazzy/setup.bash
+if [ -z "$ROS_DISTRO" ]; then
+  [ -f /opt/ros/jazzy/setup.bash ] && source /opt/ros/jazzy/setup.bash
+  [ -f /opt/ros/humble/setup.bash ] && source /opt/ros/humble/setup.bash
 fi
 
-# Source workspace if exists
 if [ -f "$WORKSPACE_DIR/install/setup.bash" ]; then
   source "$WORKSPACE_DIR/install/setup.bash"
 elif [ -f "$WORKSPACE_DIR/install/setup.sh" ]; then
