@@ -276,6 +276,40 @@ sudo systemctl disable dnsmasq || true
 sudo systemctl disable hostapd || true
 
 ###############################################
+# 4.5 DISABLE NETWORKMANAGER FOR WIFI (Ubuntu 24.04 fix)
+###############################################
+echo "[Swarm Setup] Configuring NetworkManager to not manage WiFi..."
+
+# Create NetworkManager config to ignore our WiFi interface
+if command -v nmcli &>/dev/null; then
+    mkdir -p /etc/NetworkManager/conf.d
+
+    cat > /etc/NetworkManager/conf.d/99-swarm-unmanaged.conf <<EOF
+# Swarm: Prevent NetworkManager from managing WiFi interface
+# WiFi is managed by wifi-manager.service instead
+[keyfile]
+unmanaged-devices=interface-name:$WIFI_INTERFACE;interface-name:wlan*;interface-name:wlp*
+EOF
+
+    # Also disable WiFi management in main config if it exists
+    if [ -f /etc/NetworkManager/NetworkManager.conf ]; then
+        if ! grep -q "wifi.scan-rand-mac-address=no" /etc/NetworkManager/NetworkManager.conf; then
+            cat >> /etc/NetworkManager/NetworkManager.conf <<EOF
+
+[device]
+wifi.scan-rand-mac-address=no
+EOF
+        fi
+    fi
+
+    # Reload NetworkManager configuration
+    systemctl reload NetworkManager 2>/dev/null || systemctl restart NetworkManager 2>/dev/null || true
+    echo "[Swarm Setup] ✅ NetworkManager configured to ignore $WIFI_INTERFACE"
+else
+    echo "[Swarm Setup] NetworkManager not installed, skipping configuration"
+fi
+
+###############################################
 # 5. CONFIGURE NETPLAN (FIXED VERSION)
 ###############################################
 echo "[Swarm Setup] Configuring Netplan for interface: $ETH_INTERFACE"
@@ -462,6 +496,35 @@ echo "[Swarm Setup] Creating wifi_manager.sh..."
 cat > /usr/local/bin/wifi_manager.sh <<'EOF'
 #!/bin/bash
 
+# ============================================================
+# Swarm WiFi Manager
+# Manages WiFi connectivity: connects to known networks or
+# creates an Access Point if no known networks are available
+# Compatible with Ubuntu 22.04 and 24.04
+# ============================================================
+
+LOG_TAG="WiFi Manager"
+
+log_info() {
+    echo "[$LOG_TAG] $1"
+    logger -t "wifi-manager" "$1" 2>/dev/null || true
+}
+
+log_success() {
+    echo "[$LOG_TAG] ✅ $1"
+    logger -t "wifi-manager" "SUCCESS: $1" 2>/dev/null || true
+}
+
+log_warning() {
+    echo "[$LOG_TAG] ⚠️ $1"
+    logger -t "wifi-manager" "WARNING: $1" 2>/dev/null || true
+}
+
+log_error() {
+    echo "[$LOG_TAG] ❌ $1"
+    logger -t "wifi-manager" "ERROR: $1" 2>/dev/null || true
+}
+
 # Auto-detect WiFi interface at runtime
 detect_wifi_interface() {
     if ip link show wlan0 &>/dev/null; then
@@ -481,207 +544,343 @@ AP_SSID="Swarm_AP"
 AP_PASS="swarmascend"
 AP_IP="192.168.10.1"
 MAX_RETRIES=3
+CONNECTION_TIMEOUT=30
 
-echo "[WiFi Manager] Starting network check..."
-echo "[WiFi Manager] Using WiFi interface: $WIFI_INTERFACE"
+log_info "============================================"
+log_info "Starting WiFi Manager"
+log_info "WiFi interface: $WIFI_INTERFACE"
+log_info "Config file: $CONFIG_FILE"
+log_info "============================================"
 
-# Function to check if port 53 is free
-check_port_53() {
-    if sudo lsof -i:53 2>/dev/null | grep -q "LISTEN"; then
-        echo "[WiFi Manager] Port 53 is in use, attempting to free it..."
-        
-        # Try to kill systemd-resolved if it's using the port
-        if sudo lsof -i:53 2>/dev/null | grep -q systemd-r; then
-            echo "[WiFi Manager] Stopping systemd-resolved..."
-            sudo systemctl stop systemd-resolved || true
+# ============================================================
+# STEP 0: Stop conflicting services and clean up
+# ============================================================
+cleanup_services() {
+    log_info "Cleaning up conflicting services..."
+
+    # Stop AP services
+    systemctl stop hostapd 2>/dev/null || true
+    systemctl stop dnsmasq 2>/dev/null || true
+
+    # Kill any existing wpa_supplicant for our interface
+    killall wpa_supplicant 2>/dev/null || true
+
+    # Release DHCP leases
+    dhclient -r "$WIFI_INTERFACE" 2>/dev/null || true
+
+    # Small delay to let services stop
+    sleep 1
+}
+
+# ============================================================
+# STEP 1: Disable NetworkManager control over WiFi interface
+# This is CRITICAL on Ubuntu 24.04 to prevent conflicts
+# ============================================================
+disable_networkmanager_wifi() {
+    if command -v nmcli &>/dev/null; then
+        log_info "Configuring NetworkManager to not manage $WIFI_INTERFACE..."
+
+        # Set device as unmanaged
+        nmcli device set "$WIFI_INTERFACE" managed no 2>/dev/null || true
+
+        # Also disable WiFi globally in NM if we're going to manage it ourselves
+        # nmcli radio wifi off 2>/dev/null || true
+
+        sleep 1
+        log_success "NetworkManager released $WIFI_INTERFACE"
+    fi
+}
+
+# ============================================================
+# STEP 2: Check if port 53 is free (needed for dnsmasq)
+# ============================================================
+free_port_53() {
+    if lsof -i:53 2>/dev/null | grep -q "LISTEN"; then
+        log_warning "Port 53 is in use, attempting to free it..."
+
+        # Try to configure systemd-resolved to not use port 53
+        if lsof -i:53 2>/dev/null | grep -q systemd-r; then
+            log_info "Stopping systemd-resolved..."
+            systemctl stop systemd-resolved || true
             sleep 2
         fi
-        
+
         # Kill any remaining process on port 53
-        local pids=$(sudo lsof -ti:53 2>/dev/null)
+        local pids=$(lsof -ti:53 2>/dev/null)
         if [ ! -z "$pids" ]; then
-            echo "[WiFi Manager] Killing processes on port 53: $pids"
-            sudo kill -9 $pids 2>/dev/null || true
-            sleep 2
+            log_info "Killing processes on port 53: $pids"
+            kill -9 $pids 2>/dev/null || true
+            sleep 1
         fi
     fi
 }
 
-# Function to start AP services with retry logic
+# ============================================================
+# STEP 3: Start AP services
+# ============================================================
 start_ap_services() {
     local retries=0
-    
+
+    # Ensure port 53 is free
+    free_port_53
+
     # Start dnsmasq with retry logic
     while [ $retries -lt $MAX_RETRIES ]; do
-        check_port_53
-        
-        if sudo systemctl start dnsmasq 2>/dev/null; then
-            echo "[WiFi Manager] ✅ dnsmasq started successfully"
+        if systemctl start dnsmasq 2>/dev/null; then
+            log_success "dnsmasq started"
             break
         else
-            echo "[WiFi Manager] ⚠️ Failed to start dnsmasq, retry $((retries+1))/$MAX_RETRIES"
+            log_warning "Failed to start dnsmasq, retry $((retries+1))/$MAX_RETRIES"
+            free_port_53
             retries=$((retries+1))
             sleep 2
         fi
     done
-    
+
     if [ $retries -eq $MAX_RETRIES ]; then
-        echo "[WiFi Manager] ❌ Failed to start dnsmasq after $MAX_RETRIES attempts"
+        log_error "Failed to start dnsmasq after $MAX_RETRIES attempts"
         return 1
     fi
-    
+
     # Start hostapd
-    if ! sudo systemctl start hostapd 2>/dev/null; then
-        echo "[WiFi Manager] ⚠️ Failed to start hostapd, checking if masked..."
-        
+    if ! systemctl start hostapd 2>/dev/null; then
+        log_warning "Failed to start hostapd, checking if masked..."
+
         # Check and unmask if needed
         if systemctl list-unit-files 2>/dev/null | grep -q "hostapd.service.*masked"; then
-            echo "[WiFi Manager] Unmasking hostapd..."
-            sudo systemctl unmask hostapd
+            log_info "Unmasking hostapd..."
+            systemctl unmask hostapd
         fi
-        
+
         # Try again
-        if sudo systemctl start hostapd; then
-            echo "[WiFi Manager] ✅ hostapd started successfully"
+        if systemctl start hostapd; then
+            log_success "hostapd started"
         else
-            echo "[WiFi Manager] ❌ Failed to start hostapd"
+            log_error "Failed to start hostapd"
+            journalctl -u hostapd --no-pager -n 10 2>/dev/null || true
             return 1
         fi
     else
-        echo "[WiFi Manager] ✅ hostapd started successfully"
+        log_success "hostapd started"
     fi
-    
+
     return 0
 }
 
-# Function to connect with wpa_supplicant
+# ============================================================
+# STEP 4: Connect with wpa_supplicant (non-NetworkManager method)
+# ============================================================
 connect_with_wpa() {
     local ssid="$1"
     local password="$2"
-    
-    echo "[WiFi Manager] Configuring wpa_supplicant for $ssid..."
-    
-    # Create wpa_supplicant configuration
-    wpa_passphrase "$ssid" "$password" | sudo tee /etc/wpa_supplicant/wpa_supplicant-wlan0.conf > /dev/null
-    
-    # Add control interface
-    sudo sed -i '1i ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\ncountry=ES\n' /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
-    
+    local config_file="/etc/wpa_supplicant/wpa_supplicant-${WIFI_INTERFACE}.conf"
+
+    log_info "Configuring wpa_supplicant for '$ssid'..."
+
+    # Create wpa_supplicant configuration directory
+    mkdir -p /etc/wpa_supplicant
+
+    # Generate wpa_supplicant configuration
+    cat > "$config_file" <<WPAEOF
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country=ES
+
+WPAEOF
+
+    # Add network configuration
+    wpa_passphrase "$ssid" "$password" >> "$config_file"
+
+    # Remove the plaintext password comment for security
+    sed -i '/#psk=/d' "$config_file"
+
+    # Ensure interface is up
+    ip link set "$WIFI_INTERFACE" up
+    sleep 1
+
     # Start wpa_supplicant
-    sudo wpa_supplicant -B -i "$WIFI_INTERFACE" -c /etc/wpa_supplicant/wpa_supplicant-wlan0.conf 2>/dev/null
-    
-    # Wait for connection
-    sleep 5
+    log_info "Starting wpa_supplicant..."
+    wpa_supplicant -B -i "$WIFI_INTERFACE" -c "$config_file" 2>/dev/null
 
-    # Request DHCP (try multiple methods for compatibility)
-    if command -v dhclient &>/dev/null; then
-        sudo dhclient "$WIFI_INTERFACE" 2>/dev/null
-    elif command -v dhcpcd &>/dev/null; then
-        sudo dhcpcd "$WIFI_INTERFACE" 2>/dev/null
-    else
-        # Fallback: use networkctl if available (systemd-networkd)
-        sudo networkctl reconfigure "$WIFI_INTERFACE" 2>/dev/null || true
-    fi
+    # Wait for association
+    log_info "Waiting for WiFi association..."
+    local wait_time=0
+    while [ $wait_time -lt $CONNECTION_TIMEOUT ]; do
+        if iw "$WIFI_INTERFACE" link 2>/dev/null | grep -q "Connected"; then
+            log_success "Associated with $ssid"
+            break
+        fi
+        sleep 1
+        wait_time=$((wait_time + 1))
+    done
 
-    # Wait a bit more for IP assignment
-    sleep 3
-
-    # Check if connected
-    if ip addr show "$WIFI_INTERFACE" | grep -q "inet "; then
-        return 0
-    else
+    if [ $wait_time -ge $CONNECTION_TIMEOUT ]; then
+        log_warning "Association timeout for $ssid"
         return 1
     fi
+
+    # Request DHCP (try multiple methods for compatibility)
+    log_info "Requesting IP address via DHCP..."
+    if command -v dhclient &>/dev/null; then
+        dhclient -v "$WIFI_INTERFACE" 2>&1 | head -5
+    elif command -v dhcpcd &>/dev/null; then
+        dhcpcd "$WIFI_INTERFACE" 2>/dev/null
+    else
+        # Fallback: use networkctl if available (systemd-networkd)
+        networkctl reconfigure "$WIFI_INTERFACE" 2>/dev/null || true
+    fi
+
+    # Wait for IP assignment
+    local ip_wait=0
+    while [ $ip_wait -lt 15 ]; do
+        if ip addr show "$WIFI_INTERFACE" | grep -q "inet "; then
+            local ip_addr=$(ip addr show "$WIFI_INTERFACE" | grep "inet " | awk '{print $2}')
+            log_success "Got IP address: $ip_addr"
+            return 0
+        fi
+        sleep 1
+        ip_wait=$((ip_wait + 1))
+    done
+
+    log_warning "Failed to get IP address"
+    return 1
 }
 
-# Deactivate AP services first
-sudo systemctl stop hostapd 2>/dev/null || true
-sudo systemctl stop dnsmasq 2>/dev/null || true
+# ============================================================
+# STEP 5: Verify and maintain connection
+# ============================================================
+verify_connection() {
+    # Check if we have an IP
+    if ! ip addr show "$WIFI_INTERFACE" | grep -q "inet "; then
+        return 1
+    fi
 
-# Kill any existing wpa_supplicant
-sudo killall wpa_supplicant 2>/dev/null || true
-
-CONNECTED=false
-
-# Check if we have NetworkManager
-if command -v nmcli &> /dev/null; then
-    echo "[WiFi Manager] Using NetworkManager..."
-    
-    # Scan for available networks
-    AVAILABLE=$(nmcli -t -f SSID dev wifi list 2>/dev/null | sort | uniq)
-    
-    if [ ! -z "$AVAILABLE" ]; then
-        echo "[WiFi Manager] Detected networks:"
-        echo "$AVAILABLE"
-        
-        # Try to connect to known networks
-        if [ -f "$CONFIG_FILE" ]; then
-            while IFS=: read -r SSID PASSWORD; do
-                # Skip empty lines and comments
-                [[ -z "$SSID" || "$SSID" =~ ^# ]] && continue
-                
-                if echo "$AVAILABLE" | grep -qx "$SSID"; then
-                    echo "[WiFi Manager] Trying to connect to $SSID..."
-                    if nmcli dev wifi connect "$SSID" password "$PASSWORD" ifname "$WIFI_INTERFACE" 2>/dev/null; then
-                        CONNECTED=true
-                        echo "[WiFi Manager] ✅ Connected to $SSID"
-                        break
-                    fi
-                fi
-            done < "$CONFIG_FILE"
+    # Try to ping gateway
+    local gateway=$(ip route | grep default | grep "$WIFI_INTERFACE" | awk '{print $3}' | head -1)
+    if [ -n "$gateway" ]; then
+        if ping -c 1 -W 2 "$gateway" &>/dev/null; then
+            return 0
         fi
     fi
-else
-    echo "[WiFi Manager] NetworkManager not found, using wpa_supplicant..."
-    
-    # Try wpa_supplicant for known networks
-    if [ -f "$CONFIG_FILE" ]; then
-        # Bring up the interface
-        sudo ip link set "$WIFI_INTERFACE" up
-        
-        # Scan for networks
-        SCAN_RESULT=$(sudo iw "$WIFI_INTERFACE" scan 2>/dev/null | grep "SSID:" | sed 's/.*SSID: //')
-        
+
+    # Alternatively, check if we can reach Google DNS
+    if ping -c 1 -W 2 8.8.8.8 &>/dev/null; then
+        return 0
+    fi
+
+    return 1
+}
+
+# ============================================================
+# MAIN LOGIC
+# ============================================================
+
+# Step 0: Cleanup
+cleanup_services
+
+# Step 1: Disable NetworkManager control
+disable_networkmanager_wifi
+
+# Step 2: Check for known networks in config
+CONNECTED=false
+
+if [ -f "$CONFIG_FILE" ]; then
+    # Count configured networks
+    NETWORK_COUNT=$(grep -v "^#" "$CONFIG_FILE" | grep -v "^$" | wc -l)
+    log_info "Found $NETWORK_COUNT configured network(s)"
+
+    if [ "$NETWORK_COUNT" -gt 0 ]; then
+        # Bring up interface for scanning
+        ip link set "$WIFI_INTERFACE" up
+        sleep 2
+
+        # Scan for available networks
+        log_info "Scanning for WiFi networks..."
+        SCAN_RESULT=$(iw "$WIFI_INTERFACE" scan 2>/dev/null | grep "SSID:" | sed 's/.*SSID: //' | sort | uniq)
+
+        if [ -z "$SCAN_RESULT" ]; then
+            log_warning "No networks found in scan, retrying..."
+            sleep 3
+            SCAN_RESULT=$(iw "$WIFI_INTERFACE" scan 2>/dev/null | grep "SSID:" | sed 's/.*SSID: //' | sort | uniq)
+        fi
+
+        if [ -n "$SCAN_RESULT" ]; then
+            log_info "Available networks:"
+            echo "$SCAN_RESULT" | while read net; do echo "  - $net"; done
+        else
+            log_warning "Could not scan for networks"
+        fi
+
+        # Try to connect to known networks
         while IFS=: read -r SSID PASSWORD; do
             # Skip empty lines and comments
             [[ -z "$SSID" || "$SSID" =~ ^# ]] && continue
-            
-            if echo "$SCAN_RESULT" | grep -q "$SSID"; then
-                echo "[WiFi Manager] Found known network: $SSID"
+
+            log_info "Checking for known network: $SSID"
+
+            if echo "$SCAN_RESULT" | grep -qF "$SSID"; then
+                log_info "Found known network: $SSID - attempting connection..."
+
                 if connect_with_wpa "$SSID" "$PASSWORD"; then
-                    CONNECTED=true
-                    echo "[WiFi Manager] ✅ Connected to $SSID"
-                    break
+                    # Verify the connection is actually working
+                    sleep 2
+                    if verify_connection; then
+                        CONNECTED=true
+                        log_success "Connected and verified: $SSID"
+                        break
+                    else
+                        log_warning "Connected but verification failed, trying next network..."
+                        killall wpa_supplicant 2>/dev/null || true
+                        dhclient -r "$WIFI_INTERFACE" 2>/dev/null || true
+                    fi
+                else
+                    log_warning "Failed to connect to $SSID"
                 fi
+            else
+                log_info "Network '$SSID' not in range"
             fi
         done < "$CONFIG_FILE"
     fi
+else
+    log_warning "Config file not found: $CONFIG_FILE"
 fi
 
-# If not connected, start AP mode
+# Step 3: If not connected, start AP mode
 if [ "$CONNECTED" = false ]; then
-    echo "[WiFi Manager] No known network available, starting Access Point..."
+    log_info "============================================"
+    log_info "No known network available - Starting AP mode"
+    log_info "============================================"
 
-    # Tell NetworkManager to release the interface (if NM is running)
-    if command -v nmcli &> /dev/null; then
-        echo "[WiFi Manager] Releasing wlan0 from NetworkManager..."
-        sudo nmcli device set "$WIFI_INTERFACE" managed no 2>/dev/null || true
-    fi
+    # Make sure wpa_supplicant is stopped
+    killall wpa_supplicant 2>/dev/null || true
 
     # Configure interface for AP mode
-    sudo ip link set "$WIFI_INTERFACE" down
-    sudo ip addr flush dev "$WIFI_INTERFACE"
-    sudo ip addr add "$AP_IP/24" dev "$WIFI_INTERFACE"
-    sudo ip link set "$WIFI_INTERFACE" up
-    
+    ip link set "$WIFI_INTERFACE" down
+    ip addr flush dev "$WIFI_INTERFACE"
+    ip addr add "$AP_IP/24" dev "$WIFI_INTERFACE"
+    ip link set "$WIFI_INTERFACE" up
+
+    sleep 1
+
     # Start AP services
     if start_ap_services; then
-        echo "[WiFi Manager] ✅ AP active: SSID=$AP_SSID, PASS=$AP_PASS"
+        log_success "============================================"
+        log_success "Access Point Active"
+        log_success "  SSID: $AP_SSID"
+        log_success "  Password: $AP_PASS"
+        log_success "  IP: $AP_IP"
+        log_success "============================================"
     else
-        echo "[WiFi Manager] ❌ Failed to start AP mode"
+        log_error "Failed to start AP mode"
         exit 1
     fi
+else
+    log_success "============================================"
+    log_success "WiFi Client Mode Active"
+    log_success "============================================"
 fi
+
+log_info "WiFi Manager completed"
 EOF
 
 sudo chmod +x /usr/local/bin/wifi_manager.sh
@@ -856,6 +1055,15 @@ if [[ ! -f /usr/local/bin/wifi_manager.sh ]]; then
     VERIFICATION_ERRORS=$((VERIFICATION_ERRORS + 1))
 else
     echo "  ✅ OK: wifi_manager.sh"
+fi
+
+# Check NetworkManager config (only if NM is installed)
+if command -v nmcli &>/dev/null; then
+    if [[ ! -f /etc/NetworkManager/conf.d/99-swarm-unmanaged.conf ]]; then
+        echo "  ⚠️  MISSING: NetworkManager unmanaged config (may cause WiFi conflicts)"
+    else
+        echo "  ✅ OK: NetworkManager unmanaged config"
+    fi
 fi
 
 echo ""
