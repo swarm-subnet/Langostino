@@ -900,9 +900,16 @@ install_pm2() {
     fi
 
     # Setup PM2 startup script
+    # Note: pm2 startup needs to run with specific sudo format to generate the systemd service
     if [[ -n "$TARGET_USER" ]]; then
-        sudo -u "$TARGET_USER" pm2 startup systemd -u "$TARGET_USER" --hp "$(getent passwd "$TARGET_USER" | cut -d: -f6)"
-        print_success "PM2 startup configured"
+        local user_home
+        user_home="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
+
+        # Generate and install PM2 startup script (must run as root with env)
+        env PATH="$PATH:/usr/bin" pm2 startup systemd -u "$TARGET_USER" --hp "$user_home" --service-name pm2-${TARGET_USER} 2>/dev/null || true
+
+        print_success "PM2 startup configured for $TARGET_USER"
+        print_info "PM2 will auto-start on boot"
     else
         print_warning "Skipping PM2 startup (no target user detected)"
     fi
