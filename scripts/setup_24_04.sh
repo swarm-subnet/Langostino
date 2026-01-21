@@ -521,23 +521,23 @@ configure_uart() {
             fi
         fi
 
-        # Disable serial-getty service (will be stopped after reboot)
-        if systemctl is-enabled serial-getty@ttyAMA0.service &>/dev/null; then
-            systemctl disable serial-getty@ttyAMA0.service
-            print_success "Disabled serial-getty@ttyAMA0.service"
-        else
-            print_info "serial-getty@ttyAMA0 not enabled"
-        fi
+        # Disable serial-getty services for all possible UART devices (ttyAMA0 for Pi 4, ttyAMA10 for Pi 5)
+        for uart_dev in ttyAMA0 ttyAMA10; do
+            if systemctl is-enabled "serial-getty@${uart_dev}.service" &>/dev/null; then
+                systemctl disable "serial-getty@${uart_dev}.service"
+                print_success "Disabled serial-getty@${uart_dev}.service"
+            fi
 
-        # Stop serial-getty service if currently running
-        if systemctl is-active serial-getty@ttyAMA0.service &>/dev/null; then
-            systemctl stop serial-getty@ttyAMA0.service
-            print_success "Stopped serial-getty@ttyAMA0.service"
-        fi
+            # Stop serial-getty service if currently running
+            if systemctl is-active "serial-getty@${uart_dev}.service" &>/dev/null; then
+                systemctl stop "serial-getty@${uart_dev}.service"
+                print_success "Stopped serial-getty@${uart_dev}.service"
+            fi
+        done
 
-        print_warning "Bluetooth and serial console disabled to free PL011 UART for flight controller"
+        print_warning "Bluetooth and serial console disabled to free UART for flight controller"
         print_info "This ensures reliable serial communication at 115200 baud"
-        print_info "Serial console will no longer be available on ttyAMA0"
+        print_info "Serial console will no longer be available on UART"
     fi
 
     # Set UART permissions
@@ -692,19 +692,32 @@ check_uart_device() {
         return
     fi
 
-    # Expected UART device is /dev/ttyAMA0 (from config)
+    # Detect UART device - Ubuntu 24.04 on Pi 5 uses ttyAMA10, Pi 4 uses ttyAMA0
+    local UART_DEVICE=""
     if [[ -e /dev/ttyAMA0 ]]; then
-        print_success "UART device /dev/ttyAMA0 found"
+        UART_DEVICE="/dev/ttyAMA0"
+    elif [[ -e /dev/ttyAMA10 ]]; then
+        UART_DEVICE="/dev/ttyAMA10"
+        print_info "Detected Raspberry Pi 5 UART (ttyAMA10)"
+    fi
+
+    if [[ -n "$UART_DEVICE" ]]; then
+        print_success "UART device $UART_DEVICE found"
 
         # Check if it's accessible
-        if [[ -r /dev/ttyAMA0 ]] && [[ -w /dev/ttyAMA0 ]]; then
+        if [[ -r "$UART_DEVICE" ]] && [[ -w "$UART_DEVICE" ]]; then
             print_success "UART device is readable and writable"
         else
             print_warning "UART device exists but may not have correct permissions"
             print_info "User needs to be in 'dialout' group (requires re-login)"
         fi
+
+        # Note for configuration
+        if [[ "$UART_DEVICE" == "/dev/ttyAMA10" ]]; then
+            print_warning "NOTE: Update your swarm_params.yaml to use /dev/ttyAMA10 instead of /dev/ttyAMA0"
+        fi
     else
-        print_warning "UART device /dev/ttyAMA0 not found"
+        print_warning "No UART device found (ttyAMA0 or ttyAMA10)"
         print_info "Flight controller may not be connected"
 
         # List available serial devices
@@ -725,11 +738,11 @@ setup_ros2_workspace() {
     # Fix workspace ownership (in case script was run with sudo)
     print_info "Ensuring correct workspace permissions..."
     if [[ -n "$TARGET_USER" ]]; then
-        sudo chown -R "$TARGET_USER:$TARGET_USER"  ~/"$WORKSPACE_DIR"
+        chown -R "$TARGET_USER:$TARGET_USER" "$WORKSPACE_DIR"
         print_success "Workspace ownership set to $TARGET_USER"
     elif [[ "$EUID" -ne 0 ]]; then
         # Running as normal user, ensure ownership
-        sudo chown -R "$USER:$USER"  ~/"$WORKSPACE_DIR"
+        chown -R "$USER:$USER" "$WORKSPACE_DIR"
         print_success "Workspace ownership set to $USER"
     else
         print_warning "Skipping workspace ownership update (no target user detected)"
@@ -918,7 +931,7 @@ print_summary() {
         echo "     ${BLUE}sudo reboot${NC}"
         echo "  2. After reboot, verify hardware connections:"
         echo "     ${BLUE}i2cdetect -y 1${NC}  (check LiDAR at 0x08)"
-        echo "     ${BLUE}ls -l /dev/ttyAMA0${NC}  (check flight controller UART)"
+        echo "     ${BLUE}ls -l /dev/ttyAMA*${NC}  (check flight controller UART - ttyAMA0 on Pi4, ttyAMA10 on Pi5)"
         echo "  3. Launch the system:"
     else
         echo "  1. Log out and log back in for group changes to take effect"
@@ -927,7 +940,7 @@ print_summary() {
         echo "     ${BLUE}source $WORKSPACE_DIR/install/setup.bash${NC}"
         echo "  3. Verify hardware connections:"
         echo "     ${BLUE}i2cdetect -y 1${NC}  (check LiDAR at 0x08)"
-        echo "     ${BLUE}ls -l /dev/ttyAMA0${NC}  (check flight controller)"
+        echo "     ${BLUE}ls -l /dev/ttyAMA*${NC}  (check flight controller UART)"
         echo "  4. Launch the system:"
     fi
     echo "     ${BLUE}./launch.sh${NC}  (if using PM2)"
