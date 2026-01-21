@@ -579,11 +579,11 @@ configure_dmesg_permissions() {
 configure_network() {
     print_header "Configuring Network Settings"
 
-    local NETWORK_SETUP_SCRIPT="$SCRIPT_DIR/network_setup.sh"
+    local NETWORK_SETUP_SCRIPT="$SCRIPT_DIR/network_setup_24_04.sh"
 
     if [[ ! -f "$NETWORK_SETUP_SCRIPT" ]]; then
         print_error "Network setup script not found: $NETWORK_SETUP_SCRIPT"
-        print_info "Expected location: $SCRIPT_DIR/network_setup.sh"
+        print_info "Expected location: $SCRIPT_DIR/network_setup_24_04.sh"
         print_warning "Network configuration SKIPPED - please run network_setup.sh manually"
         return 1
     fi

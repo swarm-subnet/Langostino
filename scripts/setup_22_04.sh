@@ -457,7 +457,7 @@ EOF
 configure_network() {
     print_header "Configuring Network Settings"
 
-    local NETWORK_SETUP_SCRIPT="$WORKSPACE_DIR/network_setup.sh"
+    local NETWORK_SETUP_SCRIPT="$WORKSPACE_DIR/network_setup_22_04.sh"
 
     if [[ ! -f "$NETWORK_SETUP_SCRIPT" ]]; then
         print_warning "Network setup script not found: $NETWORK_SETUP_SCRIPT"
