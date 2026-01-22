@@ -499,6 +499,19 @@ configure_uart() {
             print_info "UART already enabled in config.txt"
         fi
 
+        # Add Pi 5 specific UART overlay (required for GPIO 14/15 UART on Pi 5)
+        # This creates /dev/ttyAMA0 mapped to GPIO 14 (TX) and GPIO 15 (RX)
+        if ! grep -q "^\[pi5\]" /boot/firmware/config.txt; then
+            echo -e "\n[pi5]\ndtoverlay=uart0-pi5" >> /boot/firmware/config.txt
+            print_success "Added [pi5] section with dtoverlay=uart0-pi5 to config.txt"
+        elif ! grep -A5 "^\[pi5\]" /boot/firmware/config.txt | grep -q "^dtoverlay=uart0-pi5"; then
+            # [pi5] section exists but uart0-pi5 overlay is missing - add it after the section header
+            sed -i '/^\[pi5\]/a dtoverlay=uart0-pi5' /boot/firmware/config.txt
+            print_success "Added dtoverlay=uart0-pi5 to existing [pi5] section"
+        else
+            print_info "dtoverlay=uart0-pi5 already in [pi5] section"
+        fi
+
         # CRITICAL: Remove serial console from cmdline.txt
         # This prevents kernel/getty from using ttyAMA0 for console
         if [[ -f /boot/firmware/cmdline.txt ]]; then
@@ -692,33 +705,21 @@ check_uart_device() {
         return
     fi
 
-    # Detect UART device - Ubuntu 24.04 on Pi 5 uses ttyAMA10, Pi 4 uses ttyAMA0
-    local UART_DEVICE=""
+    # Expected UART device is /dev/ttyAMA0 (created by dtoverlay=uart0-pi5 on Pi 5)
     if [[ -e /dev/ttyAMA0 ]]; then
-        UART_DEVICE="/dev/ttyAMA0"
-    elif [[ -e /dev/ttyAMA10 ]]; then
-        UART_DEVICE="/dev/ttyAMA10"
-        print_info "Detected Raspberry Pi 5 UART (ttyAMA10)"
-    fi
-
-    if [[ -n "$UART_DEVICE" ]]; then
-        print_success "UART device $UART_DEVICE found"
+        print_success "UART device /dev/ttyAMA0 found"
 
         # Check if it's accessible
-        if [[ -r "$UART_DEVICE" ]] && [[ -w "$UART_DEVICE" ]]; then
+        if [[ -r /dev/ttyAMA0 ]] && [[ -w /dev/ttyAMA0 ]]; then
             print_success "UART device is readable and writable"
         else
             print_warning "UART device exists but may not have correct permissions"
             print_info "User needs to be in 'dialout' group (requires re-login)"
         fi
-
-        # Note for configuration
-        if [[ "$UART_DEVICE" == "/dev/ttyAMA10" ]]; then
-            print_warning "NOTE: Update your swarm_params.yaml to use /dev/ttyAMA10 instead of /dev/ttyAMA0"
-        fi
     else
-        print_warning "No UART device found (ttyAMA0 or ttyAMA10)"
+        print_warning "UART device /dev/ttyAMA0 not found"
         print_info "Flight controller may not be connected"
+        print_info "On Raspberry Pi 5, ensure dtoverlay=uart0-pi5 is in /boot/firmware/config.txt and reboot"
 
         # List available serial devices
         echo -e "\nAvailable serial devices:"
@@ -938,7 +939,7 @@ print_summary() {
         echo "     ${BLUE}sudo reboot${NC}"
         echo "  2. After reboot, verify hardware connections:"
         echo "     ${BLUE}i2cdetect -y 1${NC}  (check LiDAR at 0x08)"
-        echo "     ${BLUE}ls -l /dev/ttyAMA*${NC}  (check flight controller UART - ttyAMA0 on Pi4, ttyAMA10 on Pi5)"
+        echo "     ${BLUE}ls -l /dev/ttyAMA0${NC}  (check flight controller UART)"
         echo "  3. Launch the system:"
     else
         echo "  1. Log out and log back in for group changes to take effect"
@@ -947,7 +948,7 @@ print_summary() {
         echo "     ${BLUE}source $WORKSPACE_DIR/install/setup.bash${NC}"
         echo "  3. Verify hardware connections:"
         echo "     ${BLUE}i2cdetect -y 1${NC}  (check LiDAR at 0x08)"
-        echo "     ${BLUE}ls -l /dev/ttyAMA*${NC}  (check flight controller UART)"
+        echo "     ${BLUE}ls -l /dev/ttyAMA0${NC}  (check flight controller UART)"
         echo "  4. Launch the system:"
     fi
     echo "     ${BLUE}./launch.sh${NC}  (if using PM2)"
