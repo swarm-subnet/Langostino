@@ -249,6 +249,7 @@ Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pi
 
 <!-- SECTION 9 -->
 
+<!--
 <hr/>
 
 <h2 align="center">Repository structure</h2>
@@ -276,6 +277,7 @@ langostino/
   </code></pre>
 
 </details>
+-->
 
 <!-- SECTION 10 -->
 
