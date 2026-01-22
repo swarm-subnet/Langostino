@@ -71,7 +71,7 @@ class FCAdapterNode(Node):
 
         # Arming, rise and safety
         self.declare_parameter('arming_duration_sec', 20.0)
-        self.declare_parameter('rise_duration_sec', 30.0)
+        self.declare_parameter('rise_duration_sec', 5.0)
         self.declare_parameter('command_timeout', 1.0)
 
         # Get parameter values
