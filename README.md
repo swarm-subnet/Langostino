@@ -36,7 +36,7 @@
 <!-- SECTION 2 -->
 <hr/>
 
-<h2 align="center">Demo I</h2>
+<h2 align="center">Step 1 - Assemble the drone and get it to hold position</h2>
 
 <p align="center">
   <b>"Build from scratch" drone holding it's position</b><br/>
@@ -52,11 +52,9 @@
       loading="lazy"
     />
   </a>
-  <br/>
-  <sub>Step 1 - Assemble the drone and get it to hold position</sub>
 </p>
 
-<h2 align="center">Demo II</h2>
+<h2 align="center">Step 2 - AI-powered autonomous flight (placeholder)</h2>
 
 <p align="center">
   <b>AI-powered navigation (placeholder)</b><br/>
@@ -72,8 +70,6 @@
       loading="lazy"
     />
   </a>
-  <br/>
-  <sub>Step 2 - AI-powered autonomous flight (placeholder)</sub>
 </p>
 
 <h2 align="center">Do it yourself, from ZERO!</h2>
@@ -92,8 +88,6 @@
       loading="lazy"
     />
   </a>
-  <br/>
-  <sub>▶ Build it</sub>
 </p>
 
 <p align="center">
