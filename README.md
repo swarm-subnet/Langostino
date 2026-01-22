@@ -44,17 +44,11 @@
 
 <!-- Real flight video (thumbnail clickable) -->
 <p align="center">
-  <a href="<REAL_FLIGHT_VIDEO_URL>" aria-label="Open real flight demo video in a new tab" target="_blank" rel="noopener noreferrer">
+  <a href="https://www.youtube.com/shorts/gf9mxroeurU" aria-label="Open real flight demo video in a new tab" target="_blank" rel="noopener noreferrer">
     <img
-      src="https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/hqdefault.jpg"
-      srcset="
-        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/hqdefault.jpg 480w,
-        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/sddefault.jpg 640w,
-        https://img.youtube.com/vi/<YOUTUBE_VIDEO_ID>/maxresdefault.jpg 1280w
-      "
-      sizes="(max-width: 760px) 100vw, 720px"
-      alt="Langostino position HOLD, must be working before going into autonomous navigation"
-      style="max-width:720px;width:100%;border-radius:8px;"
+      src="https://img.youtube.com/vi/gf9mxroeurU/maxresdefault.jpg"
+      alt="Langostino position hold - thumbnail (click to watch)"
+      width="720"
       loading="lazy"
     />
   </a>
