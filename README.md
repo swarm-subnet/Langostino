@@ -29,7 +29,7 @@
     <img alt="Build from scratch" src="https://img.shields.io/badge/🔧%20Build%20from%20scratch-Guide-111111?style=for-the-badge" />
   </a>
   <a href="docs/SETUP_GUIDE.md#quick-setup">
-    <img alt="Use the model (Drone required)" src="https://img.shields.io/badge/🚀%20Use%20the%20model-Start%20here-111111?style=for-the-badge" />
+    <img alt="Use the model" src="https://img.shields.io/badge/🚀%20Use%20the%20model-Start%20here-111111?style=for-the-badge" />
   </a>
 </p>
 
@@ -392,5 +392,5 @@ Discord: https://discord.com/invite/bittensor
 <hr/>
 
 <p align="center">
-  <b>Happy hacking!</b> 🦐
+  <b>Happy flying!</b> 🦐
 </p>
