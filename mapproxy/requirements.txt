@@ -1,0 +1,4 @@
+MapProxy
+Pillow
+PyYAML
+pyproj

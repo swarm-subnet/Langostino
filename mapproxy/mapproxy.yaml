@@ -1,0 +1,32 @@
+services:
+  demo:
+  tms:
+    use_grid_names: true
+  wms:
+    srs: ['EPSG:3857', 'EPSG:4326']
+    image_formats: ['image/jpeg', 'image/png']
+
+layers:
+  - name: arcgis_sat
+    title: ArcGIS World Imagery
+    sources: [arcgis_cache]
+
+caches:
+  arcgis_cache:
+    grids: [webmercator]
+    sources: [arcgis_source]
+    
+sources:
+  arcgis_source:
+    type: tile
+    url: https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/%(z)s/%(y)s/%(x)s
+    grid: webmercator
+
+grids:
+  webmercator:
+    base: GLOBAL_WEBMERCATOR
+
+globals:
+  cache:
+    base_dir: ./cache_data
+    lock_dir: ./cache_data/locks
