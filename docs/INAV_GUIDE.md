@@ -24,6 +24,9 @@ Complete guide for configuring INAV flight controller parameters for autonomous 
 6. [MSP Configuration](#msp-configuration)
    - [RC Override Channels](#rc-override-channels)
    - [Hover Throttle](#hover-throttle)
+   - [Altitude Hold Throttle Mode](#altitude-hold-throttle-mode)
+   - [Deadband Settings](#deadband-settings)
+   - [I-Term Relax](#i-term-relax)
 7. [GPS Settings](#gps-settings)
 8. [Quick Reference](#quick-reference)
 9. [Tuning Tips](#tuning-tips)
@@ -53,7 +56,7 @@ This guide provides detailed explanations of critical INAV parameters for multic
 #### `nav_mc_bank_angle`
 
 ```
-set nav_mc_bank_angle = 20
+set nav_mc_bank_angle = 35
 ```
 
 **Description:**
@@ -67,7 +70,7 @@ Maximum tilt angle (in degrees) used by autonomous navigation modes including Po
 
 **Configuration:**
 
-- **Value:** `20` degrees
+- **Value:** `35` degrees
 - **Range:** Typically 5-45 degrees
 - **Recommendation:**
   - Start conservative (15-20°) for testing
@@ -82,8 +85,8 @@ Maximum tilt angle (in degrees) used by autonomous navigation modes including Po
 #### `max_angle_inclination_rll` and `max_angle_inclination_pit`
 
 ```
-set max_angle_inclination_rll = 150
-set max_angle_inclination_pit = 150
+set max_angle_inclination_rll = 200
+set max_angle_inclination_pit = 200
 ```
 
 **Description:**
@@ -99,7 +102,7 @@ Maximum allowed tilt angle for ACRO/ANGLE mode manual flight.
 
 **Configuration:**
 
-- **Value:** `150` (15°)
+- **Value:** `200` (20°)
 - **Recommendation:**
   - Conservative setting for smooth manual flight
   - Prevents novice pilots from over-tilting
@@ -114,7 +117,7 @@ Maximum allowed tilt angle for ACRO/ANGLE mode manual flight.
 #### `nav_mc_auto_climb_rate`
 
 ```
-set nav_mc_auto_climb_rate = 100
+set nav_mc_auto_climb_rate = 500
 ```
 
 **Description:**
@@ -131,7 +134,7 @@ Vertical speed used automatically by INAV during autonomous operations.
 
 **Configuration:**
 
-- **Value:** `100` cm/s (1.0 m/s)
+- **Value:** `500` cm/s (5.0 m/s)
 - **Recommendation:**
   - Conservative for safe takeoffs/landings
   - Increase to 100-150 cm/s (1-1.5 m/s) for faster altitude changes
@@ -144,7 +147,7 @@ Vertical speed used automatically by INAV during autonomous operations.
 #### `nav_mc_manual_climb_rate`
 
 ```
-set nav_mc_manual_climb_rate = 100
+set nav_mc_manual_climb_rate = 200
 ```
 
 **Description:**
@@ -160,7 +163,7 @@ Controls how throttle stick adjusts altitude while in AltHold or PosHold modes.
 
 **Configuration:**
 
-- **Value:** `100` cm/s (1.0 m/s)
+- **Value:** `200` cm/s (2.0 m/s)
 - **Recommendation:**
   - 50-100 cm/s for precise control
   - Higher values = faster altitude changes with stick input
@@ -177,7 +180,7 @@ The XY velocity PID loop controls horizontal position accuracy during GPS naviga
 #### `nav_mc_vel_xy_p`
 
 ```
-set nav_mc_vel_xy_p = 25
+set nav_mc_vel_xy_p = 35
 ```
 
 **Function:**
@@ -192,7 +195,7 @@ Proportional response to horizontal velocity error.
 
 **Configuration:**
 
-- **Value:** `25` (conservative)
+- **Value:** `35`
 - **Tuning:**
   - Start at 25, increase gradually if position hold is loose
   - If drone oscillates in position hold, reduce P
@@ -205,7 +208,7 @@ Proportional response to horizontal velocity error.
 #### `nav_mc_vel_xy_i`
 
 ```
-set nav_mc_vel_xy_i = 10
+set nav_mc_vel_xy_i = 18
 ```
 
 **Function:**
@@ -220,11 +223,11 @@ Corrects accumulated position error over time.
 
 **Configuration:**
 
-- **Value:** `10` (moderate)
+- **Value:** `18`
 - **Tuning:**
   - If drone drifts slowly over time, increase I
   - If drone circles or oscillates slowly, reduce I
-  - Typical range: 5-15
+  - Typical range: 5-20
 
 **Warning:** The I term is powerful but can cause instability if too high. Tune conservatively.
 
@@ -235,7 +238,7 @@ Corrects accumulated position error over time.
 #### `nav_mc_vel_xy_d`
 
 ```
-set nav_mc_vel_xy_d = 50
+set nav_mc_vel_xy_d = 105
 ```
 
 **Function:**
@@ -250,11 +253,11 @@ Damping term that smooths velocity corrections.
 
 **Configuration:**
 
-- **Value:** `50` (fairly high for tight hold)
+- **Value:** `105` (high for tight hold)
 - **Tuning:**
   - If drone bounces around target position, increase D
   - If drone feels twitchy or nervous, reduce D
-  - Typical range: 30-80
+  - Typical range: 30-120
 
 ---
 
@@ -263,7 +266,7 @@ Damping term that smooths velocity corrections.
 #### `nav_mc_vel_xy_ff`
 
 ```
-set nav_mc_vel_xy_ff = 25
+set nav_mc_vel_xy_ff = 40
 ```
 
 **Function:**
@@ -278,21 +281,21 @@ Reduces delay between stick input and movement in GPS modes.
 
 **Configuration:**
 
-- **Value:** `25` (normal)
+- **Value:** `40`
 - **Tuning:**
   - If drone feels sluggish in GPS modes, increase FF
   - If drone overshoots targets, reduce FF
-  - Typical range: 10-40
+  - Typical range: 10-50
 
 ---
 
 ### XY Velocity PID Summary
 
 ```
-set nav_mc_vel_xy_p = 25
-set nav_mc_vel_xy_i = 10
-set nav_mc_vel_xy_d = 50
-set nav_mc_vel_xy_ff = 20
+set nav_mc_vel_xy_p = 35
+set nav_mc_vel_xy_i = 18
+set nav_mc_vel_xy_d = 105
+set nav_mc_vel_xy_ff = 40
 ```
 
 **Quick Tuning Guide:**
@@ -317,7 +320,7 @@ Level PIDs control attitude stabilization in ANGLE/HORIZON modes and during GPS 
 #### `mc_p_level`
 
 ```
-set mc_p_level = 40
+set mc_p_level = 20
 ```
 
 **Function:**
@@ -332,7 +335,7 @@ Controls how strongly the drone returns to level attitude.
 
 **Configuration:**
 
-- **Value:** `40` (good for medium-sized drones)
+- **Value:** `20` (good for larger drones)
 - **Tuning:**
   - Larger/heavier drones: 20-30
   - Smaller/lighter drones: 40-60
@@ -345,7 +348,7 @@ Controls how strongly the drone returns to level attitude.
 #### `mc_d_level`
 
 ```
-set mc_d_level = 50
+set mc_d_level = 75
 ```
 
 **Function:**
@@ -360,19 +363,19 @@ Damping for leveling response, reduces overshoot.
 
 **Configuration:**
 
-- **Value:** `50` (normal)
+- **Value:** `75`
 - **Tuning:**
   - If drone bounces when returning to level, increase D
   - If drone feels mushy or slow, reduce D
-  - Typical range: 30-75
+  - Typical range: 30-100
 
 ---
 
 ### Level PID Summary
 
 ```
-set mc_d_level = 50
-set mc_p_level = 30
+set mc_p_level = 20
+set mc_d_level = 75
 ```
 
 These values provide smooth, predictable leveling for most medium-sized multirotors.
@@ -451,7 +454,120 @@ RC value for throttle that achieves hover in altitude hold mode.
   - Typical range: 1400-1600
   - Must match actual hover throttle of your drone
 
-**Important:** This should be calibrated to your specific drone's actual hover throttle point.
+**Important:** This should be calibrated to your specific drone's actual hover throttle point. This setting is per battery profile, so set it for all battery profiles you use.
+
+---
+
+### Altitude Hold Throttle Mode
+
+#### `nav_mc_althold_throttle`
+
+```
+set nav_mc_althold_throttle = HOVER
+```
+
+**Description:**
+Defines how throttle input is interpreted during altitude hold modes.
+
+**Options:**
+
+- `STICK` - Throttle stick directly controls climb/descent rate
+- `MID_STICK` - Mid-stick position holds altitude, deviation controls climb/descent
+- `HOVER` - Throttle at hover point holds altitude, more intuitive for most pilots
+
+**Configuration:**
+
+- **Value:** `HOVER`
+- **Recommendation:**
+  - `HOVER` is recommended for most use cases
+  - Provides intuitive throttle behavior where hover throttle = hold altitude
+  - Works well with `nav_mc_hover_thr` setting
+
+---
+
+### Deadband Settings
+
+#### `pos_hold_deadband`
+
+```
+set pos_hold_deadband = 50
+```
+
+**Description:**
+Stick deadband for position hold mode. Within this range, the drone holds position; outside, it moves.
+
+**Units:** RC units (centered at 1500)
+
+**Purpose:**
+
+- Prevents unintended position changes from small stick movements
+- Creates a "hold zone" around stick center
+- Allows precise position holding without fighting stick noise
+
+**Configuration:**
+
+- **Value:** `50`
+- **Recommendation:**
+  - Higher values = larger deadband, easier to hold position
+  - Lower values = more responsive to small inputs
+  - Typical range: 20-100
+
+---
+
+#### `alt_hold_deadband`
+
+```
+set alt_hold_deadband = 50
+```
+
+**Description:**
+Throttle stick deadband for altitude hold mode. Within this range, altitude is maintained.
+
+**Units:** RC units (centered at 1500)
+
+**Purpose:**
+
+- Prevents unintended altitude changes from small throttle movements
+- Creates a "hold zone" around throttle center/hover point
+- Allows precise altitude holding
+
+**Configuration:**
+
+- **Value:** `50`
+- **Recommendation:**
+  - Higher values = larger deadband, easier to hold altitude
+  - Lower values = more responsive to throttle inputs
+  - Typical range: 20-100
+
+---
+
+### I-Term Relax
+
+#### `mc_iterm_relax_cutoff`
+
+```
+set mc_iterm_relax_cutoff = 8
+```
+
+**Description:**
+Cutoff frequency for I-term relax feature. Controls how quickly the I-term is suppressed during rapid stick movements.
+
+**Units:** Hz
+
+**Purpose:**
+
+- Prevents I-term windup during aggressive maneuvers
+- Reduces bounce-back after quick stick movements
+- Improves overall flight feel and responsiveness
+
+**Configuration:**
+
+- **Value:** `8` Hz
+- **Recommendation:**
+  - Lower values = more aggressive I-term suppression
+  - Higher values = less suppression, more traditional behavior
+  - Typical range: 5-15 Hz
+  - Lower values help with quick stops in position hold
 
 ---
 
@@ -462,7 +578,7 @@ RC value for throttle that achieves hover in altitude hold mode.
 #### `gps_min_sats`
 
 ```
-set gps_min_sats = 5
+set gps_min_sats = 6
 ```
 
 **Description:**
@@ -476,7 +592,7 @@ Minimum number of GPS satellites required before GPS modes are enabled.
 
 **Configuration:**
 
-- **Value:** `5` satellites
+- **Value:** `6` satellites
 - **Recommendation:**
   - Minimum safe value: 5
   - Better accuracy: 6-8
@@ -501,30 +617,41 @@ Copy and paste this into INAV CLI to apply all settings:
 
 ```bash
 # Navigation Angles
-set nav_mc_bank_angle = 20
-set max_angle_inclination_rll = 150
-set max_angle_inclination_pit = 150
+set nav_mc_bank_angle = 35
+set max_angle_inclination_rll = 200
+set max_angle_inclination_pit = 200
 
 # Climb Rates
-set nav_mc_auto_climb_rate = 100
-set nav_mc_manual_climb_rate = 100
+set nav_mc_auto_climb_rate = 500
+set nav_mc_manual_climb_rate = 200
 
 # XY Velocity PID (GPS Position Control)
-set nav_mc_vel_xy_p = 25
-set nav_mc_vel_xy_i = 10
-set nav_mc_vel_xy_d = 50
-set nav_mc_vel_xy_ff = 25
+set nav_mc_vel_xy_p = 35
+set nav_mc_vel_xy_i = 18
+set nav_mc_vel_xy_d = 105
+set nav_mc_vel_xy_ff = 40
 
 # Level PIDs (Attitude Control)
-set mc_p_level = 40
-set mc_d_level = 50
+set mc_p_level = 20
+set mc_d_level = 75
+
+# Altitude Hold Settings
+set nav_mc_althold_throttle = HOVER
+set alt_hold_deadband = 50
+set pos_hold_deadband = 50
+
+# I-Term Relax
+set mc_iterm_relax_cutoff = 8
 
 # MSP Configuration
 set msp_override_channels = 127
-set nav_mc_hover_thr = 1500
 
 # GPS Settings
-set gps_min_sats = 5
+set gps_min_sats = 6
+
+# Battery Profile Settings (apply to all battery profiles)
+battery_profile 1
+set nav_mc_hover_thr = 1500
 
 # Save configuration
 save
