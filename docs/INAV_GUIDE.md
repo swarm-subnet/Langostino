@@ -34,8 +34,6 @@ Complete guide for configuring INAV flight controller parameters for autonomous 
 9. [Tuning Tips](#tuning-tips)
 10. [Applying Configuration](#applying-configuration)
 
----
-
 ## Introduction
 
 This guide provides detailed explanations of critical INAV parameters for multicopter autonomous flight. These settings control navigation behavior, position hold accuracy, and overall flight characteristics.
@@ -48,8 +46,6 @@ This guide provides detailed explanations of critical INAV parameters for multic
 - Return to Home (RTH)
 - Waypoint navigation
 - MSP RC override for external control
-
----
 
 ## Navigation Parameters
 
@@ -80,8 +76,6 @@ Maximum tilt angle (in degrees) used by autonomous navigation modes including Po
   - Lower values = smoother, slower movements
   - Higher values = faster, more aggressive navigation
 
----
-
 ### Angle Mode Inclination
 
 #### `max_angle_inclination_rll` and `max_angle_inclination_pit`
@@ -109,8 +103,6 @@ Maximum allowed tilt angle for ACRO/ANGLE mode manual flight.
   - Conservative setting for smooth manual flight
   - Prevents novice pilots from over-tilting
   - Can be increased for sport/acrobatic flight (up to 500 = 50°)
-
----
 
 ## Climb Rate Configuration
 
@@ -142,8 +134,6 @@ Vertical speed used automatically by INAV during autonomous operations.
   - Increase to 100-150 cm/s (1-1.5 m/s) for faster altitude changes
   - Lower values provide smoother, safer operations
 
----
-
 ### Manual Climb Rate
 
 #### `nav_mc_manual_climb_rate`
@@ -171,7 +161,6 @@ Controls how throttle stick adjusts altitude while in AltHold or PosHold modes.
   - Higher values = faster altitude changes with stick input
   - Match to `nav_mc_auto_climb_rate` for consistent behavior
 
----
 
 ## GPS Position Control (XY Velocity PID)
 
@@ -203,8 +192,6 @@ Proportional response to horizontal velocity error.
   - If drone oscillates in position hold, reduce P
   - Typical range: 10-40
 
----
-
 ### Integral (I) Term
 
 #### `nav_mc_vel_xy_i`
@@ -233,8 +220,6 @@ Corrects accumulated position error over time.
 
 **Warning:** The I term is powerful but can cause instability if too high. Tune conservatively.
 
----
-
 ### Derivative (D) Term
 
 #### `nav_mc_vel_xy_d`
@@ -260,8 +245,6 @@ Damping term that smooths velocity corrections.
   - If drone bounces around target position, increase D
   - If drone feels twitchy or nervous, reduce D
   - Typical range: 30-120
-
----
 
 ### Feedforward (FF) Term
 
@@ -289,8 +272,6 @@ Reduces delay between stick input and movement in GPS modes.
   - If drone overshoots targets, reduce FF
   - Typical range: 10-50
 
----
-
 ### XY Velocity PID Summary
 
 ```
@@ -307,11 +288,9 @@ set nav_mc_vel_xy_ff = 40
 | Drone drifts from position      | Increase P or I          |
 | Drone oscillates/bounces        | Decrease P or increase D |
 | Slow circles ("toilet bowling") | Decrease I               |
-| Sluggish response to commands   | Increase FF              |
-| Overshooting target positions   | Decrease P or FF         |
+| Overshooting target positions   | Decrease P.              |
 | Twitchy, nervous movements      | Decrease D               |
 
----
 
 ## Attitude Control (Level PIDs)
 
@@ -343,8 +322,6 @@ Controls how strongly the drone returns to level attitude.
   - Smaller/lighter drones: 40-60
   - If drone wobbles when leveling, reduce P
 
----
-
 ### Level D Term
 
 #### `mc_d_level`
@@ -371,8 +348,6 @@ Damping for leveling response, reduces overshoot.
   - If drone feels mushy or slow, reduce D
   - Typical range: 30-100
 
----
-
 ### Level PID Summary
 
 ```
@@ -381,8 +356,6 @@ set mc_d_level = 75
 ```
 
 These values provide smooth, predictable leveling for most medium-sized multirotors.
-
----
 
 ## MSP Configuration
 
@@ -426,8 +399,6 @@ Bitmask defining which RC channels can be overridden via MSP (Multiwii Serial Pr
 - CH7: ALT HOLD (AUX3)
 - CH8: MSP RC Override Enable (AUX4)
 
----
-
 ### Hover Throttle
 
 #### `nav_mc_hover_thr`
@@ -457,8 +428,6 @@ RC value for throttle that achieves hover in altitude hold mode.
   - Must match actual hover throttle of your drone
 
 **Important:** This should be calibrated to your specific drone's actual hover throttle point. This setting is per battery profile, so set it for all battery profiles you use.
-
----
 
 ### Altitude Hold Throttle Mode
 
@@ -514,8 +483,6 @@ Stick deadband for position hold mode. Within this range, the drone holds positi
   - Lower values = more responsive to small inputs
   - Typical range: 20-100
 
----
-
 #### `alt_hold_deadband`
 
 ```
@@ -540,8 +507,6 @@ Throttle stick deadband for altitude hold mode. Within this range, altitude is m
   - Higher values = larger deadband, easier to hold altitude
   - Lower values = more responsive to throttle inputs
   - Typical range: 20-100
-
----
 
 ### I-Term Relax
 
@@ -570,8 +535,6 @@ Cutoff frequency for I-term relax feature. Controls how quickly the I-term is su
   - Higher values = less suppression, more traditional behavior
   - Typical range: 5-15 Hz
   - Lower values help with quick stops in position hold
-
----
 
 ## GPS Settings
 
@@ -608,8 +571,6 @@ Minimum number of GPS satellites required before GPS modes are enabled.
 - 5-6 sats: Adequate (minimum for navigation)
 - 7-10 sats: Good (recommended)
 - 10+ sats: Excellent
-
----
 
 ## Quick Reference
 
@@ -659,8 +620,6 @@ set nav_mc_hover_thr = 1500
 save
 ```
 
----
-
 ## Tuning Tips
 
 ### General Tuning Workflow
@@ -699,8 +658,6 @@ For detailed troubleshooting of these and other issues, see:
 
 - [Flight Control Issues](TROUBLESHOOTING_GUIDE.md#flight-control-issues) - Detailed solutions with diagnostics
 - [Hardware Issues](TROUBLESHOOTING_GUIDE.md#hardware-issues) - GPS, compass, sensor problems
-
----
 
 ## Applying Configuration
 
@@ -742,8 +699,6 @@ After applying configuration:
    - Review flight logs
    - Adjust as needed
 
----
-
 ## Additional Resources
 
 **INAV Official Documentation:**
@@ -751,8 +706,6 @@ After applying configuration:
 - [INAV Official Wiki](https://github.com/iNavFlight/inav/wiki)
 - [INAV PID Tuning Guide](https://github.com/iNavFlight/inav/wiki/PID-tuning)
 - [INAV GPS Configuration](https://github.com/iNavFlight/inav/wiki/GPS-and-Compass-setup)
-
----
 
 ## Notes
 

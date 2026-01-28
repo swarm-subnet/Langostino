@@ -1,18 +1,20 @@
-<!-- SECTION 1 -->
+<a id="readme-top"></a>
 
+<!-- PROJECT BANNER -->
 <p align="center">
   <img src="assets/banner_section_1.png" alt="Langostino — open autonomous drone" width="100%" />
 </p>
 
-<h1 align="center">Langostino — The Swarm Drone 🦐</h1>
+<h1 align="center">Langostino — The Swarm Drone</h1>
 
 <p align="center">
   <b>Open-source AI autopilot for the real world: understand it, build it, and fly it.</b><br/>
   An open-source autonomous flight reference platform, built with a <b>global</b> community.
 </p>
 
+<!-- BADGES -->
 <p align="center">
-  <a href="https://github.com/swarm-subnet/Langostino">
+  <a href="https://github.com/swarm-subnet/Langostino/stargazers">
     <img alt="GitHub Stars" src="https://img.shields.io/github/stars/swarm-subnet/Langostino?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -24,340 +26,211 @@
   </a>
 </p>
 
+<!-- QUICK ACTION BUTTONS -->
 <p align="center">
   <a href="docs/assembly/README.md">
-    <img alt="Build from scratch" src="https://img.shields.io/badge/🔧%20Build%20from%20scratch-Guide-111111?style=for-the-badge" />
+    <img alt="Build from scratch" src="https://img.shields.io/badge/Build%20from%20scratch-Guide-111111?style=for-the-badge" />
   </a>
+  &nbsp;
   <a href="docs/SETUP_GUIDE.md#quick-setup">
-    <img alt="Use the model" src="https://img.shields.io/badge/🚀%20Use%20the%20model-Start%20here-111111?style=for-the-badge" />
+    <img alt="Use the model" src="https://img.shields.io/badge/Use%20the%20model-Start%20here-111111?style=for-the-badge" />
   </a>
 </p>
 
-<!-- SECTION 2 -->
-<hr/>
+<!-- TABLE OF CONTENTS -->
+<details open>
+  <summary><b>Table of Contents</b></summary>
+  <ol>
+    <li><a href="#see-it-in-action">See It In Action</a></li>
+    <li><a href="#about-the-project">About The Project</a></li>
+    <li><a href="#getting-started">Getting Started</a></li>
+    <li><a href="#flight-plan">Flight Plan</a></li>
+    <li><a href="#deep-dive-articles">Deep Dive Articles</a></li>
+    <li><a href="#documentation">Documentation</a></li>
+    <li><a href="#project-structure">Project Structure</a></li>
+    <li><a href="#community">Community</a></li>
+    <li><a href="#faq">FAQ</a></li>
+    <li><a href="#share-pack">Share Pack</a></li>
+    <li><a href="#license">License</a></li>
+  </ol>
+</details>
 
-<h2 align="center">Step 1 - Assemble the drone and get it to hold position</h2>
+<!-- SEE IT IN ACTION -->
+## See It In Action
+
+### Step 1 - Assemble the drone and get it to hold position
 
 <p align="center">
-  <b>"Build from scratch" drone holding it's position</b><br/>
+  <b>"Build from scratch" drone holding its position</b>
 </p>
 
-<!-- Real flight video (thumbnail clickable) -->
 <p align="center">
-  <a href="https://www.youtube.com/shorts/gf9mxroeurU" aria-label="Open real flight demo video in a new tab" target="_blank" rel="noopener noreferrer">
-    <img
-      src="https://img.youtube.com/vi/gf9mxroeurU/maxresdefault.jpg"
-      alt="Langostino position hold - thumbnail (click to watch)"
-      width="720"
-      loading="lazy"
-    />
+  <a href="https://www.youtube.com/shorts/gf9mxroeurU" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.youtube.com/vi/gf9mxroeurU/maxresdefault.jpg" alt="Langostino position hold - click to watch" width="720" loading="lazy" />
   </a>
 </p>
 
-<h2 align="center">Step 2 - AI-powered autonomous flight (placeholder)</h2>
+### Step 2 - AI-powered autonomous flight (placeholder)
 
 <p align="center">
-  <b>AI-powered navigation (placeholder)</b><br/>
+  <b>AI-powered navigation (placeholder)</b>
 </p>
 
-<!-- Real flight video (thumbnail clickable) -->
 <p align="center">
-  <a href="https://www.youtube.com/shorts/gf9mxroeurU" aria-label="Open real flight demo video in a new tab" target="_blank" rel="noopener noreferrer">
-    <img
-      src="https://img.youtube.com/vi/gf9mxroeurU/maxresdefault.jpg"
-      alt="Langostino AI navigation placeholder - thumbnail (click to watch)"
-      width="720"
-      loading="lazy"
-    />
+  <a href="https://www.youtube.com/shorts/gf9mxroeurU" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.youtube.com/vi/gf9mxroeurU/maxresdefault.jpg" alt="Langostino AI navigation placeholder - click to watch" width="720" loading="lazy" />
   </a>
 </p>
 
-<h2 align="center">Do it yourself, from ZERO!</h2>
+### Do it yourself, from ZERO!
 
 <p align="center">
-  <b>Example of what you will be building</b><br/>
+  <b>Example of what you will be building</b>
 </p>
 
-<!-- Real flight video (thumbnail clickable) -->
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=jgdND4LXlIA" aria-label="Build it yourself just like how we did it" target="_blank" rel="noopener noreferrer">
-    <img
-      src="https://img.youtube.com/vi/jgdND4LXlIA/maxresdefault.jpg"
-      alt="Langostino real flight — thumbnail (click to watch)"
-      width="720"
-      loading="lazy"
-    />
+  <a href="https://www.youtube.com/watch?v=jgdND4LXlIA" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.youtube.com/vi/jgdND4LXlIA/maxresdefault.jpg" alt="Langostino real flight — click to watch" width="720" loading="lazy" />
   </a>
 </p>
 
 <p align="center">
-  <sub>If this made you curious, ⭐ star the repo and share the demo.</sub>
+  <sub>If this made you curious, star the repo and share the demo.</sub>
 </p>
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- SECTION 3 -->
-<hr/>
+<!-- ABOUT THE PROJECT -->
+## About The Project
 
-<h2 align="center">What is Langostino?</h2>
+Langostino is an **open-source reference drone** for real-world autonomous flight — designed to be easy to understand, build, and extend.
 
-<p align="center">
-  Langostino is an <b>open-source reference drone</b> for real-world autonomous flight — designed to be easy to understand, build, and extend.
-</p>
+* **A practical AI autopilot project** focused on flying in the real world (not a black box)
+* **A complete reference platform**: code, docs, and a clear path from "zero" to "first flight"
+* **Made to be adapted**: use it as a starting point for your own drone and your own experiments
+* **Community-driven**: built in the open, improved by builders and contributors worldwide
 
-<ul>
-  <li><b>A practical AI autopilot project</b> focused on flying in the real world (not a black box).</li>
-  <li><b>A complete reference platform</b>: code, docs, and a clear path from “zero” to “first flight”.</li>
-  <li><b>Made to be adapted</b>: use it as a starting point for your own drone and your own experiments.</li>
-  <li><b>Community-driven</b>: built in the open, improved by builders and contributors worldwide.</li>
-</ul>
+### Why It Matters
 
-<!-- SECTION 4 -->
+Autonomous drones shouldn't feel like magic or closed black boxes. Langostino exists to make real-world autonomy **understandable** and **buildable** — so more people can learn, iterate, and ship useful aerial systems.
 
-<hr/>
+By sharing a reference drone in the open, we lower the barrier from "curious" to "first flight", and turn progress into something the whole community can reuse.
 
-<h2 align="center">Why it matters</h2>
+### Built With
 
-<p align="center">
-  Autonomous drones shouldn’t feel like magic or closed black boxes.<br/>
-  Langostino exists to make real-world autonomy <b>understandable</b> and <b>buildable</b> — so more people can learn, iterate, and ship useful aerial systems.<br/>
-  By sharing a reference drone in the open, we lower the barrier from “curious” to “first flight”, and turn progress into something the whole community can reuse.
-</p>
+[![ROS](https://img.shields.io/badge/ROS2-22314E?style=for-the-badge&logo=ros&logoColor=white)](https://docs.ros.org/en/humble/) [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/) [![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-C51A4A?style=for-the-badge&logo=raspberrypi&logoColor=white)](https://www.raspberrypi.org/) [![INAV](https://img.shields.io/badge/INAV-1976D2?style=for-the-badge)](https://github.com/iNavFlight/inav) [![Gym PyBullet Drones](https://img.shields.io/badge/Gym%20PyBullet%20Drones-2C2C2C?style=for-the-badge)](https://github.com/utiasDSL/gym-pybullet-drones) [![Bittensor](https://img.shields.io/badge/Bittensor-7A3EF0?style=for-the-badge&logo=bittensor&logoColor=white)](https://bittensor.com/)
 
-<!-- SECTION 5 -->
 
-<hr/>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<h2 align="center">Choose your path</h2>
+<!-- GETTING STARTED -->
+## Getting Started
 
-<p align="center">
-  Pick what you want to do next — you don’t need to be an expert to start.
-</p>
+> [!CAUTION]
+> **⚠️ Langostino is a real flying machine.**
+> * Follow local regulations
+> * Test in safe environments
+> * Use prop guards and appropriate failsafes
 
-<table align="center">
+Pick what you want to do next — you don't need to be an expert to start.
+
+<table>
   <tr>
     <td width="50%" valign="top">
-
-<b>👀 I’m just curious</b><br/>
-
-- ▶ Watch the demo (above)<br/>
-- ⭐ Star this repo<br/>
-- 📣 Share it with a friend
-
+      <h4>I'm just curious</h4>
+      <ul>
+        <li>Watch the demo (above)</li>
+        <li>Star this repo</li>
+        <li>Share it with a friend</li>
+      </ul>
     </td>
     <td width="50%" valign="top">
-
-<b>🔧 I want to build it from scratch</b><br/>
-Assembly guide:<br/>
-
-- <a href="docs/assembly/README.md"><b>docs/assembly/README.md → Build guide</b></a><br/><br/>
-  <i>Includes the parts list (BOM) and step-by-step build instructions.</i>
-
+      <h4>I want to build it from scratch</h4>
+      <p><a href="docs/assembly/README.md"><b>Assembly Guide</b></a></p>
+      <p><i>Includes the parts list (BOM) and step-by-step build instructions.</i></p>
     </td>
   </tr>
-
   <tr>
     <td width="50%" valign="top">
-
-<b>🚀 I want to use the model</b><br/>
-Start here:<br/>
-
-- <a href="docs/SETUP_GUIDE.md#quick-setup"><b>SETUP_GUIDE → Quick Setup</b></a>
-
+      <h4>I want to use the model</h4>
+      <p><a href="docs/SETUP_GUIDE.md#quick-setup"><b>Setup Guide → Quick Setup</b></a></p>
     </td>
     <td width="50%" valign="top">
-
-<b>🧩 I want to contribute</b><br/>
-
-- 💬 Join Discord: <a href="https://discord.com/invite/bittensor">discord.com/invite/bittensor</a><br/>
-- 📝 Read: <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a><br/>
-- 🟢 Pick a starter task:
-  <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issues</b></a>
-
-    </tr>
-  </table>
-
-<!-- SECTION 6 -->
-
-<hr/>
-
-<h2 align="center">FAQ</h2>
-
-<p><b>Do I need to be an engineer?</b><br/>
-No. Langostino is designed to be approachable: clear docs, a guided setup, and a community that can help you get started.</p>
-
-<p><b>How do I get started?</b><br/>
-Start with the Quick Start Guide if you already have compatible hardware. Otherwise, refer to the Assembly Guide for a list of materials and steps to follow. Join Discord if you have any questions.</p>
-
-<p><b>How do I contribute?</b><br/>
-Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pick a <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><b>good first issue</b></a>.</p>
-
-<!-- SECTION 7 -->
-
-<hr/>
-
-<h2 align="center">Your flight plan — from zero to first flight</h2>
-
-<ol>
-  <li>
-    <p><b>Watch a 60-second demo.</b> Get the idea fast. 
-      <a href="#REAL_FLIGHT_VIDEO_URL" target="_blank" rel="noopener noreferrer">Watch video →</a>
-    </p>
-  </li>
-  <li>
-    <p><b>Get the parts.</b> Use the <a href="docs/assembly/README.md#bill-of-materials-bom" target="_blank" rel="noopener noreferrer"><b>BOM</b></a> as your shopping list to source every component.
-    </p>
-  </li>
-  <li>
-    <p><b>Assemble the airframe.</b> Follow the build guide step-by-step. 
-      <a href="docs/assembly/README.md" target="_blank" rel="noopener noreferrer">Build guide →</a>
-    </p>
-  </li>
-  <li>
-    <b>Install, then wire it up.</b> Follow the quickstart checklist step by step.
-    <a href="docs/quickstart/README.md"><b>Quickstart →</b></a>
-  </li>
-  <li>
-    <p><b>Calibrate &amp; safety.</b> Props off, arming checks, failsafes, first hover indoor. 
-      <a href="docs/quickstart/README.md#safety--calibration" target="_blank" rel="noopener noreferrer">Safety checklist →</a>
-    </p>
-  </li>
-  <li>
-    <p><b>Go outside &amp; share.</b> Short flight, record a clip, ⭐ the repo, post your build. 
-      <a href="https://discord.com/invite/bittensor" target="_blank" rel="noopener noreferrer">Join Discord →</a>
-    </p>
-  </li>
-</ol>
-
-<p align="center">
-  <sub>Want the bigger picture? See the company roadmap:
-    <a href="https://swarm124.com/decentralized-training" target="_blank" rel="noopener noreferrer">Swarm roadmap →</a>
-  </sub>
-</p>
-
-<!-- SECTION 8 -->
-
-<hr/>
-
-<h2 align="center">Safety note</h2>
-
-<p>
-  <b>Langostino is a real flying machine.</b><br/>
-  Follow local regulations.<br/>
-  Test in safe environments.<br/>
-  Use prop guards and appropriate failsafes.
-</p>
-
-<!-- SECTION 8.5 -->
-
-<hr/>
-
-<h2 align="center">Deep Dive Articles</h2>
-
-<p align="center">
-  Want to understand the project in depth? Check out our Substack series that walks through every aspect of building and flying Langostino.
-</p>
-
-<table align="center">
-  <tr>
-    <th>Chapter</th>
-    <th>Topic</th>
-    <th>Description</th>
-  </tr>
-  <tr>
-    <td><a href="https://substack.com/home/post/p-175604069"><b>Chapter 1</b></a></td>
-    <td>Inside the Drone</td>
-    <td>Hardware components and drone anatomy</td>
-  </tr>
-  <tr>
-    <td><a href="https://substack.com/home/post/p-176136139"><b>Chapter 2</b></a></td>
-    <td>The Wiring Brain</td>
-    <td>Wiring, connections, and power distribution</td>
-  </tr>
-  <tr>
-    <td><a href="https://substack.com/home/post/p-177453660"><b>Chapter 3</b></a></td>
-    <td>From Data to Motion</td>
-    <td>Software architecture and data flow</td>
-  </tr>
-  <tr>
-    <td><a href="https://substack.com/home/post/p-180586067"><b>Chapter 3.5</b></a></td>
-    <td>Additional Configurations</td>
-    <td>Advanced configuration and tuning</td>
+      <h4>I want to contribute</h4>
+      <ul>
+        <li>Join <a href="https://discord.com/invite/bittensor">Discord</a></li>
+        <li>Read <a href="CONTRIBUTING.md">CONTRIBUTING.md</a></li>
+        <li>Pick a <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">good first issue</a></li>
+      </ul>
+    </td>
   </tr>
 </table>
 
-<!-- SECTION 9 -->
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<hr/>
+<!-- FLIGHT PLAN -->
+## Flight Plan
 
-<h2 align="center">Documentation Index</h2>
+Your path from zero to first flight:
+
+1. **Watch a 60-second demo** — Get the idea fast. [Watch video →](#see-it-in-action)
+
+2. **Get the parts** — Use the [BOM](docs/assembly/README.md#bill-of-materials-bom) as your shopping list to source every component.
+
+3. **Assemble the airframe** — Follow the build guide step-by-step. [Build guide →](docs/assembly/README.md)
+
+4. **Install, then wire it up** — Follow the quickstart checklist step by step. [Quickstart →](docs/SETUP_GUIDE.md#quick-setup)
+
+5. **Calibrate & safety** — Props off, arming checks, failsafes, first hover indoor. [Safety checklist →](docs/SETUP_GUIDE.md#safety-checklist)
+
+6. **Go outside & share** — Short flight, record a clip, star the repo, post your build. [Join Discord →](https://discord.com/invite/bittensor)
 
 <p align="center">
-  Find detailed guides for every aspect of the project.
+  <sub>Want the bigger picture? See the <a href="https://swarm124.com/decentralized-training">Swarm roadmap →</a></sub>
 </p>
 
-<table align="center">
-  <tr>
-    <th>Category</th>
-    <th>Document</th>
-    <th>Description</th>
-  </tr>
-  <tr>
-    <td><b>Building</b></td>
-    <td><a href="docs/assembly/README.md">Assembly Guide</a></td>
-    <td>Complete build guide from parts to first flight</td>
-  </tr>
-  <tr>
-    <td></td>
-    <td><a href="docs/assembly/BOM.md">Bill of Materials</a></td>
-    <td>Full parts list with purchase links</td>
-  </tr>
-  <tr>
-    <td><b>INAV</b></td>
-    <td><a href="docs/INAV_GUIDE.md">INAV Configuration</a></td>
-    <td>Flight controller setup, PID tuning, MSP configuration</td>
-  </tr>
-  <tr>
-    <td><b>ROS2</b></td>
-    <td><a href="docs/SETUP_GUIDE.md">Setup Guide</a></td>
-    <td>Ubuntu + ROS2 Humble installation on Raspberry Pi</td>
-  </tr>
-  <tr>
-    <td></td>
-    <td><a href="docs/COMMANDS_GUIDE.md">Commands Guide</a></td>
-    <td>ROS2 commands and node operations</td>
-  </tr>
-  <tr>
-    <td></td>
-    <td><a href="docs/CONFIG_PARAMS_GUIDE.md">Config Parameters</a></td>
-    <td>Complete ROS2 node configuration reference</td>
-  </tr>
-  <tr>
-    <td><b>Tools</b></td>
-    <td><a href="mapproxy/README.md">Map Proxy</a></td>
-    <td>Offline map tile server for ground station</td>
-  </tr>
-  <tr>
-    <td><b>Help</b></td>
-    <td><a href="docs/TROUBLESHOOTING_GUIDE.md">Troubleshooting</a></td>
-    <td>Common issues and solutions</td>
-  </tr>
-  <tr>
-    <td></td>
-    <td><a href="CONTRIBUTING.md">Contributing</a></td>
-    <td>How to contribute to the project</td>
-  </tr>
-</table>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- SECTION 9.5 -->
+<!-- DEEP DIVE ARTICLES -->
+## Deep Dive Articles
 
-<hr/>
+Want to understand the project in depth? Check out our Substack series that walks through every aspect of building and flying Langostino.
 
-<h2 align="center">Project Structure</h2>
+| Chapter | Topic | Description |
+|---------|-------|-------------|
+| [**Chapter 1**][chapter-1-url] | Inside the Drone | Hardware components and drone anatomy |
+| [**Chapter 2**][chapter-2-url] | The Wiring Brain | Wiring, connections, and power distribution |
+| [**Chapter 3**][chapter-3-url] | From Data to Motion | Software architecture and data flow |
+| [**Chapter 3.5**][chapter-3.5-url] | Additional Configurations | Advanced configuration and tuning |
 
-<details>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- DOCUMENTATION -->
+## Documentation
+
+Find detailed guides for every aspect of the project.
+
+| Category | Document | Description |
+|----------|----------|-------------|
+| **Building** | [Assembly Guide](docs/assembly/README.md) | Complete build guide from parts to first flight |
+| | [Bill of Materials](docs/assembly/BOM.md) | Full parts list with purchase links |
+| **INAV** | [INAV Configuration](docs/INAV_GUIDE.md) | Flight controller setup, PID tuning, MSP configuration |
+| **ROS2** | [Setup Guide](docs/SETUP_GUIDE.md) | Ubuntu + ROS2 Humble installation on Raspberry Pi |
+| | [Commands Guide](docs/COMMANDS_GUIDE.md) | ROS2 commands and node operations |
+| | [Config Parameters](docs/CONFIG_PARAMS_GUIDE.md) | Complete ROS2 node configuration reference |
+| **Tools** | [Map Proxy](mapproxy/README.md) | Offline map tile server for ground station |
+| **Help** | [Troubleshooting](docs/TROUBLESHOOTING_GUIDE.md) | Common issues and solutions |
+| | [Contributing](CONTRIBUTING.md) | How to contribute to the project |
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- PROJECT STRUCTURE -->
+## Project Structure
+
+<details open>
   <summary><b>Click to expand</b></summary>
 
-  <pre><code>
+```
 swarm-ros/
 ├── src/
 │   └── swarm_ai_integration/       # Main ROS2 package
@@ -385,33 +258,29 @@ swarm-ros/
 ├── model/                          # AI model files
 ├── flight-logs/                    # Flight data logs
 └── README.md                       # This file
-  </code></pre>
+```
 
 </details>
 
-<!-- SECTION 10 -->
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<hr/>
+<!-- COMMUNITY -->
+## Community
 
-<h2 align="center">Community</h2>
-
-<p align="center">
-  Langostino is built with a <b>global</b> community of builders and contributors.<br/>
-  If you’re building, testing, or improving it — we want to hear from you.
-</p>
+Langostino is built with a **global** community of builders and contributors. If you're building, testing, or improving it — we want to hear from you.
 
 <p align="center">
   <a href="https://discord.com/invite/bittensor">
-    <img alt="Join Discord" src="https://img.shields.io/badge/💬%20Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" />
+    <img alt="Join Discord" src="https://img.shields.io/badge/Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" />
   </a>
 </p>
 
 <p align="center">
   <a href="https://discord.com/invite/bittensor"><b>Discord</b></a>
   &nbsp;•&nbsp;
-  <a href="https://x.com/<X_HANDLE>"><b>X</b></a>
+  <a href="https://x.com/"><b>X</b></a>
   &nbsp;•&nbsp;
-  <a href="https://www.linkedin.com/company/<LINKEDIN_SLUG>/"><b>LinkedIn</b></a>
+  <a href="https://www.linkedin.com/company/"><b>LinkedIn</b></a>
   &nbsp;•&nbsp;
   <a href="https://github.com/swarm-subnet"><b>GitHub</b></a>
 </p>
@@ -420,71 +289,83 @@ swarm-ros/
   <sub>Share your build log or flight clip in Discord — we feature the best builds.</sub>
 </p>
 
-<!-- SECTION 11 -->
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<hr/>
+<!-- FAQ -->
+## FAQ
 
-<h2 align="center">Share pack</h2>
+<details>
+  <summary><b>Do I need to be an engineer?</b></summary>
+  <p>No. Langostino is designed to be approachable: clear docs, a guided setup, and a community that can help you get started.</p>
+</details>
 
-<p align="center">
-  <sub>Want to help Langostino reach more builders? Copy/paste one of these.</sub>
-</p>
+<details>
+  <summary><b>How do I get started?</b></summary>
+  <p>Start with the <a href="docs/SETUP_GUIDE.md#quick-setup">Quick Setup Guide</a> if you already have compatible hardware. Otherwise, refer to the <a href="docs/assembly/README.md">Assembly Guide</a> for a list of materials and steps to follow. Join <a href="https://discord.com/invite/bittensor">Discord</a> if you have any questions.</p>
+</details>
+
+<details>
+  <summary><b>How do I contribute?</b></summary>
+  <p>Join <a href="https://discord.com/invite/bittensor">Discord</a>, check <a href="CONTRIBUTING.md">CONTRIBUTING.md</a>, and pick a <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">good first issue</a>.</p>
+</details>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- SHARE PACK -->
+## Share Pack
+
+Want to help Langostino reach more builders? Copy/paste one of these.
 
 <details>
   <summary><b>X (Twitter)</b></summary>
 
-  <br/>
+  ```
+  Open-source AI autopilot for real-world drones
 
-  <pre><code>
-Open-source AI autopilot for real-world drones 🦐✈️
+  Langostino is a reference drone you can understand, build, and fly — built with a global community.
 
-Langostino is a reference drone you can understand, build, and fly — built with a global community.
-
-⭐ https://github.com/swarm-subnet/Langostino
-  </code></pre>
+  https://github.com/swarm-subnet/Langostino
+  ```
 </details>
 
 <details>
   <summary><b>LinkedIn</b></summary>
 
-  <br/>
+  ```
+  We're open-sourcing Langostino — an AI autopilot + reference drone focused on real-world flight.
 
-  <pre><code>
-We’re open-sourcing Langostino — an AI autopilot + reference drone focused on real-world flight.
+  The goal: make drone autonomy understandable and buildable, so more builders can go from "curious" to "first flight".
 
-The goal: make drone autonomy understandable and buildable, so more builders can go from “curious” to “first flight”.
-
-Repo: https://github.com/swarm-subnet/Langostino
-Discord: https://discord.com/invite/bittensor
-  </code></pre>
+  Repo: https://github.com/swarm-subnet/Langostino
+  Discord: https://discord.com/invite/bittensor
+  ```
 </details>
 
 <details>
   <summary><b>Where to share</b></summary>
 
-  <br/>
-
-  <ul>
-    <li><b>Hackaday</b> — open hardware / DIY audience</li>
-    <li><b>DIY Drones</b> — builders who actually fly</li>
-    <li><b>Reddit</b> — consider: r/drones, r/Multicopter, r/robotics (follow each subreddit’s rules)</li>
-  </ul>
+  * **Hackaday** — open hardware / DIY audience
+  * **DIY Drones** — builders who actually fly
+  * **Reddit** — consider: r/drones, r/Multicopter, r/robotics (follow each subreddit's rules)
 </details>
 
-<!-- SECTION 12 -->
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<hr/>
+<!-- LICENSE -->
+## License
 
-<h2 align="center">License</h2>
+Distributed under the MIT License. See [LICENSE](LICENSE.md) for more information.
 
-<p align="center">
-  This project is released under the <b>MIT License</b> — see <a href="LICENSE.md"><b>LICENSE</b></a>.
-</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- SECTION 13 -->
-
-<hr/>
+---
 
 <p align="center">
-  <b>Happy flying!</b> 🦐
+  <b>Happy flying!</b>
 </p>
+
+<!-- MARKDOWN LINKS -->
+[chapter-1-url]: https://substack.com/home/post/p-175604069
+[chapter-2-url]: https://substack.com/home/post/p-176136139
+[chapter-3-url]: https://substack.com/home/post/p-177453660
+[chapter-3.5-url]: https://substack.com/home/post/p-180586067

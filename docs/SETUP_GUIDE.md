@@ -1,6 +1,6 @@
 # Swarm ROS2 Environment Setup Guide
 
-This guide provides step-by-step instructions for setting up the complete Swarm AI Integration drone control system on Ubuntu 22.04.
+This guide provides step-by-step instructions for setting up the complete Swarm AI Integration drone control system on Ubuntu 22.04 and 24.04.
 
 > 📖 **Deep Dive:** For a comprehensive understanding of the software architecture and how data flows through the system, see [Chapter 3: From Data to Motion](https://substack.com/home/post/p-177453660) on our Substack.
 
@@ -18,14 +18,14 @@ This guide provides step-by-step instructions for setting up the complete Swarm 
 ## Prerequisites
 
 ### Hardware Requirements
-- **Flight Controller**: INAV 7 compatible (connected via UART/Serial)
-- **LiDAR Sensor**: I2C-based distance sensor (e.g., TFMini-S on address 0x08)
-- **Onboard Computer**: Raspberry Pi 4 or Ubuntu 22.04 server
-- **GPS Module**: Connected to flight controller
-- **IMU**: Integrated in flight controller
+- **Flight Controller**: INAV 8 compatible (connected via UART/Serial)
+- **LiDAR Sensor**: I2C-based distance sensor (e.g., dTOF SEN0684  on address 0x08).
+- **Onboard Computer**: Raspberry Pi 5 or Ubuntu 24.04 server (Also tested on Raspberry Pi 3b+ with Ubuntu 22.04 server).
+- **GPS Module**: Connected to flight controller with UART.
+- **IMU**: Integrated in flight controller.
 
 ### Software Requirements
-- **OS**: Ubuntu 22.04 LTS (Jammy Jellyfish)
+- **OS**: Ubuntu 24.04 LTS
 - **Internet Connection**: For downloading packages
 - **Sudo Access**: Root privileges required for installation
 
@@ -60,8 +60,8 @@ sudo ./setup.sh
 - ✅ Installs all dependencies (Python, I2C, UART)
 - ✅ Creates Python virtual environment for AI packages
 - ✅ Configures hardware permissions (I2C, UART)
-- ✅ **Configures network (WiFi AP + Ethernet static IP)**
-- ✅ **Fixes workspace ownership** (prevents permission errors)
+- ✅ Configures network (WiFi AP + Ethernet static IP)
+- ✅ Fixes workspace ownership (prevents permission errors)
 - ✅ Builds ROS2 workspace
 - ✅ Installs PM2 process manager (auto-start on boot)
 
@@ -127,6 +127,8 @@ source ~/swarm-ros/install/setup.bash
 ros2 launch swarm_ai_integration swarm_ai_launch.py
 ```
 
+You can launch each node separately from the same terminal using PM2. See the [commands guide](COMMANDS_GUIDE.md).
+
 > **PM2 Benefits**: Auto-restart on crash, survives reboots, centralized logging, resource monitoring
 
 ---
@@ -157,7 +159,7 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-a
 
 # Install ROS2
 sudo apt update
-sudo apt install -y ros-humble-ros-base
+sudo apt install -y ros-jazzy-ros-base
 sudo apt install -y ros-dev-tools python3-colcon-common-extensions
 
 # Initialize rosdep
@@ -289,7 +291,7 @@ WorkNetwork:workpassword
 
 ```bash
 cd ~/swarm-ros
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
 ```
@@ -300,7 +302,7 @@ Add to `~/.bashrc`:
 
 ```bash
 # ROS2 Environment
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 source ~/swarm-ros/install/setup.bash
 
 # ROS2 Configuration
@@ -527,7 +529,7 @@ For comprehensive troubleshooting, see [TROUBLESHOOTING_GUIDE.md](TROUBLESHOOTIN
 
 | Issue | Quick Solution |
 |-------|---------------|
-| **ros2: command not found** | `source /opt/ros/humble/setup.bash` |
+| **ros2: command not found** | `source /opt/ros/jazzy/setup.bash` |
 | **Permission denied (I2C/UART)** | `sudo usermod -a -G i2c,dialout $USER`, then logout |
 | **Build permission errors** | `sudo chown -R $USER:$USER ~/swarm-ros && rm -rf build install log` |
 | **Virtual env in /root** | `sudo rm -rf /root/ai_flight_node_env && python3 -m venv ~/ai_flight_node_env` |
@@ -539,7 +541,6 @@ See the following sections in the Troubleshooting Guide for detailed solutions:
 - [Hardware Issues](TROUBLESHOOTING_GUIDE.md#hardware-issues)
 - [Network & Connectivity Issues](TROUBLESHOOTING_GUIDE.md#network--connectivity-issues)
 
----
 
 ## Configuration Files
 
@@ -559,7 +560,6 @@ Key parameters to configure:
 
 Modify to enable/disable nodes as needed.
 
----
 
 ## Process Management with PM2
 
@@ -669,19 +669,3 @@ pm2 start launch.sh --max-memory-restart 1G
 # Run multiple instances (if needed)
 pm2 scale swarm-ros-launched 2
 ```
-
----
-
-## Safety Checklist
-
-Before first flight:
-
-- [ ] All hardware connections verified
-- [ ] GPS has good fix (5+ satellites, HDOP < 2.0)
-- [ ] LiDAR reading correctly
-- [ ] Battery voltage correct
-- [ ] Flight controller armed successfully
-- [ ] Safety monitor active
-- [ ] Home position set correctly
-- [ ] Custom RTH tested in simulation
-- [ ] Emergency stop procedure understood

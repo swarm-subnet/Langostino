@@ -2,8 +2,6 @@
 
 Quick reference for launching and managing the Swarm AI Integration system.
 
----
-
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
@@ -12,8 +10,6 @@ Quick reference for launching and managing the Swarm AI Integration system.
 4. [PM2 Management](#pm2-management)
 5. [ROS2 Direct Commands](#ros2-direct-commands)
 6. [Troubleshooting](#troubleshooting)
-
----
 
 ## Quick Start
 
@@ -39,8 +35,6 @@ cd ~/swarm-ros
 source install/setup.bash
 ros2 launch swarm_ai_integration swarm_ai_launch.py
 ```
-
----
 
 ## Launch Methods
 
@@ -83,7 +77,6 @@ ros2 launch swarm_ai_integration swarm_ai_launch.py
 
 See [Individual Node Commands](#individual-node-commands) below.
 
----
 
 ## Individual Node Commands
 
@@ -266,8 +259,6 @@ pm2 start "ros2 run swarm_ai_integration black_box_recorder_node.py --ros-args -
 ls -lh ~/swarm-ros/flight-logs/
 tail -f ~/swarm-ros/flight-logs/flight_log_*.csv
 ```
-
----
 
 ## PM2 Management
 
@@ -458,8 +449,6 @@ ros2 param get /fc_adapter_velocity_node control_rate_hz
 ros2 param set /fc_adapter_velocity_node kp_xy 25.0
 ```
 
----
-
 ## Troubleshooting
 
 For comprehensive troubleshooting information, see the [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md).
@@ -485,8 +474,6 @@ ls -l /dev/ttyAMA0    # FC serial
 - **High CPU** → Reduce control rates in swarm_params.yaml
 
 See [TROUBLESHOOTING_GUIDE.md](TROUBLESHOOTING_GUIDE.md) for detailed solutions.
-
----
 
 ## Quick Command Reference
 

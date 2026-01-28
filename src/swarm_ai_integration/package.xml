@@ -4,7 +4,7 @@
   <name>swarm_ai_integration</name>
   <version>1.0.0</version>
   <description>ROS2 integration package for Swarm AI flight control using real-world sensor data</description>
-  <maintainer email="swarm@example.com">Swarm Team</maintainer>
+  <maintainer email="admin@swarm124.com">Swarm Team</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

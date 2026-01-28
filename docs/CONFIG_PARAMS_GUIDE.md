@@ -1237,8 +1237,6 @@ mm_to_m_divisor: 1000.0
 
 **Note:** Do not change unless sensor reports in different units.
 
----
-
 ## Using Parameters
 
 ### Loading from File
@@ -1292,8 +1290,6 @@ ros2 param dump /fc_adapter_node > fc_adapter_backup.yaml
 ```bash
 ros2 param load /fc_adapter_node fc_adapter_backup.yaml
 ```
-
----
 
 ## Tuning Guide
 
@@ -1350,8 +1346,6 @@ safety_monitor_node:
 - Widen RC range
 - Check `prediction_rate` is adequate (10+ Hz)
 
----
-
 ## Troubleshooting
 
 For comprehensive troubleshooting information, see the [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md).
@@ -1362,8 +1356,6 @@ For comprehensive troubleshooting information, see the [Troubleshooting Guide](T
 - **Performance issues** → Reduce control rates, telemetry rates
 
 See [Parameter & Configuration Issues](TROUBLESHOOTING_GUIDE.md#parameter--configuration-issues) and [Performance Issues](TROUBLESHOOTING_GUIDE.md#performance-issues) in the Troubleshooting Guide.
-
----
 
 ## Best Practices
 

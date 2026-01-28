@@ -2,69 +2,28 @@
 
 This guide is your “flight plan” to go from parts → build → first safe flight.
 
-> ⚠️ **Safety first:** Langostino is a real flying machine. Follow local regulations, test in safe environments, and use prop guards + failsafes.
-
----
-
-## Quick links
-
-- ✅ Parts list (BOM): [`./BOM.md`](./BOM.md)
-- 🧰 Raspberry Pi setup (Ubuntu 22.04 + ROS2 Humble): [`../SETUP_GUIDE.md#quick-setup`](../SETUP_GUIDE.md#quick-setup)
-- 🧭 INAV configuration script (copy/paste): [`../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands`](../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands)
-- 🛰️ INAV MSP / RC override params: [`../INAV_GUIDE.md#msp-configuration`](../INAV_GUIDE.md#msp-configuration)
-- 🧯 Troubleshooting: [`../TROUBLESHOOTING_GUIDE.md`](../TROUBLESHOOTING_GUIDE.md)
-- 🤝 Contributing: [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
-- 💬 Discord: https://discord.com/invite/bittensor
-
-### Deep Dive Articles
-
-For detailed explanations and context, check out our Substack series:
-- 📖 [Chapter 1: Inside the Drone](https://substack.com/home/post/p-175604069) — Hardware components and drone anatomy
-- 📖 [Chapter 2: The Wiring Brain](https://substack.com/home/post/p-176136139) — Wiring, connections, and power distribution
-- 📖 [Chapter 3: From Data to Motion](https://substack.com/home/post/p-177453660) — Software architecture and data flow
-- 📖 [Chapter 3.5: Additional Configurations](https://substack.com/home/post/p-180586067) — Advanced configuration and tuning
-
-
----
-
-## What you’re building
-
-Langostino is a drone that:
-
-- **senses** the world (dual LiDAR + GPS + IMU),
-- **decides locally** on a Raspberry Pi (ROS2 + AI nodes),
-- and **acts** through a flight controller running **INAV** (navigation/autonomy firmware).
-
----
-
-## Your flight plan (zero → first flight)
-
-1. **Get the parts** using the BOM
-2. **Assemble the airframe** (frame + motors + FC/ESC stack)
-3. **Add sensors + mounts** (dual LiDAR, GPS, receiver, buzzer, regulator)
-4. **Wire power + data** (clean 5V, UART, I²C, optional Ethernet debug)
-5. **Install software on the Pi** (setup + verify + launch)
-6. **Configure INAV + safety checks**, then **manual flight first**, autonomy later
-
----
+> [!CAUTION]
+> **⚠️ Langostino is a real flying machine.**
+> * Follow local regulations
+> * Test in safe environments
+> * Use prop guards and appropriate failsafes
 
 ## Step 0 — Before you start
 
 ### Tools (typical)
 
 - Hex drivers / screw set (FPV frame hardware)
-- Soldering iron + solder + heatshrink (if your build requires it)
+- Soldering iron + solder + soldering tin and flux + heatshrink (if your build requires it)
 - Zip ties / cable sleeves (strain relief matters)
 - Multimeter (recommended)
+- Hot glue gun (recommended)
 - Laptop with INAV Configurator installed
 
 ### Safety basics
 
 - **Props off** for bench tests and when testing motors in configurators
 - Use a **safe open area** for first outdoor tests
-- Configure a **manual override** (radio receiver) before autonomy tests
-
----
+- Configure a **manual override** channel (radio receiver) before autonomy tests
 
 ## Step 1 — Parts (BOM)
 
@@ -75,13 +34,12 @@ The BOM is your shopping list. It should include:
 - Frame + hardware
 - FC/ESC stack
 - Motors + propellers
-- Raspberry Pi + storage
-- Dual LiDAR (front + down) + mounts
+- Raspberry Pi + microSD card
+- LiDAR (down at least, more optional) + 3d printed mounts
 - GPS module
 - 5V regulator + filtering capacitor
-- Receiver (manual override) + buzzer
-
----
+- Receiver (manual override)
+- Autonomous buzzer
 
 ## Step 2 — The skeleton (frame) + propulsion
 
@@ -106,13 +64,11 @@ The BOM is your shopping list. It should include:
 
 > Why INAV: unlike Betaflight (manual-first), **INAV** is built for navigation/autonomy and supports MSP-based control paths.
 
----
-
 ## Step 3 — Sensors + “field” essentials
 
-### 3.1 Dual LiDAR (front + downward)
+### 3.1 LiDAR
 
-- Install LiDAR front-facing + downward-facing
+- Install LiDAR downward-facing (front-facing optional)
 - Use stable mounts (3D-printed mounts help reduce vibration + keep alignment)
 - Keep cables tidy and strain-relieved
 
@@ -121,17 +77,15 @@ The BOM is your shopping list. It should include:
 - Mount the GPS with good sky visibility
 - Keep it away from noisy power lines if possible
 
-### 3.3 Receiver (manual override)
+### 3.3 Receiver
 
 - Install a receiver so you can always take back control
-- Confirm your “manual modes” plan before autonomy (ANGLE/manual/etc.)
+- Confirm your “manual modes” plan before autonomy (ANGLE/ACRO/etc.)
 
-### 3.4 Buzzer (highly recommended)
+### 3.4 Autonomous buzzer (highly recommended)
 
-- Install an autonomous buzzer connected to the FC
+- Install an autonomous buzzer connected to the FC on any free UART
 - Purpose: finding the drone after unexpected landings/crashes
-
----
 
 ## Step 4 — Wiring (power + data)
 
@@ -142,9 +96,7 @@ This is where "circuits meet code".
 ### 4.1 Clean power (very important)
 
 - Battery feeds ESC → motors
-- A regulator steps down high voltage to **clean 5V** for:
-  - Raspberry Pi
-  - LiDAR sensors
+- A regulator steps down high voltage to **clean 5V** for the Raspberry Pi.
 - Add a **filtering capacitor** on the power line:
   - reduces electrical noise from motors
   - helps protect electronics from voltage spikes
@@ -164,15 +116,13 @@ Used for FC ↔ Raspberry Pi (telemetry + commands).
 
 Used for multiple sensors on the same bus.
 
-- Both LiDAR modules communicate via I²C
+- LiDAR modules communicate via I²C
 - Each has its own address so they don’t collide
 
 ### 4.3 Optional: Ethernet debug for field testing
 
 - Ethernet can be more reliable than Wi-Fi outdoors
 - Lets you read ROS2 logs and push quick updates between flights
-
----
 
 ## Step 5 — Raspberry Pi software (Ubuntu + ROS2 + Swarm stack)
 
@@ -190,14 +140,12 @@ sudo ./setup.sh
 If you hit issues, go to:
 [`../TROUBLESHOOTING_GUIDE.md`](../TROUBLESHOOTING_GUIDE.md)
 
----
-
 ## Step 6 — INAV setup (firmware + parameters + MSP path)
 
 ### 6.1 Flash INAV (if not already)
 
-- Use INAV Configurator
-- Flash a supported INAV build for your flight controller
+- Use INAV Configurator firmware flasher
+- Flash a supported INAV build for your flight controller. For SpeedyBee F405 V4, use our custom firmware: [`inav_8.0.1_SPEEDYBEEF405V4.hex`](../../inav-custom-firmware/inav_8.0.1_SPEEDYBEEF405V4.hex)
 - Reboot and confirm the FC connects properly
 
 ### 6.2 Apply baseline parameters (copy/paste script)
@@ -218,45 +166,6 @@ From [`../INAV_GUIDE.md#msp-configuration`](../INAV_GUIDE.md#msp-configuration):
 - ✅ Ensure you have a working manual override (radio receiver) before autonomy tests
 
 > Note: enabling MSP/override end-to-end often involves both **parameters** (like `msp_override_channels`) and **port configuration** in INAV Configurator. Port specifics vary by FC and wiring.
-
----
-
-## How the autonomy stack works (ROS2 → AI → flight control)
-
-Langostino runs a modular ROS2 graph. Hardware signals become ROS2 topics (virtual "wires"), then the AI outputs actions that are translated into flight commands.
-
-> 📖 **Deep Dive:** For an in-depth explanation of the software architecture and data flow, see [Chapter 3: From Data to Motion](https://substack.com/home/post/p-177453660) on our Substack.
-
-### Core loop
-
-1. **Sense** → LiDAR + GPS/IMU telemetry
-2. **Observe** → nodes build a fixed-size observation vector (**131 values**)
-3. **Decide** → `ai_flight_node` outputs velocity targets
-4. **Translate** → `fc_adapter_node` converts targets to INAV-friendly commands
-5. **Actuate** → `fc_comms_node` sends commands to the FC
-6. **Safety** → `safety_monitor_node` watches anomalies and triggers safe behavior
-
-### Nodes overview (prototype series)
-
-- `lidar_reader_node` — reads front + down LiDAR over I²C
-- `lidar_adapter_node` — normalizes raw readings for the AI
-- `ai_flight_node` — takes 131-value observation vector, outputs velocity targets
-- `fc_adapter_node` — converts AI actions to INAV flight commands
-- `fc_comms_node` — handles serial comms between Pi and FC
-- `safety_monitor_node` — detects anomalies and triggers emergency behaviors
-
-### Hardware → Node → Topic (conceptual map)
-
-_(Exact topic names may differ per version; this is the architecture pattern.)_
-
-| Hardware / Line      | ROS2 Node           | Topic (example)                 | Purpose                               |
-| -------------------- | ------------------- | ------------------------------- | ------------------------------------- |
-| LiDAR (I²C)          | `lidar_reader_node` | `/lidar_distance`               | Obstacle + altitude distance readings |
-| GPS/telemetry via FC | `fc_comms_node`     | `/fc/gps_fix`                   | Position + velocity                   |
-| FC ↔ Pi (UART)       | `fc_adapter_node`   | `/fc/msp_command`               | Turns AI actions into flight commands |
-| AI ↔ ROS             | `ai_flight_node`    | `/ai/observation`, `/ai/action` | Observation vector → control outputs  |
-
----
 
 ## First flights (do this in order)
 
@@ -282,23 +191,12 @@ Before autonomy:
 - Keep safe altitude and space
 - Log everything and iterate
 
----
+## Quick links
 
-## Want to help improve this guide?
-
-Documentation is part of the product.
-If anything is unclear, missing, or outdated, open a PR or ask in Discord.
-
-- Contributing: [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
-- Discord: https://discord.com/invite/bittensor
-
----
-
-## Safety reminder
-
-Langostino is a real flying machine.
-
-- Follow local regulations
-- Test in safe environments
-- Use prop guards and appropriate failsafes
-- Props off for bench testing
+- ✅ Parts list (BOM): [`./BOM.md`](./BOM.md)
+- 🧰 Raspberry Pi setup (Ubuntu 24.04 + ROS2 Jazzy): [`../SETUP_GUIDE.md#quick-setup`](../SETUP_GUIDE.md#quick-setup)
+- 🧭 INAV configuration script (copy/paste): [`../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands`](../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands)
+- 🛰️ INAV MSP / RC override params: [`../INAV_GUIDE.md#msp-configuration`](../INAV_GUIDE.md#msp-configuration)
+- 🧯 Troubleshooting: [`../TROUBLESHOOTING_GUIDE.md`](../TROUBLESHOOTING_GUIDE.md)
+- 🤝 Contributing: [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
+- 💬 Discord: https://discord.com/invite/bittensor
