@@ -16,6 +16,14 @@ This guide is your “flight plan” to go from parts → build → first safe f
 - 🤝 Contributing: [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
 - 💬 Discord: https://discord.com/invite/bittensor
 
+### Deep Dive Articles
+
+For detailed explanations and context, check out our Substack series:
+- 📖 [Chapter 1: Inside the Drone](https://substack.com/home/post/p-175604069) — Hardware components and drone anatomy
+- 📖 [Chapter 2: The Wiring Brain](https://substack.com/home/post/p-176136139) — Wiring, connections, and power distribution
+- 📖 [Chapter 3: From Data to Motion](https://substack.com/home/post/p-177453660) — Software architecture and data flow
+- 📖 [Chapter 3.5: Additional Configurations](https://substack.com/home/post/p-180586067) — Advanced configuration and tuning
+
 
 ---
 
@@ -127,7 +135,9 @@ The BOM is your shopping list. It should include:
 
 ## Step 4 — Wiring (power + data)
 
-This is where “circuits meet code”.
+This is where "circuits meet code".
+
+> 📖 **Deep Dive:** For a detailed walkthrough of the wiring and connections, see [Chapter 2: The Wiring Brain](https://substack.com/home/post/p-176136139) on our Substack.
 
 ### 4.1 Clean power (very important)
 
@@ -213,7 +223,9 @@ From [`../INAV_GUIDE.md#msp-configuration`](../INAV_GUIDE.md#msp-configuration):
 
 ## How the autonomy stack works (ROS2 → AI → flight control)
 
-Langostino runs a modular ROS2 graph. Hardware signals become ROS2 topics (virtual “wires”), then the AI outputs actions that are translated into flight commands.
+Langostino runs a modular ROS2 graph. Hardware signals become ROS2 topics (virtual "wires"), then the AI outputs actions that are translated into flight commands.
+
+> 📖 **Deep Dive:** For an in-depth explanation of the software architecture and data flow, see [Chapter 3: From Data to Motion](https://substack.com/home/post/p-177453660) on our Substack.
 
 ### Core loop
 

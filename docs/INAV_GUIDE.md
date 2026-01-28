@@ -2,6 +2,8 @@
 
 Complete guide for configuring INAV flight controller parameters for autonomous drone operations.
 
+> 📖 **Deep Dive:** For additional configuration tips and advanced tuning, see [Chapter 3.5: Additional Configurations](https://substack.com/home/post/p-180586067) on our Substack.
+
 ---
 
 ## Table of Contents

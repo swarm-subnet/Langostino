@@ -9,13 +9,16 @@ Comprehensive troubleshooting reference for the Swarm AI Integration system.
 1. [Quick Diagnostics](#quick-diagnostics)
 2. [System & ROS2 Issues](#system--ros2-issues)
 3. [Hardware Issues](#hardware-issues)
+   - [Raspberry Pi Boot Configuration](#raspberry-pi-boot-configuration-bootfirmwareconfigtxt)
+   - [I2C LiDAR Issues](#i2c-lidar-issues)
+   - [Flight Controller UART Issues](#flight-controller-uart-issues)
+   - [GPS Issues](#gps-issues)
 4. [Build & Installation Issues](#build--installation-issues)
 5. [Network & Connectivity Issues](#network--connectivity-issues)
 6. [Runtime & Node Issues](#runtime--node-issues)
-7. [Flight Control Issues](#flight-control-issues)
-8. [Parameter & Configuration Issues](#parameter--configuration-issues)
-9. [Performance Issues](#performance-issues)
-10. [Safety & Emergency Procedures](#safety--emergency-procedures)
+7. [Parameter & Configuration Issues](#parameter--configuration-issues)
+8. [Performance Issues](#performance-issues)
+9. [Safety & Emergency Procedures](#safety--emergency-procedures)
 
 ---
 
@@ -115,7 +118,7 @@ source install/setup.bash
 **Check:**
 ```bash
 echo $ROS_DISTRO
-# Should show: humble
+# Should show: humble (for 22.04) or jazzy (for 24.04)
 ```
 
 **Solution:**
@@ -143,6 +146,238 @@ source install/setup.bash
 
 ## Hardware Issues
 
+### Raspberry Pi Boot Configuration (`/boot/firmware/config.txt`)
+
+The Raspberry Pi uses `/boot/firmware/config.txt` to configure hardware interfaces at boot time. Incorrect configuration here is a common cause of I2C and UART communication failures with the flight controller and sensors.
+
+#### Verifying Current Configuration
+
+```bash
+# View current config.txt
+cat /boot/firmware/config.txt
+
+# Check if I2C is enabled
+grep -E "^dtparam=i2c" /boot/firmware/config.txt
+
+# Check UART settings
+grep -E "^enable_uart|^dtoverlay=disable-bt|^\[pi5\]|^dtoverlay=uart" /boot/firmware/config.txt
+```
+
+#### Required Settings for Swarm System
+
+Your `/boot/firmware/config.txt` should contain these lines:
+
+```ini
+# I2C for LiDAR sensor
+dtparam=i2c_arm=on
+
+# UART for Flight Controller
+enable_uart=1
+dtoverlay=disable-bt
+
+# Pi 5 ONLY - required for GPIO 14/15 UART
+[pi5]
+dtoverlay=uart0-pi5
+```
+
+#### Common Configuration Errors
+
+| Error | Symptom | Solution |
+|-------|---------|----------|
+| Missing `dtparam=i2c_arm=on` | `/dev/i2c-1` doesn't exist | Add the line and reboot |
+| Missing `enable_uart=1` | `/dev/ttyAMA0` doesn't exist | Add the line and reboot |
+| Missing `dtoverlay=disable-bt` | UART conflicts with Bluetooth | Add the line and reboot |
+| Pi 5 missing `[pi5]` section | UART not mapped to GPIO 14/15 | Add `[pi5]` section with `dtoverlay=uart0-pi5` |
+| Duplicate entries | Unpredictable behavior | Remove duplicates, keep one of each |
+| Syntax errors (typos) | Setting not applied | Check spelling exactly |
+
+#### Pi 3 vs Pi 5 UART Differences
+
+**Raspberry Pi 3B / 3B+:**
+- UART is on `/dev/ttyAMA0` by default after disabling Bluetooth
+- Only needs `enable_uart=1` and `dtoverlay=disable-bt`
+- Tested with: `setup_22_04.sh` on Raspberry Pi 3B and 3B+
+
+**Raspberry Pi 5:**
+- UART requires explicit overlay configuration
+- Must add `[pi5]` section with `dtoverlay=uart0-pi5`
+- Creates `/dev/ttyAMA0` mapped to GPIO 14 (TX) and GPIO 15 (RX)
+- May also show `/dev/ttyAMA10` (different UART peripheral)
+- Tested with: `setup_24_04.sh` on Raspberry Pi 5 (4GB and 8GB versions)
+
+> **Note:** Raspberry Pi 4 has not been tested yet. It may work with either setup script, but UART configuration could differ. If you test on Pi 4, please report your results.
+
+```bash
+# Check Pi model
+cat /proc/device-tree/model
+
+# List available serial devices
+ls -la /dev/ttyAMA*
+```
+
+#### Fixing Missing I2C Configuration
+
+```bash
+# Check if I2C is enabled
+ls /dev/i2c*
+# Should show /dev/i2c-1
+
+# If missing, add to config.txt
+sudo nano /boot/firmware/config.txt
+
+# Add this line (if not present):
+dtparam=i2c_arm=on
+
+# Save and reboot
+sudo reboot
+
+# After reboot, verify
+i2cdetect -y 1
+```
+
+#### Fixing Missing UART Configuration
+
+```bash
+# Check if UART device exists
+ls -la /dev/ttyAMA0
+
+# If missing on Pi 4:
+sudo nano /boot/firmware/config.txt
+# Add:
+enable_uart=1
+dtoverlay=disable-bt
+
+# If missing on Pi 5, also add:
+[pi5]
+dtoverlay=uart0-pi5
+
+# Disable Bluetooth services
+sudo systemctl disable hciuart
+sudo systemctl disable bluetooth
+
+# Reboot
+sudo reboot
+```
+
+#### cmdline.txt Serial Console Conflicts
+
+The kernel command line (`/boot/firmware/cmdline.txt`) may have serial console enabled, which conflicts with flight controller communication.
+
+**Check for conflicts:**
+```bash
+cat /boot/firmware/cmdline.txt
+# Look for: console=serial0,115200 or console=ttyAMA0,115200
+```
+
+**Remove serial console (if present):**
+```bash
+# Backup first
+sudo cp /boot/firmware/cmdline.txt /boot/firmware/cmdline.txt.backup
+
+# Edit and remove console=serial0,115200 and console=ttyAMA0,115200
+sudo nano /boot/firmware/cmdline.txt
+
+# Reboot
+sudo reboot
+```
+
+#### Serial Getty Service Conflicts
+
+The `serial-getty` service can lock the UART port, preventing flight controller communication.
+
+**Check if serial-getty is running:**
+```bash
+# Pi 4
+sudo systemctl status serial-getty@ttyAMA0.service
+
+# Pi 5 (check both)
+sudo systemctl status serial-getty@ttyAMA0.service
+sudo systemctl status serial-getty@ttyAMA10.service
+```
+
+**Disable serial-getty:**
+```bash
+# Pi 4
+sudo systemctl stop serial-getty@ttyAMA0.service
+sudo systemctl disable serial-getty@ttyAMA0.service
+
+# Pi 5
+sudo systemctl stop serial-getty@ttyAMA0.service
+sudo systemctl disable serial-getty@ttyAMA0.service
+sudo systemctl stop serial-getty@ttyAMA10.service
+sudo systemctl disable serial-getty@ttyAMA10.service
+```
+
+#### Complete Configuration Check Script
+
+Run this to verify all boot configuration is correct:
+
+```bash
+#!/bin/bash
+echo "=== Checking /boot/firmware/config.txt ==="
+
+# I2C
+if grep -q "^dtparam=i2c_arm=on" /boot/firmware/config.txt; then
+    echo "[OK] I2C enabled"
+else
+    echo "[MISSING] dtparam=i2c_arm=on"
+fi
+
+# UART
+if grep -q "^enable_uart=1" /boot/firmware/config.txt; then
+    echo "[OK] UART enabled"
+else
+    echo "[MISSING] enable_uart=1"
+fi
+
+# Bluetooth disabled
+if grep -q "^dtoverlay=disable-bt" /boot/firmware/config.txt; then
+    echo "[OK] Bluetooth disabled for UART"
+else
+    echo "[MISSING] dtoverlay=disable-bt"
+fi
+
+# Pi 5 specific
+if grep -q "Raspberry Pi 5" /proc/device-tree/model 2>/dev/null; then
+    echo "Detected: Raspberry Pi 5"
+    if grep -A5 "^\[pi5\]" /boot/firmware/config.txt | grep -q "dtoverlay=uart0-pi5"; then
+        echo "[OK] Pi 5 UART overlay configured"
+    else
+        echo "[MISSING] [pi5] section with dtoverlay=uart0-pi5"
+    fi
+fi
+
+echo ""
+echo "=== Checking devices ==="
+[ -e /dev/i2c-1 ] && echo "[OK] /dev/i2c-1 exists" || echo "[MISSING] /dev/i2c-1"
+[ -e /dev/ttyAMA0 ] && echo "[OK] /dev/ttyAMA0 exists" || echo "[MISSING] /dev/ttyAMA0"
+
+echo ""
+echo "=== Checking cmdline.txt for serial console ==="
+if grep -q "console=serial0\|console=ttyAMA0" /boot/firmware/cmdline.txt; then
+    echo "[WARNING] Serial console enabled - may conflict with FC"
+else
+    echo "[OK] No serial console conflict"
+fi
+```
+
+#### When to Rerun Setup Script
+
+If your boot configuration is incorrect, the setup scripts will fix it automatically:
+
+```bash
+# Ubuntu 22.04
+sudo ./scripts/setup_22_04.sh
+
+# Ubuntu 24.04
+sudo ./scripts/setup_24_04.sh
+
+# Always reboot after running setup
+sudo reboot
+```
+
+---
+
 ### I2C LiDAR Issues
 
 #### Permission Denied: `/dev/i2c-1`
@@ -151,7 +386,7 @@ source install/setup.bash
 
 **Solution:**
 ```bash
-# Add user to i2c group
+# Add user, pi for example, to i2c group
 sudo usermod -a -G i2c $USER
 
 # Verify
@@ -613,219 +848,6 @@ ls -ld ~/ai_flight_node_env
 ```bash
 ~/ai_flight_node_env/bin/pip install -r ~/swarm-ros/ai_model_requirements.txt
 ```
-
----
-
-## Flight Control Issues
-
-### Position Hold Drifts
-
-**Symptoms:** Drone slowly drifts from position over time.
-
-**Solutions:**
-1. **Increase integral gain:**
-   ```yaml
-   # In swarm_params.yaml or INAV CLI
-   nav_mc_vel_xy_i: 10-12  # Try higher
-   ```
-
-2. **Check GPS:**
-   - Satellite count (should be 7+)
-   - HDOP (should be < 2.0)
-
-3. **Calibrate compass:**
-   - Use INAV configurator
-   - Away from magnetic interference
-
-4. **Check for GPS interference:**
-   - Move GPS away from power lines
-   - Shield GPS cable
-
-**See:** INAV_GUIDE.md for detailed PID tuning
-
----
-
-### Oscillations in Position Hold
-
-**Symptoms:** Drone bounces back and forth around target position.
-
-**Solutions:**
-1. **Reduce proportional gain:**
-   ```yaml
-   # ROS2 PID (swarm_params.yaml)
-   kp_xy: 100-120  # Lower from 150
-
-   # INAV (CLI)
-   nav_mc_vel_xy_p: 15-18  # Lower from 20
-   ```
-
-2. **Increase derivative gain:**
-   ```yaml
-   # ROS2 PID
-   kd_xy: 25-30  # Increase from 20
-
-   # INAV
-   nav_mc_vel_xy_d: 60-70  # Increase from 50
-   ```
-
-3. **Check PIDs aren't fighting:**
-   - Verify level PIDs are stable
-   - Check control rates aren't too high
-
-**See:** INAV_GUIDE.md, CONFIG_PARAMS_GUIDE.md
-
----
-
-### "Toilet Bowling" Effect
-
-**Symptoms:** Drone slowly circles around position.
-
-**Solutions:**
-1. **PRIMARY CAUSE - Reduce integral:**
-   ```yaml
-   # INAV (most effective)
-   nav_mc_vel_xy_i: 5-6  # Reduce from 8
-   ```
-
-2. **Calibrate compass:**
-   - CRITICAL for GPS navigation
-   - Do in field, away from metal
-
-3. **Check for magnetic interference:**
-   - GPS far from power wires
-   - No magnets near compass
-
-4. **Verify GPS mount:**
-   - Secure, vibration-free
-   - No flexing during flight
-
-**See:** INAV_GUIDE.md
-
----
-
-### Sluggish GPS Response
-
-**Symptoms:** Drone slow to react to position changes or stick inputs.
-
-**Solutions:**
-1. **Increase feedforward:**
-   ```yaml
-   # INAV
-   nav_mc_vel_xy_ff: 30-40  # Increase from 20
-   ```
-
-2. **Increase proportional gain slightly:**
-   ```yaml
-   # ROS2
-   kp_xy: 180-200  # From 150
-
-   # INAV
-   nav_mc_vel_xy_p: 25-30  # From 20
-   ```
-
-3. **Check bank angle limit:**
-   ```yaml
-   # INAV
-   nav_mc_bank_angle: 25-30  # Increase from 20 (degrees)
-   ```
-
-4. **Verify altitude hold is stable**
-
-**See:** INAV_GUIDE.md
-
----
-
-### Altitude Hold Drifts Up/Down
-
-**Symptoms:** Drone climbs or descends with throttle at mid-stick.
-
-**Solutions:**
-1. **Adjust hover throttle:**
-   ```yaml
-   # INAV
-   nav_mc_hover_thr: 1450-1550  # Adjust from 1500
-
-   # If drone climbs: decrease value
-   # If drone descends: increase value
-   ```
-
-2. **Calibrate barometer:**
-   - On ground before takeoff
-   - In INAV configurator
-
-3. **Check for air leaks:**
-   - Barometer housing must be sealed
-   - No holes in FC case
-
-4. **Check climb rate sensitivity:**
-   ```yaml
-   # INAV
-   nav_mc_manual_climb_rate: 50  # Adjust if too sensitive
-   ```
-
-**See:** INAV_GUIDE.md, CONFIG_PARAMS_GUIDE.md
-
----
-
-### Drone Won't Arm
-
-**Common causes:**
-
-1. **Throttle not at 1000:**
-   - FC requires throttle at minimum to arm
-   - fc_adapter_node handles this automatically during pre-arm
-   - Check throttle in logs
-
-2. **GPS not ready:**
-   - Need minimum satellites (default 5)
-   - Check GPS fix
-
-3. **Accelerometer not calibrated:**
-   - Calibrate in INAV configurator
-   - On level surface
-
-4. **Angle too high:**
-   - Level the drone
-   - Check max_angle_inclination settings
-
-5. **Battery voltage too low:**
-   - Check battery
-   - Verify voltage readings in INAV
-
-**Check INAV CLI for specific errors:**
-```bash
-# In INAV CLI
-status
-# Shows arming disable flags
-```
-
----
-
-### Aggressive Altitude Changes
-
-**Symptoms:** Drone climbs/descends too fast, unstable vertically.
-
-**Solutions:**
-1. **Reduce throttle scale:**
-   ```yaml
-   # ROS2 (swarm_params.yaml)
-   vz_to_throttle_scale: 75-90  # Reduce from 100
-   ```
-
-2. **Increase throttle rate limiting:**
-   ```yaml
-   throttle_rate_limit: 150-200  # Smoother ramping
-   ```
-
-3. **Check climb rates:**
-   ```yaml
-   # INAV
-   nav_mc_auto_climb_rate: 50  # cm/s (0.5 m/s)
-   nav_mc_manual_climb_rate: 50
-   ```
-
-**See:** CONFIG_PARAMS_GUIDE.md
-
 ---
 
 ## Parameter & Configuration Issues
@@ -1087,6 +1109,14 @@ pm2 logs fc_comms --lines 100
 ---
 
 ## Getting Help
+
+### Deep Dive Articles
+
+For background context that may help with troubleshooting, check out our Substack series:
+- [Chapter 1: Inside the Drone](https://substack.com/home/post/p-175604069) — Hardware components and drone anatomy
+- [Chapter 2: The Wiring Brain](https://substack.com/home/post/p-176136139) — Wiring, connections, and power distribution
+- [Chapter 3: From Data to Motion](https://substack.com/home/post/p-177453660) — Software architecture and data flow
+- [Chapter 3.5: Additional Configurations](https://substack.com/home/post/p-180586067) — Advanced configuration and tuning
 
 ### Collecting Diagnostic Information
 

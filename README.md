@@ -247,37 +247,147 @@ Join Discord, check <a href="CONTRIBUTING.md"><b>CONTRIBUTING.md</b></a>, and pi
   Use prop guards and appropriate failsafes.
 </p>
 
-<!-- SECTION 9 -->
+<!-- SECTION 8.5 -->
 
-<!--
 <hr/>
 
-<h2 align="center">Repository structure</h2>
+<h2 align="center">Deep Dive Articles</h2>
+
+<p align="center">
+  Want to understand the project in depth? Check out our Substack series that walks through every aspect of building and flying Langostino.
+</p>
+
+<table align="center">
+  <tr>
+    <th>Chapter</th>
+    <th>Topic</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td><a href="https://substack.com/home/post/p-175604069"><b>Chapter 1</b></a></td>
+    <td>Inside the Drone</td>
+    <td>Hardware components and drone anatomy</td>
+  </tr>
+  <tr>
+    <td><a href="https://substack.com/home/post/p-176136139"><b>Chapter 2</b></a></td>
+    <td>The Wiring Brain</td>
+    <td>Wiring, connections, and power distribution</td>
+  </tr>
+  <tr>
+    <td><a href="https://substack.com/home/post/p-177453660"><b>Chapter 3</b></a></td>
+    <td>From Data to Motion</td>
+    <td>Software architecture and data flow</td>
+  </tr>
+  <tr>
+    <td><a href="https://substack.com/home/post/p-180586067"><b>Chapter 3.5</b></a></td>
+    <td>Additional Configurations</td>
+    <td>Advanced configuration and tuning</td>
+  </tr>
+</table>
+
+<!-- SECTION 9 -->
+
+<hr/>
+
+<h2 align="center">Documentation Index</h2>
+
+<p align="center">
+  Find detailed guides for every aspect of the project.
+</p>
+
+<table align="center">
+  <tr>
+    <th>Category</th>
+    <th>Document</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td><b>Building</b></td>
+    <td><a href="docs/assembly/README.md">Assembly Guide</a></td>
+    <td>Complete build guide from parts to first flight</td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><a href="docs/assembly/BOM.md">Bill of Materials</a></td>
+    <td>Full parts list with purchase links</td>
+  </tr>
+  <tr>
+    <td><b>INAV</b></td>
+    <td><a href="docs/INAV_GUIDE.md">INAV Configuration</a></td>
+    <td>Flight controller setup, PID tuning, MSP configuration</td>
+  </tr>
+  <tr>
+    <td><b>ROS2</b></td>
+    <td><a href="docs/SETUP_GUIDE.md">Setup Guide</a></td>
+    <td>Ubuntu + ROS2 Humble installation on Raspberry Pi</td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><a href="docs/COMMANDS_GUIDE.md">Commands Guide</a></td>
+    <td>ROS2 commands and node operations</td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><a href="docs/CONFIG_PARAMS_GUIDE.md">Config Parameters</a></td>
+    <td>Complete ROS2 node configuration reference</td>
+  </tr>
+  <tr>
+    <td><b>Tools</b></td>
+    <td><a href="mapproxy/README.md">Map Proxy</a></td>
+    <td>Offline map tile server for ground station</td>
+  </tr>
+  <tr>
+    <td><b>Help</b></td>
+    <td><a href="docs/TROUBLESHOOTING_GUIDE.md">Troubleshooting</a></td>
+    <td>Common issues and solutions</td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><a href="CONTRIBUTING.md">Contributing</a></td>
+    <td>How to contribute to the project</td>
+  </tr>
+</table>
+
+<!-- SECTION 9.5 -->
+
+<hr/>
+
+<h2 align="center">Project Structure</h2>
 
 <details>
   <summary><b>Click to expand</b></summary>
 
   <pre><code>
-langostino/
-├── hardware/
-│   ├── CAD/        # 3D models (STL, STEP)
-│   ├── PCB/        # Circuit designs
-│   └── BOM/        # Bill of Materials + purchase links
-├── firmware/
-│   ├── flight_controller/
-│   └── sensors/
-├── software/
-│   ├── ai_model/        # AI model (if applicable)
-│   ├── ground_station/
-│   └── simulation/
+swarm-ros/
+├── src/
+│   └── swarm_ai_integration/       # Main ROS2 package
+│       ├── swarm_ai_integration/   # Python nodes (FC adapter, LiDAR, AI)
+│       ├── config/                 # ROS2 parameter files
+│       ├── launch/                 # Launch files
+│       └── scripts/                # Utility scripts
+├── scripts/
+│   ├── setup_22_04.sh              # Ubuntu 22.04 setup script
+│   ├── setup_24_04.sh              # Ubuntu 24.04 setup script
+│   ├── network_setup_*.sh          # Network configuration scripts
+│   ├── verify_setup.sh             # Installation verification
+│   └── launch.sh                   # Quick launch script
 ├── docs/
-│   ├── assembly/   # Step-by-step (with photos)
-│   └── tutorials/
-└── examples/
+│   ├── assembly/                   # Build guides and BOM
+│   ├── SETUP_GUIDE.md              # ROS2 environment setup
+│   ├── INAV_GUIDE.md               # Flight controller configuration
+│   ├── COMMANDS_GUIDE.md           # ROS2 commands reference
+│   ├── CONFIG_PARAMS_GUIDE.md      # Configuration parameters
+│   └── TROUBLESHOOTING_GUIDE.md    # Common issues and fixes
+├── assets/
+│   └── 3D_print_STL/               # 3D printable parts (mounts, etc.)
+├── inav-custom-firmware/           # Custom INAV firmware builds
+├── mapproxy/                       # Offline map tile server
+├── model/                          # AI model files
+├── flight-logs/                    # Flight data logs
+└── README.md                       # This file
   </code></pre>
 
 </details>
--->
 
 <!-- SECTION 10 -->
 

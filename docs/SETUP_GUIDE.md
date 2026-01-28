@@ -2,6 +2,8 @@
 
 This guide provides step-by-step instructions for setting up the complete Swarm AI Integration drone control system on Ubuntu 22.04.
 
+> 📖 **Deep Dive:** For a comprehensive understanding of the software architecture and how data flows through the system, see [Chapter 3: From Data to Motion](https://substack.com/home/post/p-177453660) on our Substack.
+
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)

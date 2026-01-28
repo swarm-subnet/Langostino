@@ -2,6 +2,10 @@
 
 Comprehensive guide to all configurable parameters in the Swarm AI Integration system.
 
+> 📖 **Deep Dive:** For context on how these parameters fit into the overall system architecture, see:
+> - [Chapter 3: From Data to Motion](https://substack.com/home/post/p-177453660) — Software architecture and data flow
+> - [Chapter 3.5: Additional Configurations](https://substack.com/home/post/p-180586067) — Advanced configuration and tuning
+
 ---
 
 ## Table of Contents
@@ -24,13 +28,6 @@ Comprehensive guide to all configurable parameters in the Swarm AI Integration s
 ## Introduction
 
 All configurable parameters for the Swarm AI Integration system are centralized in the `swarm_params.yaml` file. This guide explains each parameter, its purpose, valid ranges, and tuning recommendations.
-
-**Key Benefits:**
-- **Centralized configuration** - All settings in one place
-- **No recompilation needed** - Change values without rebuilding
-- **Environment-specific configs** - Different files for dev/production/testing
-- **Runtime flexibility** - Modify parameters on the fly
-- **Version control** - Track configuration changes in git
 
 ---
 
@@ -121,7 +118,7 @@ action_buffer_size: 25  # past actions
 relative_start_enu: [0.0, 0.0, 3.0]  # [East, North, Up] meters
 ```
 
-**Description:** Initial relative position in ENU (East-North-Up) frame.
+**Description:** Initial relative position in ENU (East-North-Up) frame. Our models were trained with [ 0.0, 0.0, 3.0] as starting point.
 
 **Format:** `[east, north, up]` in meters
 
@@ -188,34 +185,6 @@ reliable_qos_depth: 10  # messages
 
 ---
 
-#### Debug Settings
-
-##### `debug_mode`
-```yaml
-debug_mode: false
-```
-
-**Description:** Enable detailed debug logging.
-
-**Values:** `true` / `false`
-
-**Impact:** Increases log verbosity, helpful for troubleshooting.
-
----
-
-##### `publish_debug_info`
-```yaml
-publish_debug_info: false
-```
-
-**Description:** Publish additional debug topics.
-
-**Values:** `true` / `false`
-
-**Impact:** Creates extra ROS topics for debugging, increases CPU usage.
-
----
-
 ## AI Flight Node
 
 **Node name:** `ai_flight_node`
@@ -263,6 +232,8 @@ device: "cpu"
 - Raspberry Pi: Use `"cpu"` only
 - Jetson Nano/Xavier: Can use `"cuda"`
 - Desktop with GPU: Use `"cuda"` for faster inference
+
+**Disclaimer:** Other modes besides CPU have not yet been tested, and this parameter is intended for future implementations.
 
 ---
 
@@ -351,14 +322,16 @@ max_pitch_angle: 15.0  # degrees
 min_altitude: 0.0  # meters
 ```
 
-**Description:** Minimum allowed altitude (AGL - Above Ground Level).
+**Description:** Minimum allowed altitude (AGL).
 
-**Range:** 0.0 - 5.0 meters
+**Range:** 0.0 - 10.0 meters
 
 **Tuning:**
-- **0.0:** Ground level (allows landing)
-- **0.5-1.0:** Prevents ground contact during autonomous flight
-- **Recommendation:** 0.0 to allow automatic landing
+- **0.0:** No minimum altitude check (default)
+- **1.0-2.0:** Prevents landing during flight
+- **Higher:** Use for specific mission requirements
+
+**Note:** Currently not actively used for safety triggers, reserved for future implementations.
 
 ---
 
@@ -666,15 +639,36 @@ command_qos_depth: 10  # messages
 
 ---
 
+#### GPS Altitude Fallback
+
+##### `gps_altitude_timeout`
+```yaml
+gps_altitude_timeout: 5.0  # seconds
+```
+
+**Description:** How long GPS altitude data remains valid for use as barometer fallback.
+
+**Range:** 1.0 - 30.0 seconds
+
+**Purpose:** When barometer is unavailable or invalid, GPS altitude is used as fallback if it was received within this timeout period.
+
+**Tuning:**
+- **Short (2-5s):** Only use very recent GPS data
+- **Long (10-30s):** Allow older GPS data as fallback
+
+**Note:** GPS altitude is less accurate than barometer but provides backup when barometer fails.
+
+---
+
 ## FC Adapter Node
 
 **Node name:** `fc_adapter_node`
 
-**Purpose:** Converts AI velocity commands to RC values and controls the flight controller via MSP.
+**Purpose:** Converts AI velocity commands to RC values for the flight controller. Uses a simple joystick-style mapping approach.
 
 ### Parameters
 
-#### Control Rates
+#### Control Rate
 
 ##### `control_rate_hz`
 ```yaml
@@ -690,43 +684,7 @@ control_rate_hz: 40.0  # Hz
 - **Lower (20-30 Hz):** Less CPU, slightly less responsive
 - **Recommendation:** 40 Hz for good control with reasonable CPU usage
 
-**Impact:** Directly affects control loop responsiveness and PID performance.
-
----
-
-##### `prearm_rate_hz`
-```yaml
-prearm_rate_hz: 40  # Hz
-```
-
-**Description:** Rate at which pre-arm frames are sent.
-
-**Range:** 20 - 100 Hz
-
-**Recommendation:** Match to `control_rate_hz`
-
----
-
-#### Velocity Limits
-
-##### `max_velocity`
-```yaml
-max_velocity: 0.1  # m/s
-```
-
-**Description:** Maximum velocity command accepted from AI.
-
-**Range:** 0.1 - 5.0 m/s
-
-**Tuning:**
-- **Very slow (0.1-0.5 m/s):** Testing, indoor flight
-- **Slow (0.5-1.5 m/s):** Safe outdoor flight
-- **Medium (1.5-3.0 m/s):** Normal operations
-- **Fast (3.0-5.0 m/s):** Advanced, requires good tuning
-
-**CRITICAL:** Start with low values (0.1-0.5) for initial testing!
-
-**Safety:** Commands exceeding this are clamped.
+**Impact:** Directly affects control loop responsiveness.
 
 ---
 
@@ -747,157 +705,62 @@ command_timeout: 1.0  # seconds
 
 ---
 
-#### Timing
+#### Startup Sequence Timing
 
-##### `warmup_frames`
+##### `warmup_duration_sec`
 ```yaml
-warmup_frames: 40  # frames
+warmup_duration_sec: 10.0  # seconds
 ```
 
-**Description:** Number of neutral RC frames to send before accepting AI commands.
+**Description:** Total warmup duration before AI control begins.
 
-**Range:** 10 - 100 frames
+**Range:** 5.0 - 30.0 seconds
 
-**Purpose:** Ensures FC stabilizes before AI control begins.
-
-**Calculation:** At 40 Hz, 40 frames = 1 second
-
----
-
-##### `startup_delay_sec`
-```yaml
-startup_delay_sec: 20.0  # seconds
-```
-
-**Description:** Delay before starting pre-arm sequence (gives operator time to prepare).
-
-**Range:** 0.0 - 60.0 seconds
+**Purpose:** Overall warmup period that allows the flight controller to stabilize before AI takes control.
 
 **Tuning:**
-- **0:** Immediate start (automated systems)
-- **20-30:** Time for operator to prepare
-- **60+:** Extended preparation time
+- **Shorter (5-10s):** Faster startup, less stabilization time
+- **Longer (15-30s):** More time for GPS lock and FC stabilization
 
 ---
 
-##### `prearm_duration_sec`
+##### `arming_duration_sec`
 ```yaml
-prearm_duration_sec: 30.0  # seconds
+arming_duration_sec: 20.0  # seconds
 ```
 
-**Description:** Duration of pre-arm sequence (streaming ARM command to FC).
+**Description:** Duration of the arming phase with ARM channel high and throttle at minimum.
 
-**Range:** 10.0 - 60.0 seconds
+**Range:** 5.0 - 60.0 seconds
 
-**Purpose:** Allows FC to arm and stabilize.
-
-**IMPORTANT:** FC requires throttle at 1000 during this phase to arm properly.
-
----
-
-#### Pre-arm Configuration
-
-##### `prearm_enabled`
-```yaml
-prearm_enabled: true
-```
-
-**Description:** Enable pre-arm sequence.
-
-**Values:** `true` / `false`
-
-**Recommendation:** Always `true` for autonomous arming.
-
----
-
-##### `arm_aux_high`
-```yaml
-arm_aux_high: true
-```
-
-**Description:** Set ARM AUX channel (CH5) high during arm sequence.
-
-**Values:** `true` / `false`
-
----
-
-##### `enable_angle_mode`
-```yaml
-enable_angle_mode: true
-```
-
-**Description:** Enable ANGLE mode (self-leveling) on CH6.
-
-**Values:** `true` / `false`
-
-**Recommendation:** `true` for autonomous flight (provides stability).
-
----
-
-##### `enable_althold_mode`
-```yaml
-enable_althold_mode: true
-```
-
-**Description:** Enable altitude hold mode on CH7.
-
-**Values:** `true` / `false`
-
-**CRITICAL:** Must be `true` for vertical control to work properly!
-
----
-
-##### `enable_nav_rth`
-```yaml
-enable_nav_rth: false
-```
-
-**Description:** Enable NAV RTH (Return to Home) on CH9.
-
-**Values:** `true` / `false`
+**Purpose:** Time for the flight controller to complete arming sequence, initialize sensors, and acquire GPS lock.
 
 **Tuning:**
-- `false` - Normal operations, AI controls navigation
-- `true` - Force RTH mode
+- **Shorter (10-15s):** Quick startup, may miss GPS lock
+- **Longer (20-30s):** More time for GPS satellites and sensor initialization
+- **Recommendation:** 20 seconds provides good balance for outdoor flights
+
+**Startup Sequence:** This is Phase 0 (Arming) → followed by Phase 1 (Rise) → Phase 2 (Yaw Alignment) → Phase 3 (AI Control)
 
 ---
 
-#### MSP Serial Settings
-
-##### `msp_serial_port`
+##### `rise_duration_sec`
 ```yaml
-msp_serial_port: "/dev/ttyAMA0"
+rise_duration_sec: 5.0  # seconds
 ```
 
-**Description:** MSP serial port for direct FC communication.
+**Description:** Duration of the rise phase where the drone climbs to operating altitude with POSHOLD enabled.
 
-**Common values:**
-- `/dev/ttyAMA0` - Raspberry Pi UART
-- `/dev/ttyUSB0` - USB adapter
+**Range:** 2.0 - 15.0 seconds
 
-**Note:** Can be same as `fc_comms_node` serial port if using direct MSP.
+**Purpose:** Elevates the drone to a safe altitude before AI control begins.
 
----
+**Tuning:**
+- **Shorter (2-3s):** Quick rise, less time to stabilize altitude
+- **Longer (5-10s):** Gradual rise, more stable altitude hold engagement
+- **Recommendation:** 5 seconds for smooth transition to altitude hold
 
-##### `msp_baud_rate`
-```yaml
-msp_baud_rate: 115200
-```
-
-**Description:** MSP baud rate.
-
-**Must match:** INAV MSP configuration.
-
----
-
-##### `msp_write_timeout`
-```yaml
-msp_write_timeout: 0.05  # seconds
-```
-
-**Description:** MSP write timeout.
-
-**Range:** 0.01 - 1.0 seconds
+**Note:** During this phase, throttle is set to `rise_throttle` (hardcoded at 1550) with POSHOLD mode active.
 
 ---
 
@@ -908,9 +771,11 @@ msp_write_timeout: 0.05  # seconds
 rc_mid_value: 1500
 ```
 
-**Description:** RC channel center value (neutral).
+**Description:** RC channel center value (neutral position).
 
 **Standard:** 1500 (1000-2000 range)
+
+**Note:** This is the standard RC midpoint. Do not change unless your FC is configured differently.
 
 ---
 
@@ -919,11 +784,13 @@ rc_mid_value: 1500
 rc_min_value: 1450
 ```
 
-**Description:** RC minimum value (safety limit).
+**Description:** Minimum RC value output (safety limit).
 
-**Range:** 1100 - 1500
+**Range:** 1000 - 1500
 
-**Purpose:** Prevents extreme RC values that could cause instability.
+**Purpose:** Limits how far below center the RC values can go, preventing extreme control inputs.
+
+**Calculation:** With `rc_mid_value: 1500` and `rc_min_value: 1450`, maximum negative deflection is 50 RC units.
 
 ---
 
@@ -932,246 +799,102 @@ rc_min_value: 1450
 rc_max_value: 1550
 ```
 
-**Description:** RC maximum value (safety limit).
+**Description:** Maximum RC value output (safety limit).
 
-**Range:** 1500 - 1900
+**Range:** 1500 - 2000
+
+**Purpose:** Limits how far above center the RC values can go, preventing extreme control inputs.
+
+**Calculation:** With `rc_mid_value: 1500` and `rc_max_value: 1550`, maximum positive deflection is 50 RC units.
+
+**IMPORTANT:** The range between `rc_min_value` and `rc_max_value` determines the maximum tilt/thrust the drone can achieve. Start with conservative values (1450-1550) for testing.
 
 ---
 
-##### `rc_deviation_limit`
+#### Joystick Mapping Gains
+
+These parameters control how velocity commands from the AI are converted to RC channel deflections. They work like virtual joystick sensitivity settings.
+
+##### `vx_to_pitch_gain`
 ```yaml
-rc_deviation_limit: 150.0  # RC units
+vx_to_pitch_gain: 50.0  # RC units per m/s
 ```
 
-**Description:** Maximum deviation from center (1500) allowed by PID controller.
+**Description:** Gain for forward/backward velocity commands. Converts vx (m/s) to pitch channel deflection.
 
-**Range:** 50.0 - 500.0
+**Range:** 10.0 - 200.0
 
 **Tuning:**
-- **Small (50-150):** Conservative, limited tilt angles
-- **Medium (150-300):** Normal operations
-- **Large (300-500):** Aggressive flight
+- **Lower (10-30):** Less responsive to forward/back commands
+- **Medium (30-70):** Balanced response
+- **Higher (70-150):** More aggressive forward/back movement
 
-**Calculation:** At 150, allows RC values from 1350-1650.
+**Calculation:** At gain 50.0, a velocity command of 1.0 m/s produces 50 RC units of pitch deflection.
 
----
-
-#### Yaw Control
-
-##### `enable_yaw_control`
-```yaml
-enable_yaw_control: false
-```
-
-**Description:** Enable dynamic yaw alignment (heading control).
-
-**Values:** `true` / `false`
-
-**IMPORTANT:**
-- `false` - Fixed yaw (drone maintains heading), matches most training scenarios
-- `true` - Dynamic yaw (drone aligns with velocity direction), experimental
-
-**Recommendation:** Keep `false` unless model was trained with yaw control.
+**Note:** Actual movement is also limited by `rc_min_value` and `rc_max_value`.
 
 ---
 
-##### `yaw_kp`
+##### `vy_to_roll_gain`
 ```yaml
-yaw_kp: 200.0
+vy_to_roll_gain: 50.0  # RC units per m/s
 ```
 
-**Description:** Proportional gain for yaw control (only used if `enable_yaw_control = true`).
+**Description:** Gain for left/right velocity commands. Converts vy (m/s) to roll channel deflection.
 
-**Range:** 50.0 - 500.0
+**Range:** 10.0 - 200.0
+
+**Tuning:**
+- **Lower (10-30):** Less responsive to left/right commands
+- **Medium (30-70):** Balanced response
+- **Higher (70-150):** More aggressive lateral movement
+
+**Calculation:** At gain 50.0, a velocity command of 1.0 m/s produces 50 RC units of roll deflection.
 
 ---
 
-##### `yaw_rate_limit`
+##### `vz_to_throttle_gain`
 ```yaml
-yaw_rate_limit: 300.0  # deg/s
+vz_to_throttle_gain: 100.0  # RC units per m/s
 ```
 
-**Description:** Maximum yaw rate change (only used if `enable_yaw_control = true`).
-
-**Range:** 50.0 - 500.0 deg/s
-
----
-
-#### PID Controller Gains
-
-##### `kp_xy`
-```yaml
-kp_xy: 150.0
-```
-
-**Description:** Proportional gain for XY (horizontal) velocity control.
+**Description:** Gain for up/down velocity commands. Converts vz (m/s) to throttle channel deflection.
 
 **Range:** 50.0 - 300.0
 
 **Tuning:**
-- **Lower (50-100):** Softer, less aggressive corrections
-- **Medium (100-200):** Balanced response
-- **Higher (200-300):** Aggressive, tight tracking
+- **Lower (50-75):** Less responsive altitude changes
+- **Medium (75-150):** Balanced vertical response
+- **Higher (150-300):** More aggressive altitude changes
 
-**Symptoms:**
-- Too low: Sluggish response, poor tracking
-- Too high: Oscillations, overshooting
+**Calculation:** At gain 100.0, a velocity command of 0.5 m/s produces 50 RC units of throttle deflection.
 
----
-
-##### `ki_xy`
-```yaml
-ki_xy: 10.0
-```
-
-**Description:** Integral gain for XY velocity control.
-
-**Range:** 0.0 - 50.0
-
-**Tuning:**
-- **Lower (0-5):** Less wind compensation, less drift correction
-- **Medium (5-15):** Balanced
-- **Higher (15-30):** Strong drift correction, risk of integral windup
-
-**Symptoms:**
-- Too low: Position drift over time
-- Too high: Slow oscillations, "toilet bowling"
+**Note:** Vertical control is typically more sensitive, hence the higher default gain compared to horizontal gains.
 
 ---
 
-##### `kd_xy`
-```yaml
-kd_xy: 20.0
-```
+### Tuning the Joystick Mapping
 
-**Description:** Derivative gain for XY velocity control (damping).
+The joystick mapping system is designed to be simple and predictable:
 
-**Range:** 0.0 - 100.0
+1. **Start conservative:**
+   ```yaml
+   rc_min_value: 1450
+   rc_max_value: 1550
+   vx_to_pitch_gain: 50.0
+   vy_to_roll_gain: 50.0
+   vz_to_throttle_gain: 100.0
+   ```
 
-**Tuning:**
-- **Lower (0-10):** Less damping, bouncy response
-- **Medium (10-30):** Balanced damping
-- **Higher (30-50):** Strong damping, may feel sluggish
+2. **Increase range for more aggressive flight:**
+   ```yaml
+   rc_min_value: 1350
+   rc_max_value: 1650
+   ```
 
-**Symptoms:**
-- Too low: Oscillations, bouncing
-- Too high: Slow, mushy response
+3. **Adjust individual gains** if one axis feels too slow or fast relative to others.
 
----
-
-##### `kp_z`, `ki_z`, `kd_z`
-```yaml
-kp_z: 100.0
-ki_z: 5.0
-kd_z: 15.0
-```
-
-**Description:** Z-axis (vertical) PID gains.
-
-**Note:** Currently not used - keeping for compatibility. Z-axis uses direct vz→throttle mapping instead.
-
----
-
-#### PID Limits
-
-##### `pid_output_min`
-```yaml
-pid_output_min: -400.0  # RC units
-```
-
-**Description:** Minimum PID output value.
-
-**Range:** -500.0 - 0.0
-
----
-
-##### `pid_output_max`
-```yaml
-pid_output_max: 400.0  # RC units
-```
-
-**Description:** Maximum PID output value.
-
-**Range:** 0.0 - 500.0
-
-**Note:** Should match `rc_deviation_limit` or be slightly larger.
-
----
-
-##### `pid_integral_max`
-```yaml
-pid_integral_max: 50.0  # RC units
-```
-
-**Description:** Maximum integral accumulation (anti-windup).
-
-**Range:** 10.0 - 200.0
-
-**Purpose:** Prevents integral term from becoming too large.
-
----
-
-##### `pid_derivative_filter_alpha`
-```yaml
-pid_derivative_filter_alpha: 0.1
-```
-
-**Description:** Low-pass filter coefficient for derivative term (0-1).
-
-**Range:** 0.0 - 1.0
-
-**Tuning:**
-- **Lower (0.05-0.1):** Stronger filtering, smoother but delayed
-- **Higher (0.2-0.5):** Less filtering, more responsive but noisier
-
----
-
-##### `pid_max_history_length`
-```yaml
-pid_max_history_length: 100  # samples
-```
-
-**Description:** Maximum PID history length for logging/analysis.
-
-**Range:** 10 - 1000
-
----
-
-#### Z-Axis Direct Control
-
-##### `vz_to_throttle_scale`
-```yaml
-vz_to_throttle_scale: 100.0  # RC units per m/s
-```
-
-**Description:** Conversion factor from vertical velocity (m/s) to throttle RC units.
-
-**Range:** 50.0 - 200.0
-
-**Tuning:**
-- **Lower (50-75):** Less responsive altitude control
-- **Medium (75-125):** Balanced
-- **Higher (125-200):** More aggressive altitude changes
-
-**Calculation:** vz = 0.5 m/s → throttle deviation = 0.5 * 100 = 50 RC units
-
----
-
-##### `throttle_rate_limit`
-```yaml
-throttle_rate_limit: 200.0  # RC units/second
-```
-
-**Description:** Maximum rate of throttle change.
-
-**Range:** 50.0 - 500.0 units/s
-
-**Purpose:** Prevents sudden throttle changes that could destabilize the drone.
-
-**Tuning:**
-- **Lower (50-100):** Smooth, gradual altitude changes
-- **Medium (100-250):** Balanced
-- **Higher (250-500):** Fast altitude response
+4. **For testing:** Keep gains low and RC range narrow until behavior is verified.
 
 ---
 
@@ -1266,7 +989,7 @@ sensor_qos_depth: 1  # messages
 
 **Node name:** `down_lidar/lidar_reader_down` (for downward-facing sensor)
 
-**Purpose:** Reads distance measurements from VL53L0X LiDAR sensor via I2C.
+**Purpose:** Reads distance measurements from DFRobot dTOF SEN0684 LiDAR sensor via I2C.
 
 ### Parameters
 
@@ -1300,7 +1023,7 @@ i2c_address: 0x08
 **Format:** Hexadecimal (0x00 - 0x7F)
 
 **Common values:**
-- VL53L0X default: 0x29
+- dTOF SEN0684 default: 0x29
 - Custom address: 0x08 (as configured in your system)
 
 **Verify:**
@@ -1318,7 +1041,7 @@ distance_register: 0x24
 
 **Description:** Register address for reading distance data.
 
-**Note:** Sensor-specific, typically 0x24 for VL53L0X custom firmware.
+**Note:** Sensor-specific, typically 0x24 for dTOF SEN0684 custom firmware.
 
 ---
 
@@ -1373,11 +1096,11 @@ publish_rate: 100.0  # Hz
 max_range: 50.0  # meters
 ```
 
-**Description:** Maximum valid measurement range.
+**Description:** Maximum valid measurement range. This value is normalized (0 to 1) to the maximum range used in model training (20 m). Any value above this range is considered 1.
 
 **Range:** 1.0 - 50.0 meters
 
-**Note:** VL53L0X typical max range is ~2m in good conditions, 50m is theoretical max.
+**Note:** dTOF SEN0684 typical max range is ~35m in good conditions, 50m is theoretical max.
 
 ---
 
@@ -1390,7 +1113,7 @@ min_range: 0.05  # meters
 
 **Range:** 0.0 - 1.0 meters
 
-**Note:** VL53L0X minimum is typically ~5cm.
+**Note:** dTOF SEN0684 minimum is typically ~5cm.
 
 ---
 
@@ -1401,7 +1124,7 @@ field_of_view: 0.035  # radians
 
 **Description:** Sensor field of view cone angle.
 
-**Value:** ~2 degrees for VL53L0X
+**Value:** ~2 degrees for dTOF SEN0684
 
 **Note:** Used for visualization and obstacle detection algorithms.
 
@@ -1532,8 +1255,8 @@ Override individual parameters:
 
 ```bash
 ros2 launch swarm_ai_integration swarm_ai_launch.py \
-  fc_adapter_node.max_velocity:=1.0 \
-  fc_adapter_node.kp_xy:=200.0
+  fc_adapter_node.vx_to_pitch_gain:=75.0 \
+  fc_adapter_node.rc_max_value:=1600
 ```
 
 ### Use Custom Config File
@@ -1552,12 +1275,12 @@ ros2 param list /fc_adapter_node
 
 **Get parameter value:**
 ```bash
-ros2 param get /fc_adapter_node max_velocity
+ros2 param get /fc_adapter_node vx_to_pitch_gain
 ```
 
 **Set parameter value:**
 ```bash
-ros2 param set /fc_adapter_node max_velocity 0.5
+ros2 param set /fc_adapter_node vx_to_pitch_gain 75.0
 ```
 
 **Dump all parameters:**
@@ -1581,11 +1304,12 @@ Start with conservative values for first flights:
 ```yaml
 fc_adapter_node:
   ros__parameters:
-    max_velocity: 0.1          # Very slow
-    kp_xy: 100.0               # Conservative P
-    ki_xy: 5.0                 # Low I
-    kd_xy: 15.0                # Moderate D
-    rc_deviation_limit: 100.0  # Limited tilt
+    rc_min_value: 1450         # Limited RC range
+    rc_max_value: 1550         # Limited RC range
+    vx_to_pitch_gain: 50.0     # Conservative gains
+    vy_to_roll_gain: 50.0
+    vz_to_throttle_gain: 100.0
+    warmup_duration_sec: 10.0  # Good stabilization time
 
 safety_monitor_node:
   ros__parameters:
@@ -1595,32 +1319,36 @@ safety_monitor_node:
 
 ### Progressive Tuning Steps
 
-1. **Test hover and basic movement** (max_velocity: 0.1-0.3 m/s)
-2. **Tune PID for smooth tracking** (adjust kp_xy, ki_xy, kd_xy)
-3. **Increase speed gradually** (max_velocity: 0.5-1.0 m/s)
-4. **Expand safety limits** (altitude, distance as needed)
-5. **Fine-tune responsiveness** (control_rate_hz, prediction_rate)
+1. **Test hover and basic movement** with narrow RC range (1450-1550)
+2. **Verify stability** - drone should hold position without oscillations
+3. **Increase RC range gradually** for more aggressive flight (1400-1600, then 1350-1650)
+4. **Adjust individual gains** if one axis responds differently than others
+5. **Expand safety limits** (altitude, distance as needed)
 
 ### Common Tuning Scenarios
 
+#### Drone movement is too slow
+- Increase `rc_max_value` and decrease `rc_min_value` (wider range)
+- Increase `vx_to_pitch_gain` and `vy_to_roll_gain`
+
+#### Drone overshoots or feels twitchy
+- Decrease gains (`vx_to_pitch_gain`, `vy_to_roll_gain`)
+- Narrow the RC range (`rc_min_value: 1450`, `rc_max_value: 1550`)
+
+#### Altitude changes too aggressively
+- Reduce `vz_to_throttle_gain` (try 75-80)
+- Narrow throttle range via `rc_min_value`/`rc_max_value`
+
 #### Drone drifts during hover
-- Increase `ki_xy` (try 10-15)
+- This is typically a flight controller tuning issue (INAV PIDs)
 - Check GPS satellite count
 - Verify compass calibration
+- See [INAV_GUIDE.md](INAV_GUIDE.md) for FC-level tuning
 
-#### Oscillations during flight
-- Decrease `kp_xy` (try 100-120)
-- Increase `kd_xy` (try 25-30)
-- Check `control_rate_hz` isn't too high
-
-#### Sluggish response
-- Increase `kp_xy` (try 180-200)
-- Increase `max_velocity`
+#### Sluggish response to AI commands
+- Increase gains (`vx_to_pitch_gain`, `vy_to_roll_gain`, `vz_to_throttle_gain`)
+- Widen RC range
 - Check `prediction_rate` is adequate (10+ Hz)
-
-#### Aggressive altitude changes
-- Reduce `vz_to_throttle_scale` (try 75-90)
-- Increase `throttle_rate_limit` (smooth ramping)
 
 ---
 

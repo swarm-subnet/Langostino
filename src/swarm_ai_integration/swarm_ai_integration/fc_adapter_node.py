@@ -69,9 +69,10 @@ class FCAdapterNode(Node):
         self.declare_parameter('vy_to_roll_gain', 50.0)    # RC units per m/s
         self.declare_parameter('vz_to_throttle_gain', 100.0)  # RC units per m/s
 
-        # Arming, rise and safety
-        self.declare_parameter('arming_duration_sec', 20.0)
-        self.declare_parameter('rise_duration_sec', 5.0)
+        # Startup sequence timing
+        self.declare_parameter('warmup_duration_sec', 10.0)  # Total warmup before AI control
+        self.declare_parameter('arming_duration_sec', 20.0)  # Arming phase duration
+        self.declare_parameter('rise_duration_sec', 5.0)     # Rise phase duration
         self.declare_parameter('command_timeout', 1.0)
 
         # Get parameter values
@@ -84,6 +85,7 @@ class FCAdapterNode(Node):
         self.vy_gain = float(self.get_parameter('vy_to_roll_gain').value)
         self.vz_gain = float(self.get_parameter('vz_to_throttle_gain').value)
 
+        self.warmup_duration = float(self.get_parameter('warmup_duration_sec').value)
         self.arming_duration = float(self.get_parameter('arming_duration_sec').value)
         self.rise_duration = float(self.get_parameter('rise_duration_sec').value)
         self.cmd_timeout = float(self.get_parameter('command_timeout').value)

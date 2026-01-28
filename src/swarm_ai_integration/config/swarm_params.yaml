@@ -21,10 +21,6 @@ ai_adapter_node:
     sensor_qos_depth: 1                 # QoS depth for sensor topics
     reliable_qos_depth: 10              # QoS depth for reliable topics
 
-    # Debug settings
-    debug_mode: false                   # Enable debug output
-    publish_debug_info: false            # Publish debug topics
-
 # ═══════════════════════════════════════════════════════════════════
 # AI Flight Node Parameters
 # ═══════════════════════════════════════════════════════════════════
@@ -50,6 +46,7 @@ safety_monitor_node:
     max_pitch_angle: 15.0               # Maximum pitch angle (degrees)
 
     # Altitude Limits
+    min_altitude: 0.0                   # Minimum altitude (meters)
     max_altitude: 10.0                  # Maximum altitude (meters)
 
     # Geofencing
@@ -93,6 +90,9 @@ fc_comms_node:
     # QoS settings
     command_qos_depth: 10               # QoS depth for command topics
 
+    # GPS altitude fallback
+    gps_altitude_timeout: 5.0           # GPS altitude valid timeout (seconds)
+
 # ═══════════════════════════════════════════════════════════════════
 # FC Adapter Node Parameters
 # ═══════════════════════════════════════════════════════════════════
@@ -104,8 +104,10 @@ fc_adapter_node:
     # Command timeout
     command_timeout: 1.0                # Command timeout before reverting to hover (seconds)
 
-    # Warmup configuration
-    warmup_duration_sec: 10.0           # Warmup duration with low throttle before enabling ALT HOLD (seconds)
+    # Startup sequence timing
+    warmup_duration_sec: 10.0           # Total warmup before AI control (seconds)
+    arming_duration_sec: 20.0           # Arming phase duration (seconds)
+    rise_duration_sec: 5.0              # Rise phase duration (seconds)
 
     # RC channel settings
     rc_mid_value: 1500                  # RC channel center value (neutral)
@@ -173,6 +175,10 @@ down_lidar/lidar_reader_down:
 # ═══════════════════════════════════════════════════════════════════
 # LiDAR Reader Node Parameters (Front Sensor) - OPTIONAL
 # ═══════════════════════════════════════════════════════════════════
+#
+# This front-facing LiDAR sensor configuration is optional and it hasn't been tested in the current swarm setup.
+# To enable it, uncomment the section below and ensure the hardware is properly connected and configured.
+#
 # Uncomment to enable front-facing LiDAR sensor
 # front_lidar/lidar_reader_front:
 #   ros__parameters:
