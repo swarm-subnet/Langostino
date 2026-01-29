@@ -5,7 +5,8 @@ This guide is your “flight plan” to go from parts → build → first safe f
 > [!CAUTION]
 > **⚠️ Langostino is a real flying machine.**
 > * Follow local regulations
-> * Test in safe environments
+> * Test in a sefa enviroment responsibly and keep propellers off during bench tests.
+> * Drones can cause injury and property damage. 
 > * Use prop guards and appropriate failsafes
 
 ## Step 0 — Before you start
@@ -112,12 +113,32 @@ Used for FC ↔ Raspberry Pi (telemetry + commands).
 - On the Pi, stable device paths often look like `/dev/ttyAMA0` / `/dev/ttyAMA1`
 - Keep UART wiring short/clean where possible
 
-#### I²C (shared “group chat”)
+#### I²C (shared "group chat")
 
 Used for multiple sensors on the same bus.
 
 - LiDAR modules communicate via I²C
-- Each has its own address so they don’t collide
+- Each has its own address so they don't collide
+
+#### Raspberry Pi 5 GPIO Connections
+
+<p align="center">
+  <img src="../../assets/pi-5-diagram.png" alt="Raspberry Pi 5 GPIO diagram" width="600" />
+</p>
+
+| Pin | Function | Connection |
+|-----|----------|------------|
+| 2 | 5V VCC | LiDAR power |
+| 3 | SDA (I²C) | LiDAR SDA |
+| 4 | 5V | Raspberry Pi power input |
+| 5 | SCL (I²C) | LiDAR SCL |
+| 6 | GND | Raspberry Pi power GND |
+| 8 | TXD (UART) | FC RX |
+| 9 | GND | LiDAR GND |
+| 10 | RXD (UART) | FC TX |
+| 14 | GND | FC UART GND |
+
+> **Note:** TXD → RX and RXD → TX: UART lines cross between devices.
 
 ### 4.3 Optional: Ethernet debug for field testing
 
@@ -161,9 +182,9 @@ From [`../INAV_GUIDE.md#msp-configuration`](../INAV_GUIDE.md#msp-configuration):
 
 **Build-guide checklist (repo-confirmed + typical practice):**
 
-- ✅ Configure your INAV parameters (script above)
-- ✅ Set `msp_override_channels` as documented (e.g. `127` or `255` depending on your channel plan)
-- ✅ Ensure you have a working manual override (radio receiver) before autonomy tests
+- Configure your INAV parameters (script above)
+- Set `msp_override_channels` as documented (e.g. `127` or `255` depending on your channel plan)
+- Ensure you have a working manual override (radio receiver) before autonomy tests
 
 > Note: enabling MSP/override end-to-end often involves both **parameters** (like `msp_override_channels`) and **port configuration** in INAV Configurator. Port specifics vary by FC and wiring.
 
@@ -190,13 +211,3 @@ Before autonomy:
 - Start conservative
 - Keep safe altitude and space
 - Log everything and iterate
-
-## Quick links
-
-- ✅ Parts list (BOM): [`./BOM.md`](./BOM.md)
-- 🧰 Raspberry Pi setup (Ubuntu 24.04 + ROS2 Jazzy): [`../SETUP_GUIDE.md#quick-setup`](../SETUP_GUIDE.md#quick-setup)
-- 🧭 INAV configuration script (copy/paste): [`../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands`](../INAV_GUIDE.md#complete-configuration-script-inav-cli-commands)
-- 🛰️ INAV MSP / RC override params: [`../INAV_GUIDE.md#msp-configuration`](../INAV_GUIDE.md#msp-configuration)
-- 🧯 Troubleshooting: [`../TROUBLESHOOTING_GUIDE.md`](../TROUBLESHOOTING_GUIDE.md)
-- 🤝 Contributing: [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
-- 💬 Discord: https://discord.com/invite/bittensor

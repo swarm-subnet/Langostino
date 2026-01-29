@@ -129,7 +129,8 @@ By sharing a reference drone in the open, we lower the barrier from "curious" to
 > [!CAUTION]
 > **⚠️ Langostino is a real flying machine.**
 > * Follow local regulations
-> * Test in safe environments
+> * Test in a sefa enviroment responsibly and keep propellers off during bench tests.
+> * Drones can cause injury and property damage. 
 > * Use prop guards and appropriate failsafes
 
 Pick what you want to do next — you don't need to be an expert to start.

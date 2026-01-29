@@ -2,9 +2,6 @@
 
 This BOM is the parts list for a Langostino-compatible 6" quadcopter and the onboard autonomy stack (Raspberry Pi + ROS2).
 
-> [!CAUTION]
-> ⚠️ Safety: FPV drones can cause injury and property damage. Build and test responsibly. Keep propellers off during bench tests.
-
 ## Scope
 
 This list covers:

@@ -51,6 +51,32 @@ All configurable parameters for the Swarm AI Integration system are centralized 
 
 **Purpose:** Transforms raw sensor data into observation vectors for the AI model.
 
+### 131-D Observation Array Structure
+
+The AI Adapter Node produces a 131-dimensional observation array that matches the PyBullet training environment format:
+
+| Index | Size | Component | Description | Units |
+|-------|------|-----------|-------------|-------|
+| 0-2 | 3 | **Position ENU** | Relative position from start point | meters [E, N, U] |
+| 3-5 | 3 | **Orientation** | Euler angles | radians [roll, pitch, yaw] |
+| 6-8 | 3 | **Velocity** | Linear velocity in ENU frame | m/s [vE, vN, vU] |
+| 9-11 | 3 | **Angular Velocity** | Rotational velocity | rad/s [wx, wy, wz] |
+| 12-111 | 100 | **Action Buffer** | History of 25 past actions (25 × 4) | normalized [-1, 1] |
+| 112-127 | 16 | **LiDAR Distances** | Normalized ray distances | normalized [0, 1] |
+| 128-130 | 3 | **Goal Vector** | Direction to goal in ENU | normalized by max_ray_distance |
+
+**Total: 131 elements**
+
+#### Component Details
+
+- **Position ENU [0:3]**: Drone position relative to the starting point, in East-North-Up coordinates
+- **Orientation [3:6]**: Roll, pitch, yaw angles from the IMU in radians
+- **Velocity [6:9]**: Ground speed decomposed into ENU components from GPS
+- **Angular Velocity [9:12]**: Gyroscope readings in rad/s
+- **Action Buffer [12:112]**: Rolling buffer of the last 25 actions (each action is 4 values: thrust + 3-axis rotation), enabling the model to understand recent control history
+- **LiDAR [112:128]**: 16 distance rays normalized by `max_ray_distance` (0 = at sensor, 1 = max range)
+- **Goal Vector [128:131]**: Vector from current position to goal, scaled by `max_ray_distance`
+
 ### Parameters
 
 #### Observation Generation

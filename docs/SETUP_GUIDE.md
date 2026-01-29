@@ -6,6 +6,7 @@ This guide provides step-by-step instructions for setting up the complete Swarm 
 
 ## Table of Contents
 
+- [Nodes structure](#Nodes-structure)
 - [Prerequisites](#prerequisites)
 - [Quick Setup](#quick-setup)
 - [Manual Setup](#manual-setup)
@@ -13,7 +14,77 @@ This guide provides step-by-step instructions for setting up the complete Swarm 
 - [Verification](#verification)
 - [Troubleshooting](#troubleshooting)
 
----
+## Nodes structure
+
+```
+                        ┌────────────────────┐
+                        │  Lidar Reader Node │
+                        │                    │
+                        └────────────────────┘
+                                  |
+                                  │ /lidar_distance
+     /fc/attitude_degrees         ↓
+┌─────────────────┐      ┌──────────────────┐
+│ Safety Monitor  │ <─── │  AI Adapter Node │ <──────────────┐
+│      Node       │      │   (131-D Obs)    │                |
+└─────────────────┘      └──────────────────┘                |
+   │           ↑                  |                          |
+   |           │                  │  /ai/observation         │ Read IMU and GPS from FC
+   |           │                  │                          │ /fc/* topics
+   |  /ai/observation             ↓                          |
+   |           |        ┌────────────────────┐               |
+   |           └────────│  AI Flight Node    │               |
+   |                    │   (VEL vector)     │               |
+   |                    └────────────────────┘               |
+   |                              |                          |
+   | /safety/override             | /ai/action               |
+   | /safety/emergency_land       ↓                          |
+   | /safety/status     ┌────────────────────┐               |
+   └──────────────────> │  FC Adapter Node   │               |
+                        │   (VEL to MSP)     │               |
+                        └────────────────────┘               |
+                                  |                          |
+                                  | /fc/rc_override          |
+                                  ↓                          |
+                        ┌────────────────────┐               |
+                        │  FC Comms Node     │ ──────────────┘
+                        │  (MSP Protocol)    │
+                        └────────────────────┘
+                                  │ Full duplex real time communication
+                                  │ MSP_SET_RAW_RC (Direct Serial)
+                                  ↓
+                        ┌──────────────────┐
+                        │  INAV 8 FC       │
+                        │  (Hardware)      │
+                        └──────────────────┘
+```
+
+### Topic flow
+
+| Node | Subscribes | Publishes |
+|------|------------|-----------|
+| **Lidar Reader** | — | `/lidar_distance`, `/lidar_raw`, `/lidar_status` |
+| **AI Adapter** | `/lidar_distance`, `/fc/gps_fix`, `/fc/attitude_euler`, `/fc/imu_raw`, `/ai/action` | `/ai/observation` |
+| **Safety Monitor** | `/ai/observation`, `/fc/attitude_degrees` | `/safety/override`, `/safety/emergency_land`, `/safety/status` |
+| **AI Flight** | `/ai/observation` | `/ai/action` |
+| **FC Adapter** | `/ai/action`, `/safety/override`, `/fc/attitude_degrees` | `/fc/rc_override` |
+| **FC Comms** | `/fc/rc_override` | All `/fc/*` topics |
+
+### 131-D Observation Array
+
+The `/ai/observation` topic published by the AI Adapter contains a 131-dimensional array:
+
+| Index | Size | Component | Description |
+|-------|------|-----------|-------------|
+| 0-2 | 3 | Position ENU | Relative position [E, N, U] in meters |
+| 3-5 | 3 | Orientation | Euler angles [roll, pitch, yaw] in radians |
+| 6-8 | 3 | Velocity | Linear velocity [vE, vN, vU] in m/s |
+| 9-11 | 3 | Angular Velocity | Rotational velocity [wx, wy, wz] in rad/s |
+| 12-111 | 100 | Action Buffer | History of 25 past actions (25 × 4) |
+| 112-127 | 16 | LiDAR Distances | Normalized ray distances [0-1] |
+| 128-130 | 3 | Goal Vector | Direction to goal, normalized |
+
+> For detailed parameter descriptions, see [CONFIG_PARAMS_GUIDE.md](CONFIG_PARAMS_GUIDE.md#131-d-observation-array-structure).
 
 ## Prerequisites
 
@@ -56,14 +127,14 @@ sudo ./setup.sh
 ```
 
 **What it does:**
-- ✅ Installs ROS2 Humble (if needed)
-- ✅ Installs all dependencies (Python, I2C, UART)
-- ✅ Creates Python virtual environment for AI packages
-- ✅ Configures hardware permissions (I2C, UART)
-- ✅ Configures network (WiFi AP + Ethernet static IP)
-- ✅ Fixes workspace ownership (prevents permission errors)
-- ✅ Builds ROS2 workspace
-- ✅ Installs PM2 process manager (auto-start on boot)
+- Installs ROS2 Humble (if needed)
+- Installs all dependencies (Python, I2C, UART)
+- Creates Python virtual environment for AI packages
+- Configures hardware permissions (I2C, UART)
+- Configures network (WiFi AP + Ethernet static IP)
+- Fixes workspace ownership (prevents permission errors)
+- Builds ROS2 workspace
+- Installs PM2 process manager (auto-start on boot)
 
 **Available Options:**
 - `--skip-ros`: Skip ROS2 installation (if already installed)
