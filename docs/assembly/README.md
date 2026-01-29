@@ -5,7 +5,7 @@ This guide is your “flight plan” to go from parts → build → first safe f
 > [!CAUTION]
 > **⚠️ Langostino is a real flying machine.**
 > * Follow local regulations
-> * Test in a sefa enviroment responsibly and keep propellers off during bench tests.
+> * Test in a safe enviroment responsibly and keep propellers off during bench tests.
 > * Drones can cause injury and property damage. 
 > * Use prop guards and appropriate failsafes
 
