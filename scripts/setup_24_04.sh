@@ -351,7 +351,7 @@ install_python_dependencies() {
     fi
 
     local VENV_PATH="${USER_HOME}/ai_flight_node_env"
-    local REQUIREMENTS_FILE="$WORKSPACE_DIR/ai_model_requirements.txt"
+    local REQUIREMENTS_FILE="$WORKSPACE_DIR/requirements.txt"
 
     # Check if requirements file exists
     if [[ ! -f "$REQUIREMENTS_FILE" ]]; then
@@ -970,7 +970,7 @@ print_summary() {
     print_info "Python Virtual Environment:"
     echo "  - Location: ${venv_home}/ai_flight_node_env"
     echo "  - Used by: AI Flight Node (ai_flight_node_wrapper.sh)"
-    echo "  - Requirements: $WORKSPACE_DIR/ai_model_requirements.txt"
+    echo "  - Requirements: $WORKSPACE_DIR/requirements.txt"
     echo "  - Packages: numpy, typing-extensions, gymnasium, stable-baselines3, torch"
     echo ""
 

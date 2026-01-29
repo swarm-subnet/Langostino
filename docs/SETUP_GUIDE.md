@@ -275,13 +275,13 @@ source ~/ai_flight_node_env/bin/activate
 # Install AI packages from requirements file
 cd ~/swarm-ros
 pip install --upgrade pip
-pip install -r ai_model_requirements.txt
+pip install -r requirements.txt
 
 # Deactivate (optional)
 deactivate
 ```
 
-The `ai_model_requirements.txt` file contains:
+The `requirements.txt` file contains:
 - numpy>=1.24,<2.0
 - typing-extensions
 - gymnasium

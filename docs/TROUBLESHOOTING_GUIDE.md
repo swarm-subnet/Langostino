@@ -648,7 +648,7 @@ pip3 install --upgrade numpy scipy pyserial smbus2
 # Reinstall in virtual environment
 source ~/ai_flight_node_env/bin/activate
 pip install --upgrade pip
-pip install -r ~/swarm-ros/ai_model_requirements.txt
+pip install -r ~/swarm-ros/requirements.txt
 deactivate
 ```
 
@@ -666,7 +666,7 @@ sudo rm -rf /root/ai_flight_node_env
 # Create in correct location
 python3 -m venv ~/ai_flight_node_env
 ~/ai_flight_node_env/bin/pip install --upgrade pip
-~/ai_flight_node_env/bin/pip install -r ~/swarm-ros/ai_model_requirements.txt
+~/ai_flight_node_env/bin/pip install -r ~/swarm-ros/requirements.txt
 ```
 
 ---
@@ -846,7 +846,7 @@ ls -ld ~/ai_flight_node_env
 
 **Reinstall packages:**
 ```bash
-~/ai_flight_node_env/bin/pip install -r ~/swarm-ros/ai_model_requirements.txt
+~/ai_flight_node_env/bin/pip install -r ~/swarm-ros/requirements.txt
 ```
 ---
 
