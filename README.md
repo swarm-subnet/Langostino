@@ -69,6 +69,11 @@
     <img src="https://img.youtube.com/vi/gf9mxroeurU/maxresdefault.jpg" alt="Langostino position hold - click to watch" width="720" loading="lazy" />
   </a>
 </p>
+<p align="center">
+  <a href="https://www.youtube.com/shorts/gf9mxroeurU" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Watch%20on-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch on YouTube" />
+  </a>
+</p>
 
 ### Step 2 - AI-powered autonomous flight (placeholder)
 
@@ -81,6 +86,11 @@
     <img src="https://img.youtube.com/vi/gf9mxroeurU/maxresdefault.jpg" alt="Langostino AI navigation placeholder - click to watch" width="720" loading="lazy" />
   </a>
 </p>
+<p align="center">
+  <a href="https://www.youtube.com/shorts/gf9mxroeurU" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Watch%20on-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch on YouTube" />
+  </a>
+</p>
 
 ### Do it yourself, from ZERO!
 
@@ -91,6 +101,11 @@
 <p align="center">
   <a href="https://www.youtube.com/watch?v=jgdND4LXlIA" target="_blank" rel="noopener noreferrer">
     <img src="https://img.youtube.com/vi/jgdND4LXlIA/maxresdefault.jpg" alt="Langostino real flight — click to watch" width="720" loading="lazy" />
+  </a>
+</p>
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=jgdND4LXlIA" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Watch%20on-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch on YouTube" />
   </a>
 </p>
 
