@@ -420,7 +420,7 @@ class FCAdapterNode(Node):
         self.get_logger().info(
             f'Action=[{vx:+.2f}, {vy:+.2f}, {vz:+.2f}, s={speed:.2f}] '
             f'Norm=[{vx_scaled:+.2f}, {vy_scaled:+.2f}, {vz_scaled:+.2f}] → '
-            f'RC[R={roll_rc}, P={pitch_rc}, T={throttle_rc}, Y={self.rc_mid}]'
+            f'RC[R={roll_rc}, P={pitch_rc}, T={throttle_rc}, Y={yaw_rc}]'
         )
 
     # ------------ RC Publishing ------------
