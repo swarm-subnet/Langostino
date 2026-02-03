@@ -275,9 +275,9 @@ install_python_dependencies() {
         fi
     fi
 
-    # Create venv
-    python3 -m venv "$VENV_PATH"
-    print_success "Virtual environment created at $VENV_PATH"
+    # Create venv with system-site-packages to inherit ROS2 packages (rclpy, etc.)
+    python3 -m venv --system-site-packages "$VENV_PATH"
+    print_success "Virtual environment created at $VENV_PATH (with system-site-packages for ROS2)"
 
     # Ensure venv has correct ownership
     if [[ -n "$SUDO_USER" ]] && [[ "$EUID" -eq 0 ]]; then

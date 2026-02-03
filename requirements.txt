@@ -3,3 +3,4 @@ typing-extensions
 gymnasium
 stable-baselines3
 torch
+pyyaml
