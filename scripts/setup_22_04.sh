@@ -289,16 +289,58 @@ install_python_dependencies() {
     print_info "Installing AI packages from requirements file..."
     print_info "Using: $REQUIREMENTS_FILE"
 
+    # Detect architecture for PyTorch installation
+    local ARCH=$(dpkg --print-architecture)
+    local PYTORCH_INDEX=""
+
+    if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
+        print_info "ARM64 architecture detected - using PyTorch CPU index for ARM"
+        PYTORCH_INDEX="--index-url https://download.pytorch.org/whl/cpu"
+    fi
+
     # Use venv's pip directly (run as actual user if using sudo)
     if [[ -n "$SUDO_USER" ]] && [[ "$EUID" -eq 0 ]]; then
         sudo -u "$ACTUAL_USER" "$VENV_PATH/bin/pip" install --upgrade pip
+        # Install PyTorch first with the correct index for ARM if needed
+        if [[ -n "$PYTORCH_INDEX" ]]; then
+            print_info "Installing PyTorch with ARM-compatible wheels..."
+            sudo -u "$ACTUAL_USER" "$VENV_PATH/bin/pip" install torch $PYTORCH_INDEX
+        fi
         sudo -u "$ACTUAL_USER" "$VENV_PATH/bin/pip" install -r "$REQUIREMENTS_FILE"
     else
         "$VENV_PATH/bin/pip" install --upgrade pip
+        # Install PyTorch first with the correct index for ARM if needed
+        if [[ -n "$PYTORCH_INDEX" ]]; then
+            print_info "Installing PyTorch with ARM-compatible wheels..."
+            "$VENV_PATH/bin/pip" install torch $PYTORCH_INDEX
+        fi
         "$VENV_PATH/bin/pip" install -r "$REQUIREMENTS_FILE"
     fi
 
     print_success "AI packages installed in virtual environment"
+
+    # Verify PyTorch installation
+    print_info "Verifying PyTorch installation..."
+    if "$VENV_PATH/bin/python3" -c "import torch; print(f'PyTorch {torch.__version__} installed successfully')" 2>/dev/null; then
+        print_success "PyTorch verified"
+    else
+        print_error "PyTorch verification failed!"
+        print_warning "You may need to manually install PyTorch in the venv:"
+        print_info "  source $VENV_PATH/bin/activate"
+        print_info "  pip install torch --index-url https://download.pytorch.org/whl/cpu"
+    fi
+
+    # Verify stable-baselines3 installation
+    print_info "Verifying stable-baselines3 installation..."
+    if "$VENV_PATH/bin/python3" -c "from stable_baselines3 import PPO; print('stable-baselines3 installed successfully')" 2>/dev/null; then
+        print_success "stable-baselines3 verified"
+    else
+        print_error "stable-baselines3 verification failed!"
+        print_warning "You may need to manually install stable-baselines3 in the venv:"
+        print_info "  source $VENV_PATH/bin/activate"
+        print_info "  pip install stable-baselines3"
+    fi
+
     print_info "Virtual environment location: $VENV_PATH"
     print_info "Requirements file: $REQUIREMENTS_FILE"
     print_info "Used by: scripts/ai_flight_node_wrapper.sh"
