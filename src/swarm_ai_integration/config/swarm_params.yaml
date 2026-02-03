@@ -116,8 +116,8 @@ fc_adapter_node:
 
     # Joystick mapping gains (RC units per m/s)
     # These control how much RC deflection per unit of velocity command
-    vx_to_pitch_gain: 50.0              # Forward/backward gain (vx → pitch channel)
-    vy_to_roll_gain: 50.0               # Left/right gain (vy → roll channel)
+    vx_to_roll_gain: 50.0               # East/West gain (vx → roll channel)
+    vy_to_pitch_gain: 50.0              # North/South gain (vy → pitch channel)
     vz_to_throttle_gain: 100.0          # Up/down gain (vz → throttle channel)
 
 # ═══════════════════════════════════════════════════════════════════

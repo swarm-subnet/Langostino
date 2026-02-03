@@ -841,41 +841,41 @@ rc_max_value: 1550
 
 These parameters control how velocity commands from the AI are converted to RC channel deflections. They work like virtual joystick sensitivity settings.
 
-##### `vx_to_pitch_gain`
+##### `vx_to_roll_gain`
 ```yaml
-vx_to_pitch_gain: 50.0  # RC units per m/s
+vx_to_roll_gain: 50.0  # RC units per m/s
 ```
 
-**Description:** Gain for forward/backward velocity commands. Converts vx (m/s) to pitch channel deflection.
+**Description:** Gain for East/West velocity commands. Converts vx (m/s) to roll channel deflection.
 
 **Range:** 10.0 - 200.0
 
 **Tuning:**
-- **Lower (10-30):** Less responsive to forward/back commands
+- **Lower (10-30):** Less responsive to East/West commands
 - **Medium (30-70):** Balanced response
-- **Higher (70-150):** More aggressive forward/back movement
+- **Higher (70-150):** More aggressive East/West movement
 
-**Calculation:** At gain 50.0, a velocity command of 1.0 m/s produces 50 RC units of pitch deflection.
+**Calculation:** At gain 50.0, a velocity command of 1.0 m/s produces 50 RC units of roll deflection.
 
 **Note:** Actual movement is also limited by `rc_min_value` and `rc_max_value`.
 
 ---
 
-##### `vy_to_roll_gain`
+##### `vy_to_pitch_gain`
 ```yaml
-vy_to_roll_gain: 50.0  # RC units per m/s
+vy_to_pitch_gain: 50.0  # RC units per m/s
 ```
 
-**Description:** Gain for left/right velocity commands. Converts vy (m/s) to roll channel deflection.
+**Description:** Gain for North/South velocity commands. Converts vy (m/s) to pitch channel deflection.
 
 **Range:** 10.0 - 200.0
 
 **Tuning:**
-- **Lower (10-30):** Less responsive to left/right commands
+- **Lower (10-30):** Less responsive to North/South commands
 - **Medium (30-70):** Balanced response
-- **Higher (70-150):** More aggressive lateral movement
+- **Higher (70-150):** More aggressive North/South movement
 
-**Calculation:** At gain 50.0, a velocity command of 1.0 m/s produces 50 RC units of roll deflection.
+**Calculation:** At gain 50.0, a velocity command of 1.0 m/s produces 50 RC units of pitch deflection.
 
 ---
 
@@ -907,8 +907,8 @@ The joystick mapping system is designed to be simple and predictable:
    ```yaml
    rc_min_value: 1450
    rc_max_value: 1550
-   vx_to_pitch_gain: 50.0
-   vy_to_roll_gain: 50.0
+   vx_to_roll_gain: 50.0
+   vy_to_pitch_gain: 50.0
    vz_to_throttle_gain: 100.0
    ```
 
@@ -1279,7 +1279,7 @@ Override individual parameters:
 
 ```bash
 ros2 launch swarm_ai_integration swarm_ai_launch.py \
-  fc_adapter_node.vx_to_pitch_gain:=75.0 \
+  fc_adapter_node.vx_to_roll_gain:=75.0 \
   fc_adapter_node.rc_max_value:=1600
 ```
 
@@ -1299,12 +1299,12 @@ ros2 param list /fc_adapter_node
 
 **Get parameter value:**
 ```bash
-ros2 param get /fc_adapter_node vx_to_pitch_gain
+ros2 param get /fc_adapter_node vx_to_roll_gain
 ```
 
 **Set parameter value:**
 ```bash
-ros2 param set /fc_adapter_node vx_to_pitch_gain 75.0
+ros2 param set /fc_adapter_node vx_to_roll_gain 75.0
 ```
 
 **Dump all parameters:**
@@ -1328,8 +1328,8 @@ fc_adapter_node:
   ros__parameters:
     rc_min_value: 1450         # Limited RC range
     rc_max_value: 1550         # Limited RC range
-    vx_to_pitch_gain: 50.0     # Conservative gains
-    vy_to_roll_gain: 50.0
+    vx_to_roll_gain: 50.0     # Conservative gains
+    vy_to_pitch_gain: 50.0
     vz_to_throttle_gain: 100.0
     warmup_duration_sec: 10.0  # Good stabilization time
 
@@ -1351,10 +1351,10 @@ safety_monitor_node:
 
 #### Drone movement is too slow
 - Increase `rc_max_value` and decrease `rc_min_value` (wider range)
-- Increase `vx_to_pitch_gain` and `vy_to_roll_gain`
+- Increase `vx_to_roll_gain` and `vy_to_pitch_gain`
 
 #### Drone overshoots or feels twitchy
-- Decrease gains (`vx_to_pitch_gain`, `vy_to_roll_gain`)
+- Decrease gains (`vx_to_roll_gain`, `vy_to_pitch_gain`)
 - Narrow the RC range (`rc_min_value: 1450`, `rc_max_value: 1550`)
 
 #### Altitude changes too aggressively
@@ -1368,7 +1368,7 @@ safety_monitor_node:
 - See [INAV_GUIDE.md](INAV_GUIDE.md) for FC-level tuning
 
 #### Sluggish response to AI commands
-- Increase gains (`vx_to_pitch_gain`, `vy_to_roll_gain`, `vz_to_throttle_gain`)
+- Increase gains (`vx_to_roll_gain`, `vy_to_pitch_gain`, `vz_to_throttle_gain`)
 - Widen RC range
 - Check `prediction_rate` is adequate (10+ Hz)
 
@@ -1406,4 +1406,3 @@ cp swarm_params.yaml swarm_params.yaml.backup
 ### 5. Start Conservative
 - Low velocities, low altitude, close to home
 - Increase limits gradually as confidence builds
-

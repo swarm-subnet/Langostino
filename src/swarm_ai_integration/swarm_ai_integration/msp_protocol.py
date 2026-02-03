@@ -542,8 +542,8 @@ class MSPVelocityController:
         Convert velocity commands to RC channel values for INAV velocity control
 
         Args:
-            vx: Forward velocity (m/s, positive forward)
-            vy: Right velocity (m/s, positive right)
+            vx: East/West velocity (m/s, positive East)
+            vy: North/South velocity (m/s, positive North)
             vz: Up velocity (m/s, positive up)
             yaw_rate: Yaw rate (rad/s, positive clockwise)
 
@@ -552,10 +552,10 @@ class MSPVelocityController:
         """
         logger.debug(f"Converting velocities: vx={vx:.2f}m/s, vy={vy:.2f}m/s, vz={vz:.2f}m/s, yaw={yaw_rate:.2f}rad/s")
         
-        roll_cmd = int(self.rc_mid + (vy / self.max_velocity_ms) * self.rc_range)
+        roll_cmd = int(self.rc_mid + (vx / self.max_velocity_ms) * self.rc_range)
         roll_cmd = max(1000, min(2000, roll_cmd))
 
-        pitch_cmd = int(self.rc_mid - (vx / self.max_velocity_ms) * self.rc_range)
+        pitch_cmd = int(self.rc_mid - (vy / self.max_velocity_ms) * self.rc_range)
         pitch_cmd = max(1000, min(2000, pitch_cmd))
 
         throttle_cmd = int(self.rc_mid + (vz / self.max_velocity_ms) * self.rc_range)

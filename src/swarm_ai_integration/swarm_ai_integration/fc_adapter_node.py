@@ -14,13 +14,13 @@ Startup Sequence:
   4. AI control phase: ANGLE on, NAV ALTHOLD on, AI drives roll/pitch/throttle, yaw neutral
 
 ENU Coordinate System:
-  X = forward (East)
-  Y = right (North)
-  Z = up
+  X = East
+  Y = North
+  Z = Up
 
 RC Channel Mapping (AETR + AUX):
-  CH1: ROLL     (vy control - right/left)
-  CH2: PITCH    (vx control - forward/back)
+  CH1: ROLL     (vx control - East/West)
+  CH2: PITCH    (vy control - North/South)
   CH3: THROTTLE (vz control - up/down in ALT HOLD)
   CH4: YAW      (1500 during AI control, variable during alignment)
   CH5: ARM      (AUX1 - 2000 when armed)
@@ -65,8 +65,8 @@ class FCAdapterNode(Node):
         self.declare_parameter('rc_max_value', 1550)
 
         # Mapping gains (how much RC deflection per unit of velocity command)
-        self.declare_parameter('vx_to_pitch_gain', 50.0)   # RC units per m/s
-        self.declare_parameter('vy_to_roll_gain', 50.0)    # RC units per m/s
+        self.declare_parameter('vx_to_roll_gain', 50.0)    # RC units per m/s
+        self.declare_parameter('vy_to_pitch_gain', 50.0)   # RC units per m/s
         self.declare_parameter('vz_to_throttle_gain', 100.0)  # RC units per m/s
 
         # Startup sequence timing
@@ -81,8 +81,8 @@ class FCAdapterNode(Node):
         self.rc_min = int(self.get_parameter('rc_min_value').value)
         self.rc_max = int(self.get_parameter('rc_max_value').value)
 
-        self.vx_gain = float(self.get_parameter('vx_to_pitch_gain').value)
-        self.vy_gain = float(self.get_parameter('vy_to_roll_gain').value)
+        self.vx_gain = float(self.get_parameter('vx_to_roll_gain').value)
+        self.vy_gain = float(self.get_parameter('vy_to_pitch_gain').value)
         self.vz_gain = float(self.get_parameter('vz_to_throttle_gain').value)
 
         self.warmup_duration = float(self.get_parameter('warmup_duration_sec').value)
@@ -154,7 +154,7 @@ class FCAdapterNode(Node):
         self.get_logger().info(
             f'FC Adapter Node (Joystick Mode) started @ {self.control_rate}Hz\n'
             f'  RC range: [{self.rc_min}, {self.rc_mid}, {self.rc_max}]\n'
-            f'  Gains: vx→pitch={self.vx_gain}, vy→roll={self.vy_gain}, vz→throttle={self.vz_gain}\n'
+            f'  Gains: vx→roll={self.vx_gain}, vy→pitch={self.vy_gain}, vz→throttle={self.vz_gain}\n'
             f'  Arming: {self.arming_duration}s, Rise: {self.rise_duration}s\n'
             f'  Publishing to: /fc/rc_override'
         )
@@ -167,8 +167,8 @@ class FCAdapterNode(Node):
             return
 
         self.last_action = [
-            float(data[0]),  # vx (forward)
-            float(data[1]),  # vy (right)
+            float(data[0]),  # vx (East)
+            float(data[1]),  # vy (North)
             float(data[2]),  # vz (up)
             float(data[3])   # speed (0-1 scale)
         ]
@@ -346,7 +346,7 @@ class FCAdapterNode(Node):
 
         Examples:
         - (1, 1, 1, 1) and (0.25, 0.25, 0.25, 1) produce the same output (same direction & speed)
-        - (1, -1, 0, 1) → pitch=1550, roll=1450, throttle=1500
+        - (1, -1, 0, 1) → roll=1550, pitch=1450, throttle=1500
         """
         vx, vy, vz, speed = self.last_action
 
@@ -373,11 +373,11 @@ class FCAdapterNode(Node):
         half_range = self.rc_max - self.rc_mid  # 50 units
 
         # Map scaled components to RC values
-        # vx (forward) → PITCH (CH2): positive vx = higher pitch
-        pitch_rc = self.rc_mid + int(vx_scaled * half_range)
+        # vx (East) → ROLL (CH1): positive vx = higher roll
+        roll_rc = self.rc_mid + int(vx_scaled * half_range)
 
-        # vy (right) → ROLL (CH1): positive vy = higher roll
-        roll_rc = self.rc_mid + int(vy_scaled * half_range)
+        # vy (North) → PITCH (CH2): positive vy = higher pitch
+        pitch_rc = self.rc_mid + int(vy_scaled * half_range)
 
         # vz (up) → THROTTLE (CH3): positive vz = higher throttle
         throttle_rc = self.rc_mid + int(vz_scaled * half_range)
