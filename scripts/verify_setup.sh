@@ -210,10 +210,15 @@ check_i2c() {
     print_header "I2C Configuration (LiDAR)"
 
     # Check if I2C module is loaded
+    # Note: Some kernels build i2c-dev in, so it won't appear in lsmod.
     if lsmod | grep -q i2c_dev; then
         check_pass "i2c-dev module loaded"
     else
-        check_fail "i2c-dev module not loaded"
+        if [[ -e /dev/i2c-1 || -e /dev/i2c-0 ]]; then
+            check_warn "i2c-dev module not listed (built-in or already loaded)"
+        else
+            check_fail "i2c-dev module not loaded"
+        fi
     fi
 
     # Check if I2C device exists
