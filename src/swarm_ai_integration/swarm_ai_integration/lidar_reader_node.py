@@ -58,7 +58,7 @@ class LidarReaderNode(Node):
         # Sensor configuration
         self.declare_parameter('publish_rate', 100.0)  # Hz (max 100Hz per specs)
         self.declare_parameter('frame_id', 'lidar_link')
-        self.declare_parameter('sensor_position', 'front')  # front, down, etc.
+        self.declare_parameter('sensor_position', 'down')  # front, down, etc.
 
         # Range limits
         self.declare_parameter('max_range', 50.0)  # Maximum valid range (meters)
