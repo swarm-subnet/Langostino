@@ -37,8 +37,9 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from std_msgs.msg import Float32MultiArray, Bool, String
 from geometry_msgs.msg import Vector3Stamped
+from sensor_msgs.msg import Range
 
-from swarm_ai_integration.utils import YawAlignmentController
+from swarm_ai_integration.utils import YawAlignmentController, EmergencyLandingController
 
 
 class FCAdapterNode(Node):
@@ -95,6 +96,18 @@ class FCAdapterNode(Node):
         self.last_cmd_time = time.time()
         self.safety_override = False
 
+        # LiDAR altitude (from downward-facing sensor)
+        self.lidar_altitude = None  # meters, None if no data yet
+
+        # Emergency landing controller
+        self.landing_controller = EmergencyLandingController(
+            node=self,
+            send_rc_command_callback=self._publish_rc_override,
+            get_lidar_altitude_callback=self.get_lidar_altitude,
+            rc_mid=self.rc_mid,
+            descent_throttle=self.rc_min,
+        )
+
         # Arming state
         self.arming_complete = False
         self.arming_start_time = time.time()
@@ -139,8 +152,10 @@ class FCAdapterNode(Node):
         # Subscriptions
         self.create_subscription(Float32MultiArray, '/ai/action', self.cb_ai_action, control_qos)
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
+        self.create_subscription(Bool, '/safety/emergency_land', self.cb_emergency_land, control_qos)
         self.create_subscription(Vector3Stamped, '/fc/attitude_degrees', self.cb_attitude, sensor_qos)
-        self.get_logger().info('📡 Subscribed to /fc/attitude_degrees')
+        self.create_subscription(Range, '/lidar_distance', self.cb_lidar, sensor_qos)
+        self.get_logger().info('📡 Subscribed to /fc/attitude_degrees, /lidar_distance')
 
         # Publications
         self.status_pub = self.create_publisher(String, '/fc_adapter/status', control_qos)
@@ -179,6 +194,21 @@ class FCAdapterNode(Node):
         self.safety_override = bool(msg.data)
         if self.safety_override:
             self.get_logger().warn('⚠️ Safety override ON → emergency hover')
+
+    def cb_emergency_land(self, msg: Bool):
+        """Emergency landing command from safety monitor"""
+        if msg.data and not self.landing_controller.is_active:
+            self.landing_controller.start()
+        elif not msg.data and self.landing_controller.is_active:
+            self.landing_controller.cancel()
+
+    def cb_lidar(self, msg: Range):
+        """Receive downward LiDAR distance"""
+        self.lidar_altitude = float(msg.range)
+
+    def get_lidar_altitude(self):
+        """Get current LiDAR altitude for landing controller."""
+        return self.lidar_altitude
 
     def cb_attitude(self, msg: Vector3Stamped):
         """Receive attitude data (roll, pitch, yaw in degrees)"""
@@ -266,6 +296,10 @@ class FCAdapterNode(Node):
         # Check for command timeout or safety
         if (now - self.last_cmd_time) > self.cmd_timeout:
             self._send_hover_command(reason='timeout')
+            return
+
+        if self.landing_controller.is_active or self.landing_controller.is_done:
+            self.landing_controller.tick()
             return
 
         if self.safety_override:
@@ -446,7 +480,13 @@ class FCAdapterNode(Node):
         flags = []
         now = time.time()
 
-        if not self.arming_complete:
+        if self.landing_controller.is_done:
+            flags.append('LANDED_DISARMED')
+        elif self.landing_controller.is_active:
+            alt = self.lidar_altitude
+            alt_str = f'{alt:.2f}m' if alt is not None else 'no data'
+            flags.append(f'EMERGENCY_LANDING(alt={alt_str})')
+        elif not self.arming_complete:
             elapsed = now - self.arming_start_time
             remaining = max(0, self.arming_duration - elapsed)
             flags.append(f'ARMING({remaining:.1f}s)')

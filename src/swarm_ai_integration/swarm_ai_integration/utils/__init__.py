@@ -10,6 +10,7 @@ This package contains reusable components for:
 - Sensor data management
 - Debug logging utilities
 - Yaw alignment control
+- Emergency landing control
 """
 
 from .msp_serial_handler import MSPSerialHandler
@@ -20,6 +21,7 @@ from .observation_builder import ObservationBuilder
 from .sensor_data_manager import SensorDataManager
 from .debug_logger import DebugLogger
 from .yaw_alignment import YawAlignmentController
+from .emergency_landing import EmergencyLandingController
 
 __all__ = [
     'MSPSerialHandler',
@@ -30,4 +32,5 @@ __all__ = [
     'SensorDataManager',
     'DebugLogger',
     'YawAlignmentController',
+    'EmergencyLandingController',
 ]

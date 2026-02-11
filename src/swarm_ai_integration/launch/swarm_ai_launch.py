@@ -53,13 +53,13 @@ def generate_launch_description():
 
     enable_safety_arg = DeclareLaunchArgument(
         'enable_safety',
-        default_value=str(ai_flight_params['safety_enabled']).lower(),
+        default_value='true',
         description='Enable safety monitoring'
     )
 
     max_velocity_arg = DeclareLaunchArgument(
         'max_velocity',
-        default_value=str(fc_adapter_params['max_velocity']),
+        default_value='1.0',
         description='Maximum allowed velocity (m/s)'
     )
 
@@ -71,7 +71,7 @@ def generate_launch_description():
 
     debug_mode_arg = DeclareLaunchArgument(
         'debug_mode',
-        default_value=str(ai_adapter_params['debug_mode']).lower(),
+        default_value='false',
         description='Enable debug logging'
     )
 
@@ -191,7 +191,6 @@ def generate_launch_description():
             }
         ],
         remappings=[
-            ('/fc/imu_raw', '/imu/data'),
             ('/fc/gps_fix', '/gps/fix'),
             ('/fc/status', '/fc/status'),
             ('/fc/battery', '/mavros/battery'),
