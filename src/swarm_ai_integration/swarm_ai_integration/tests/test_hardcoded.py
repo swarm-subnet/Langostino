@@ -160,37 +160,36 @@ class SimpleFlightTestNode(Node):
 
         try:
             # PHASE 1: ARM
-            # AETR + AUX (16 channels total - INAV standard)
             arm_frame = [
-                self.RC_NEUTRAL,        # CH1 - Roll
-                self.RC_NEUTRAL,        # CH2 - Pitch
-                self.RC_THROTTLE_LOW,   # CH3 - Throttle (MUST be low to arm)
-                self.RC_NEUTRAL,        # CH4 - Yaw
-                self.RC_ARM,            # CH5 - Arm
-                self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
-                self.RC_ALT_HOLD_OFF,   # CH7 - Alt Hold OFF
-                self.RC_MSP_OVERRIDE,   # CH8 - MSP Override
-                self.RC_NEUTRAL,        # CH9
-                self.RC_NEUTRAL,        # CH10
-                self.RC_NEUTRAL,        # CH11
-                self.RC_NEUTRAL,        # CH12
-                self.RC_NEUTRAL,        # CH13
-                self.RC_NEUTRAL,        # CH14
-                self.RC_NEUTRAL,        # CH15
-                self.RC_NEUTRAL         # CH16
+                1500,  # CH1 - Roll
+                1500,  # CH2 - Pitch
+                1000,  # CH3 - Throttle
+                1500,  # CH4 - Yaw
+                2000,  # CH5 - Arm
+                1500,  # CH6 - Angle Mode
+                1000,  # CH7 - NAV modes off
+                2000,  # CH8 - MSP Override
+                self.RC_NEUTRAL,  # CH9
+                self.RC_NEUTRAL,  # CH10
+                self.RC_NEUTRAL,  # CH11
+                self.RC_NEUTRAL,  # CH12
+                self.RC_NEUTRAL,  # CH13
+                self.RC_NEUTRAL,  # CH14
+                self.RC_NEUTRAL,  # CH15
+                self.RC_NEUTRAL   # CH16
             ]
             self.stream_for(arm_frame, self.arm_duration, 'PHASE 1: ARM')
 
-            # PHASE 2: RISE (Angle mode, Alt Hold OFF)
+            # PHASE 2: RISE
             rise_frame = [
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.throttle_rise,     # CH3 - Throttle up to rise
-                self.RC_NEUTRAL,
-                self.RC_ARM,
-                self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
-                self.RC_ALT_HOLD_ON,   # CH7 - Alt Hold OFF
-                self.RC_MSP_OVERRIDE,
+                1500,  # CH1 - Roll
+                1500,  # CH2 - Pitch
+                1550,  # CH3 - Throttle
+                1500,  # CH4 - Yaw
+                2000,  # CH5 - Arm
+                1500,  # CH6 - Angle Mode
+                1500,  # CH7 - NAV POSHOLD
+                2000,  # CH8 - MSP Override
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
@@ -202,16 +201,16 @@ class SimpleFlightTestNode(Node):
             ]
             self.stream_for(rise_frame, self.rise_duration, 'PHASE 2: RISE')
 
-            # PHASE 3: HOVER (Alt Hold ON)
+            # PHASE 3: HOVER (30 seconds)
             hover_frame = [
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.throttle_hover,    # CH3 - Neutral throttle
-                self.RC_NEUTRAL,
-                self.RC_ARM,
-                self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
-                self.RC_POS_HOLD_ON,    # CH7 - Alt Hold ON at 1800
-                self.RC_MSP_OVERRIDE,
+                1500,  # CH1 - Roll
+                1500,  # CH2 - Pitch
+                1500,  # CH3 - Throttle
+                1500,  # CH4 - Yaw
+                2000,  # CH5 - Arm
+                1500,  # CH6 - Angle Mode
+                1500,  # CH7 - NAV POSHOLD
+                2000,  # CH8 - MSP Override
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
@@ -221,18 +220,18 @@ class SimpleFlightTestNode(Node):
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL
             ]
-            self.stream_for(hover_frame, self.hover_duration, 'PHASE 3: HOVER')
+            self.stream_for(hover_frame, 30.0, 'PHASE 3: HOVER (30s)')
 
-            # PHASE 4: YAW LEFT (Alt Hold ON)
-            hover_frame = [
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.throttle_hover,    # CH3 - Neutral throttle
-                self.RC_YAW_LEFT,
-                self.RC_ARM,
-                self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
-                self.RC_POS_HOLD_ON,    # CH7 - Alt Hold ON at 1800
-                self.RC_MSP_OVERRIDE,
+            # PHASE 4: ROLL NUDGE (5 seconds)
+            nudge_frame = [
+                1520,  # CH1 - Roll
+                1500,  # CH2 - Pitch
+                1500,  # CH3 - Throttle
+                1500,  # CH4 - Yaw
+                2000,  # CH5 - Arm
+                1500,  # CH6 - Angle Mode
+                1500,  # CH7 - NAV POSHOLD
+                2000,  # CH8 - MSP Override
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
@@ -242,39 +241,21 @@ class SimpleFlightTestNode(Node):
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL
             ]
-            self.stream_for(hover_frame, self.yaw_duration, 'PHASE 4: YAW LEFT')
+            self.stream_for(nudge_frame, 5.0, 'PHASE 4: ROLL NUDGE (5s)')
 
-            # PHASE 5: YAW RIGHT (Alt Hold ON)
-            hover_frame = [
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.throttle_hover,    # CH3 - Neutral throttle
-                self.RC_YAW_RIGHT,
-                self.RC_ARM,
-                self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
-                self.RC_POS_HOLD_ON,    # CH7 - Alt Hold ON at 1800
-                self.RC_MSP_OVERRIDE,
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL
-            ]
-            self.stream_for(hover_frame, self.yaw_duration, 'PHASE 5: YAW RIGHT')
+            # PHASE 5: HOVER (20 seconds)
+            self.stream_for(hover_frame, 20.0, 'PHASE 5: HOVER (20s)')
 
-            # PHASE 6: LAND (Alt Hold OFF, gentle descent)
+            # PHASE 6: LAND (Throttle 1450)
             land_frame = [
-                self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
-                self.throttle_land,     # CH3 - Throttle down
-                self.RC_NEUTRAL,
-                self.RC_ARM,
-                self.RC_ANGLE_MODE,     # CH6 - Angle Mode ON
-                self.RC_ALT_HOLD_ON,   # CH7 - Alt Hold OFF
-                self.RC_MSP_OVERRIDE,
+                1500,  # CH1 - Roll
+                1500,  # CH2 - Pitch
+                1450,  # CH3 - Throttle
+                1500,  # CH4 - Yaw
+                2000,  # CH5 - Arm
+                1500,  # CH6 - Angle Mode
+                1500,  # CH7 - NAV POSHOLD
+                2000,  # CH8 - MSP Override
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
