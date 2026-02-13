@@ -82,9 +82,6 @@ class FCAdapterNode(Node):
         self.declare_parameter('nav_manual_speed_cms', 300.0)
         self.declare_parameter('nav_mc_manual_climb_rate_cms', 300.0)
 
-        # Direction handling
-        self.declare_parameter('direction_norm_epsilon', 1e-6)
-
         # Landing behavior
         self.declare_parameter('landing_descent_throttle', 1450)
 
@@ -106,8 +103,6 @@ class FCAdapterNode(Node):
         self.speed_limit_cms = float(self.get_parameter('speed_limit_cms').value)
         self.nav_manual_speed_cms = float(self.get_parameter('nav_manual_speed_cms').value)
         self.nav_mc_manual_climb_rate_cms = float(self.get_parameter('nav_mc_manual_climb_rate_cms').value)
-
-        self.direction_norm_epsilon = float(self.get_parameter('direction_norm_epsilon').value)
 
         landing_descent_throttle = int(self.get_parameter('landing_descent_throttle').value)
 
@@ -472,7 +467,7 @@ class FCAdapterNode(Node):
     # ------------ Math Helpers ------------
     def _normalize_direction_l2(self, x: float, y: float, z: float):
         norm = math.sqrt((x * x) + (y * y) + (z * z))
-        if norm <= self.direction_norm_epsilon:
+        if norm == 0.0:
             return 0.0, 0.0, 0.0
         inv_norm = 1.0 / norm
         return x * inv_norm, y * inv_norm, z * inv_norm

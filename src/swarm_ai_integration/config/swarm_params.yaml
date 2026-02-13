@@ -147,9 +147,6 @@ fc_adapter_node_cruise:
     nav_manual_speed_cms: 300.0
     nav_mc_manual_climb_rate_cms: 300.0
 
-    # Direction command handling
-    direction_norm_epsilon: 1.0e-6
-
     # Emergency landing
     landing_descent_throttle: 1450
 

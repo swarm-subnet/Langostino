@@ -28,7 +28,6 @@ class FCAdapterNodeCruiseTest:
         self.speed_limit_cms = 300.0
         self.nav_manual_speed_cms = 300.0
         self.nav_mc_manual_climb_rate_cms = 300.0
-        self.direction_norm_epsilon = 1e-6
 
         # Heading hold behavior aligned with tested adapter.
         self.yaw_right_value = 1520
@@ -189,7 +188,7 @@ class FCAdapterNodeCruiseTest:
 
     def _normalize_direction_l2(self, x: float, y: float, z: float):
         norm = math.sqrt((x * x) + (y * y) + (z * z))
-        if norm <= self.direction_norm_epsilon:
+        if norm == 0.0:
             return 0.0, 0.0, 0.0
         inv_norm = 1.0 / norm
         return x * inv_norm, y * inv_norm, z * inv_norm
