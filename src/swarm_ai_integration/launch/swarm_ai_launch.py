@@ -15,9 +15,9 @@ import os
 import yaml
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
-from launch.substitutions import LaunchConfiguration, TextSubstitution
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from ament_index_python.packages import get_package_share_directory
 
 
@@ -85,6 +85,12 @@ def generate_launch_description():
         'baud_rate',
         default_value=str(fc_comms_params['baud_rate']),
         description='Baud rate for serial communication'
+    )
+
+    use_cruise_adapter_arg = DeclareLaunchArgument(
+        'use_cruise_adapter',
+        default_value='false',
+        description='If true, run fc_adapter_node_cruise.py instead of fc_adapter_node.py'
     )
 
     # front_lidar_i2c_bus_arg = DeclareLaunchArgument(
@@ -241,12 +247,13 @@ def generate_launch_description():
         ]
     )
 
-    # FC Adapter Node - VEL to MSP command translation
+    # FC Adapter Node (legacy/open-loop)
     fc_adapter_node = Node(
         package='swarm_ai_integration',
         executable='fc_adapter_node.py',
         name='fc_adapter_node',
         output='screen',
+        condition=UnlessCondition(LaunchConfiguration('use_cruise_adapter')),
         parameters=[
             params_file,  # Load all parameters from YAML
             {
@@ -254,6 +261,18 @@ def generate_launch_description():
                 'max_velocity': LaunchConfiguration('max_velocity'),
                 'safety_checks_enabled': LaunchConfiguration('enable_safety')
             }
+        ]
+    )
+
+    # FC Adapter Node (CRUISE direction mode)
+    fc_adapter_node_cruise = Node(
+        package='swarm_ai_integration',
+        executable='fc_adapter_node_cruise.py',
+        name='fc_adapter_node_cruise',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('use_cruise_adapter')),
+        parameters=[
+            params_file,
         ]
     )
 
@@ -313,6 +332,7 @@ def generate_launch_description():
         debug_mode_arg,
         serial_port_arg,
         baud_rate_arg,
+        use_cruise_adapter_arg,
         # front_lidar_i2c_bus_arg,
         # front_lidar_i2c_address_arg,
         down_lidar_i2c_bus_arg,
@@ -330,6 +350,7 @@ def generate_launch_description():
         ai_adapter_node,
         ai_flight_node,
         fc_adapter_node,
+        fc_adapter_node_cruise,
         safety_monitor_node,
         black_box_recorder_node,
     ])

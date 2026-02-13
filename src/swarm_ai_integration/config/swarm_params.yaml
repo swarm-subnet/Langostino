@@ -121,6 +121,39 @@ fc_adapter_node:
     vz_to_throttle_gain: 100.0          # Up/down gain (vz → throttle channel)
 
 # ═══════════════════════════════════════════════════════════════════
+# FC Adapter Node (CRUISE Direction Mode) Parameters
+# ═══════════════════════════════════════════════════════════════════
+fc_adapter_node_cruise:
+  ros__parameters:
+    # Control
+    control_rate_hz: 40.0
+    command_timeout: 1.0
+
+    # RC authority (near full range)
+    rc_mid_value: 1500
+    rc_min_value: 1000
+    rc_max_value: 2000
+    rc_publish_rate_hz: 20.0
+
+    # Startup sequence
+    arming_duration_sec: 20.0
+    rise_throttle_value: 1600
+    rise_target_altitude_m: 3.0         # Requested initial rise altitude
+    rise_max_duration_sec: 20.0
+    post_rise_hover_sec: 1.0
+
+    # CRUISE velocity mapping (cm/s)
+    speed_limit_cms: 300.0
+    nav_manual_speed_cms: 300.0
+    nav_mc_manual_climb_rate_cms: 300.0
+
+    # Direction command handling
+    direction_norm_epsilon: 1.0e-6
+
+    # Emergency landing
+    landing_descent_throttle: 1450
+
+# ═══════════════════════════════════════════════════════════════════
 # Black Box Recorder Node Parameters
 # ═══════════════════════════════════════════════════════════════════
 black_box_recorder_node:
