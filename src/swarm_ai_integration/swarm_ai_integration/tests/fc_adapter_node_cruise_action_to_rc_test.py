@@ -5,10 +5,12 @@ RC mapping test for fc_adapter_node_cruise (offline / no ROS2 dependency).
 This script feeds sample /ai/action commands into a pure-Python adapter model
 and prints the exact /fc/rc_override frame produced.
 
-Assumptions forced by this test:
+It prints:
+1) Startup/fatal behavior RC frames
+2) AI action mapping RC frames
+
+Base assumptions:
 - Drone heading is North (yaw = 0 deg)
-- LiDAR altitude is 3.0 m
-- Startup phases (arming/rise/yaw-align) are already complete
 
 Run:
   python3 src/swarm_ai_integration/swarm_ai_integration/tests/fc_adapter_node_cruise_action_to_rc_test.py
@@ -29,10 +31,55 @@ if str(TESTS_DIR) not in sys.path:
 from fc_adapter_node_cruise_test import FCAdapterNodeCruiseTest
 
 
-def run_test_samples(samples: List[Tuple[str, List[float]]]):
+def _print_table_header(title: str):
+    print()
+    print(title)
+    print('-' * 110)
+    print(f"{'Sample':<20} {'Input':<30} RC Override")
+    print('-' * 110)
+
+
+def run_startup_and_safety_samples():
+    adapter = FCAdapterNodeCruiseTest()
+    adapter.set_attitude_degrees(roll_deg=0.0, pitch_deg=0.0, yaw_deg=0.0)  # North
+
+    _print_table_header('Startup/Fatal Samples')
+
+    # 1) Arming phase command
+    rc = adapter.control_loop()
+    print(f"{'arming_phase':<20} {'n/a':<30} {str(rc)}")
+
+    # 2) Rise command below target altitude
+    adapter.arming_complete = True
+    adapter.rise_start_time = time.time()
+    adapter.set_lidar_distance(altitude_m=2.5)
+    rc = adapter.control_loop()
+    print(f"{'rise_below_target':<20} {'lidar=2.5m':<30} {str(rc)}")
+
+    # 3) Reach target altitude: transition to post-rise stabilize (hover)
+    adapter.set_lidar_distance(altitude_m=3.0)
+    rc = adapter.control_loop()
+    print(f"{'rise_reach_3m':<20} {'lidar=3.0m':<30} {str(rc)}")
+
+    # 4) LiDAR missing/stale during rise -> fatal abort/disarm command
+    adapter2 = FCAdapterNodeCruiseTest()
+    adapter2.set_attitude_degrees(roll_deg=0.0, pitch_deg=0.0, yaw_deg=0.0)
+    adapter2.arming_complete = True
+    adapter2.rise_start_time = time.time()
+    rc = adapter2.control_loop()
+    print(f"{'rise_lidar_missing':<20} {'no lidar sample':<30} {str(rc)}")
+
+    # 5) Fatal state is latched: subsequent ticks keep abort command
+    rc = adapter2.control_loop()
+    print(f"{'fatal_latched':<20} {'next tick':<30} {str(rc)}")
+
+    print('-' * 110)
+
+
+def run_action_mapping_samples(samples: List[Tuple[str, List[float]]]):
     adapter = FCAdapterNodeCruiseTest()
 
-    # Force assumptions requested by user.
+    # Force action-mapping assumptions.
     adapter.set_attitude_degrees(roll_deg=0.0, pitch_deg=0.0, yaw_deg=0.0)  # North
     adapter.set_lidar_distance(altitude_m=3.0)                               # 3 meters
 
@@ -43,12 +90,10 @@ def run_test_samples(samples: List[Tuple[str, List[float]]]):
     adapter.post_rise_hover_until = None
     adapter.safety_override = False
 
-    print('Assumptions: yaw=0.0 deg (North), lidar=3.0 m, startup phases complete')
+    print('Assumptions for action mapping: yaw=0.0 deg (North), lidar=3.0 m, startup phases complete')
     print('Action format: [dir_x, dir_y, dir_z, speed_fraction]')
     print('RC format: [roll, pitch, throttle, yaw, arm, angle, nav, msp]')
-    print('-' * 110)
-    print(f"{'Sample':<20} {'Action':<30} RC Override")
-    print('-' * 110)
+    _print_table_header('Action Mapping Samples')
 
     for name, action in samples:
         adapter.set_ai_action(action)
@@ -63,6 +108,8 @@ def run_test_samples(samples: List[Tuple[str, List[float]]]):
 
 
 def main():
+    run_startup_and_safety_samples()
+
     sample_actions: List[Tuple[str, List[float]]] = [
         ('zero', [0.0, 0.0, 0.0, 0.0]),
         ('east_full', [1.0, 0.0, 0.0, 1.0]),
@@ -75,7 +122,7 @@ def main():
         ('east_neg_speed', [1.0, 0.0, 0.0, -0.7]),
         ('xyz_full', [1.0, 1.0, 1.0, 1.0]),
     ]
-    run_test_samples(sample_actions)
+    run_action_mapping_samples(sample_actions)
 
 
 if __name__ == '__main__':

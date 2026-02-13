@@ -25,6 +25,12 @@ class FCAdapterNodeCruiseTest:
         self.rc_mid = 1500
         self.rc_min = 1000
         self.rc_max = 2000
+        self.arming_duration = 20.0
+        self.rise_throttle = 1600
+        self.rise_target_altitude = 3.0
+        self.rise_max_duration = 20.0
+        self.lidar_missing_timeout = 1.0
+        self.post_rise_hover_sec = 1.0
         self.speed_limit_cms = 300.0
         self.nav_manual_speed_cms = 300.0
         self.nav_mc_manual_climb_rate_cms = 300.0
@@ -41,12 +47,18 @@ class FCAdapterNodeCruiseTest:
         self.safety_override = False
         self.current_heading_deg = 0.0
         self.lidar_altitude = None
+        self.last_lidar_update_time = None
 
         # Startup phase flags (tests can set these directly).
         self.arming_complete = False
+        self.arming_start_time = time.time()
         self.rise_complete = False
+        self.rise_start_time = None
         self.yaw_alignment_complete = False
         self.post_rise_hover_until = None
+
+        self.fatal_error_active = False
+        self.fatal_error_reason = ''
 
         self.last_rc_command: List[int] = []
 
@@ -72,16 +84,46 @@ class FCAdapterNodeCruiseTest:
             self.lidar_altitude = None
             return
         self.lidar_altitude = altitude
+        self.last_lidar_update_time = time.time()
 
     def control_loop(self) -> List[int]:
         now = time.time()
 
-        # In this offline tester we only emulate command timeout/safety and
-        # the AI mapping phase. Startup steps are controlled by flags.
+        if self.fatal_error_active:
+            return self._send_abort_command()
+
         if not self.arming_complete:
-            return self._send_arming_command()
+            if (now - self.arming_start_time) >= self.arming_duration:
+                self.arming_complete = True
+                self.rise_start_time = now
+            else:
+                return self._send_arming_command()
+
         if not self.rise_complete:
-            return self._send_rise_command()
+            lidar_stale = (
+                self.last_lidar_update_time is None or
+                (now - self.last_lidar_update_time) > self.lidar_missing_timeout
+            )
+            if lidar_stale:
+                self._trigger_fatal_error(
+                    'LiDAR data missing/stale during rise '
+                    f'(timeout={self.lidar_missing_timeout:.1f}s)'
+                )
+                return self._send_abort_command()
+
+            rise_elapsed = now - (self.rise_start_time or now)
+            target_reached = (
+                self.lidar_altitude is not None and
+                self.lidar_altitude >= self.rise_target_altitude
+            )
+            timed_out = rise_elapsed >= self.rise_max_duration
+
+            if target_reached or timed_out:
+                self.rise_complete = True
+                self.post_rise_hover_until = now + self.post_rise_hover_sec
+            else:
+                return self._send_rise_command()
+
         if self.post_rise_hover_until is not None and now < self.post_rise_hover_until:
             return self._send_hover_command()
         if not self.yaw_alignment_complete:
@@ -111,7 +153,7 @@ class FCAdapterNodeCruiseTest:
         channels = [
             self.rc_mid,
             self.rc_mid,
-            1600,
+            self.rise_throttle,
             self.rc_mid,
             2000,
             1500,
@@ -132,6 +174,25 @@ class FCAdapterNodeCruiseTest:
             2000,
         ]
         return self._store_and_return(channels)
+
+    def _send_abort_command(self) -> List[int]:
+        channels = [
+            self.rc_mid,
+            self.rc_mid,
+            1000,
+            self.rc_mid,
+            1000,
+            1500,
+            1000,
+            2000,
+        ]
+        return self._store_and_return(channels)
+
+    def _trigger_fatal_error(self, reason: str):
+        if self.fatal_error_active:
+            return
+        self.fatal_error_active = True
+        self.fatal_error_reason = reason
 
     def _send_action_command(self) -> List[int]:
         ax, ay, az, speed_fraction = self.last_action
