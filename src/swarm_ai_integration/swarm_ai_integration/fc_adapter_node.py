@@ -65,11 +65,6 @@ class FCAdapterNode(Node):
         self.declare_parameter('rc_min_value', 1450)
         self.declare_parameter('rc_max_value', 1550)
 
-        # Mapping gains (how much RC deflection per unit of velocity command)
-        self.declare_parameter('vx_to_roll_gain', 50.0)    # RC units per m/s
-        self.declare_parameter('vy_to_pitch_gain', 50.0)   # RC units per m/s
-        self.declare_parameter('vz_to_throttle_gain', 100.0)  # RC units per m/s
-
         # Startup sequence timing
         self.declare_parameter('warmup_duration_sec', 10.0)  # Total warmup before AI control
         self.declare_parameter('arming_duration_sec', 20.0)  # Arming phase duration
@@ -81,10 +76,6 @@ class FCAdapterNode(Node):
         self.rc_mid = int(self.get_parameter('rc_mid_value').value)
         self.rc_min = int(self.get_parameter('rc_min_value').value)
         self.rc_max = int(self.get_parameter('rc_max_value').value)
-
-        self.vx_gain = float(self.get_parameter('vx_to_roll_gain').value)
-        self.vy_gain = float(self.get_parameter('vy_to_pitch_gain').value)
-        self.vz_gain = float(self.get_parameter('vz_to_throttle_gain').value)
 
         self.warmup_duration = float(self.get_parameter('warmup_duration_sec').value)
         self.arming_duration = float(self.get_parameter('arming_duration_sec').value)
@@ -169,7 +160,6 @@ class FCAdapterNode(Node):
         self.get_logger().info(
             f'FC Adapter Node (Joystick Mode) started @ {self.control_rate}Hz\n'
             f'  RC range: [{self.rc_min}, {self.rc_mid}, {self.rc_max}]\n'
-            f'  Gains: vx→roll={self.vx_gain}, vy→pitch={self.vy_gain}, vz→throttle={self.vz_gain}\n'
             f'  Arming: {self.arming_duration}s, Rise: {self.rise_duration}s\n'
             f'  Publishing to: /fc/rc_override'
         )
