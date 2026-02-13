@@ -38,7 +38,7 @@ from geometry_msgs.msg import Vector3Stamped
 from sensor_msgs.msg import Range
 from std_msgs.msg import Bool, Float32MultiArray, String
 
-from swarm_ai_integration.utils import EmergencyLandingController, YawAlignmentController
+from swarm_ai_integration.utils import YawAlignmentController
 
 
 class FCAdapterNode(Node):
@@ -48,7 +48,6 @@ class FCAdapterNode(Node):
     Subscriptions:
       /ai/action           (std_msgs/Float32MultiArray): [dir_x, dir_y, dir_z, speed_fraction]
       /safety/override     (std_msgs/Bool)
-      /safety/emergency_land (std_msgs/Bool)
       /fc/attitude_degrees (geometry_msgs/Vector3Stamped): roll/pitch/yaw in degrees
       /lidar_distance      (sensor_msgs/Range)
 
@@ -82,9 +81,6 @@ class FCAdapterNode(Node):
         self.declare_parameter('nav_manual_speed_cms', 300.0)
         self.declare_parameter('nav_mc_manual_climb_rate_cms', 300.0)
 
-        # Landing behavior
-        self.declare_parameter('landing_descent_throttle', 1450)
-
         # ------------ Parameter values ------------
         self.control_rate = float(self.get_parameter('control_rate_hz').value)
         self.cmd_timeout = float(self.get_parameter('command_timeout').value)
@@ -103,8 +99,6 @@ class FCAdapterNode(Node):
         self.speed_limit_cms = float(self.get_parameter('speed_limit_cms').value)
         self.nav_manual_speed_cms = float(self.get_parameter('nav_manual_speed_cms').value)
         self.nav_mc_manual_climb_rate_cms = float(self.get_parameter('nav_mc_manual_climb_rate_cms').value)
-
-        landing_descent_throttle = int(self.get_parameter('landing_descent_throttle').value)
 
         # ------------ State ------------
         self.last_action = [0.0, 0.0, 0.0, 0.0]  # [dir_x, dir_y, dir_z, speed_fraction]
@@ -128,14 +122,6 @@ class FCAdapterNode(Node):
         self.rc_publish_interval = 1.0 / max(1.0, self.rc_publish_rate_hz)
         self.last_rc_publish_time = 0.0
 
-        # Emergency landing controller
-        self.landing_controller = EmergencyLandingController(
-            node=self,
-            send_rc_command_callback=self._publish_rc_override,
-            get_lidar_altitude_callback=self.get_lidar_altitude,
-            rc_mid=self.rc_mid,
-            descent_throttle=landing_descent_throttle,
-        )
         self.yaw_controller = YawAlignmentController(
             node=self,
             send_rc_command_callback=self.send_rc_command_for_yaw_alignment,
@@ -161,7 +147,6 @@ class FCAdapterNode(Node):
 
         self.create_subscription(Float32MultiArray, '/ai/action', self.cb_ai_action, control_qos)
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
-        self.create_subscription(Bool, '/safety/emergency_land', self.cb_emergency_land, control_qos)
         self.create_subscription(Vector3Stamped, '/fc/attitude_degrees', self.cb_attitude, sensor_qos)
         self.create_subscription(Range, '/lidar_distance', self.cb_lidar, sensor_qos)
         self.get_logger().info('📡 Subscribed to /fc/attitude_degrees, /lidar_distance')
@@ -209,13 +194,6 @@ class FCAdapterNode(Node):
         if self.safety_override:
             self.get_logger().warn('Safety override ON -> neutral hover command')
 
-    def cb_emergency_land(self, msg: Bool):
-        """Emergency landing callback from safety monitor."""
-        if msg.data and not self.landing_controller.is_active:
-            self.landing_controller.start()
-        elif not msg.data and self.landing_controller.is_active:
-            self.landing_controller.cancel()
-
     def cb_lidar(self, msg: Range):
         """Receive downward LiDAR range (meters)."""
         try:
@@ -238,10 +216,6 @@ class FCAdapterNode(Node):
             f'yaw={msg.vector.z:.1f}°',
             throttle_duration_sec=1.0,
         )
-
-    def get_lidar_altitude(self):
-        """Get current LiDAR altitude for landing controller."""
-        return self.lidar_altitude
 
     def get_current_heading_degrees(self):
         """Get current heading in degrees from /fc/attitude_degrees yaw."""
@@ -269,11 +243,6 @@ class FCAdapterNode(Node):
     def control_loop(self):
         """Main control loop."""
         now = time.time()
-
-        # Emergency landing preempts normal behavior in every phase.
-        if self.landing_controller.is_active or self.landing_controller.is_done:
-            self.landing_controller.tick()
-            return
 
         # Phase 0: Arming
         if not self.arming_complete:
@@ -542,12 +511,7 @@ class FCAdapterNode(Node):
         flags = []
         now = time.time()
 
-        if self.landing_controller.is_done:
-            flags.append('LANDED_DISARMED')
-        elif self.landing_controller.is_active:
-            alt_str = f'{self.lidar_altitude:.2f}m' if self.lidar_altitude is not None else 'no_data'
-            flags.append(f'EMERGENCY_LANDING(alt={alt_str})')
-        elif not self.arming_complete:
+        if not self.arming_complete:
             elapsed = now - self.arming_start_time
             remaining = max(0.0, self.arming_duration - elapsed)
             flags.append(f'ARMING({remaining:.1f}s)')
