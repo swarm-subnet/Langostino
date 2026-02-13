@@ -127,7 +127,7 @@ sudo ./setup.sh
 ```
 
 **What it does:**
-- Installs ROS2 Humble (if needed)
+- Installs ROS2 Jazzy (if needed)
 - Installs all dependencies (Python, I2C, UART)
 - Creates Python virtual environment for AI packages
 - Configures hardware permissions (I2C, UART)
@@ -208,7 +208,7 @@ You can launch each node separately from the same terminal using PM2. See the [c
 
 If you prefer to set up components individually:
 
-### Step 1: Install ROS2 Humble
+### Step 1: Install ROS2 Jazzy
 
 ```bash
 # Set up locale
@@ -547,7 +547,7 @@ cd ~/swarm-ros
 
 The script checks:
 - ✓ Ubuntu version
-- ✓ ROS2 Humble installation
+- ✓ ROS2 Jazzy installation
 - ✓ Python dependencies
 - ✓ I2C configuration and LiDAR detection
 - ✓ UART configuration and FC connection

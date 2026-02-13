@@ -1,6 +1,6 @@
-# MapProxy - Tile Cache Server
+# MapProxy - Satellite image map server
 
-Local tile caching proxy for ArcGIS World Imagery satellite tiles. Provides satellite imagery for INAV Configurator's Mission Control/Mission Planner with local caching to reduce bandwidth and improve loading times.
+MapProxy, a local tile caching proxy for ArcGIS World Imagery satellite tiles. Provides satellite imagery for INAV Configurator's Mission Control with local caching to reduce bandwidth and improve loading times (so you can use it even without internet connection). If you plan to fly somewhere that is not shown on a street/basic map, you need this satellite image map.
 
 ## Installation
 
@@ -35,7 +35,7 @@ The server will be available at `http://localhost:8080`.
 
 ### INAV Configurator Setup
 
-In INAV Configurator, go to **Mission Control** or **Mission Planner** and configure:
+In INAV Configurator, go to **Mission Control** and configure:
 
 | Setting | Value |
 |---------|-------|
@@ -43,7 +43,10 @@ In INAV Configurator, go to **Mission Control** or **Mission Planner** and confi
 | MapProxy URL | `http://127.0.0.1:8080/service` |
 | MapProxy Layer | `arcgis_sat` |
 
-### Available endpoints
+![Step to configure mapproxy on INAV configurator](../assets/inav-configurator-map.png)
+_Step to configure mapproxy on INAV configurator_
+
+### Available endpoints for testing
 
 | Service | URL |
 |---------|-----|

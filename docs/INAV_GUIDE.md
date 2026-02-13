@@ -111,7 +111,7 @@ Maximum allowed tilt angle for ACRO/ANGLE mode manual flight.
 #### `nav_mc_auto_climb_rate`
 
 ```
-set nav_mc_auto_climb_rate = 500
+set nav_mc_auto_climb_rate = 300
 ```
 
 **Description:**
@@ -139,7 +139,7 @@ Vertical speed used automatically by INAV during autonomous operations.
 #### `nav_mc_manual_climb_rate`
 
 ```
-set nav_mc_manual_climb_rate = 200
+set nav_mc_manual_climb_rate = 300
 ```
 
 **Description:**
@@ -585,8 +585,8 @@ set max_angle_inclination_rll = 200
 set max_angle_inclination_pit = 200
 
 # Climb Rates
-set nav_mc_auto_climb_rate = 500
-set nav_mc_manual_climb_rate = 200
+set nav_mc_auto_climb_rate = 300
+set nav_mc_manual_climb_rate = 300
 
 # XY Velocity PID (GPS Position Control)
 set nav_mc_vel_xy_p = 35

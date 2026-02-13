@@ -14,17 +14,11 @@ This guide is your “flight plan” to go from parts → build → first safe f
 ### Tools (typical)
 
 - Hex drivers / screw set (FPV frame hardware)
-- Soldering iron + solder + soldering tin and flux + heatshrink (if your build requires it)
+- Soldering iron + soldering tin and flux + heatshrink
 - Zip ties / cable sleeves (strain relief matters)
 - Multimeter (recommended)
-- Hot glue gun (recommended)
-- Laptop with INAV Configurator installed
-
-### Safety basics
-
-- **Props off** for bench tests and when testing motors in configurators
-- Use a **safe open area** for first outdoor tests
-- Configure a **manual override** channel (radio receiver) before autonomy tests
+- Hot glue gun (recommended).
+- Laptop with INAV Configurator installed and type-C USB
 
 ## Step 1 — Parts (BOM)
 
@@ -32,17 +26,17 @@ Open: [`./BOM.md`](./BOM.md)
 
 The BOM is your shopping list. It should include:
 
-- Frame + hardware
+- Frame
 - FC/ESC stack
 - Motors + propellers
 - Raspberry Pi + microSD card
 - LiDAR (down at least, more optional) + 3d printed mounts
-- GPS module
+- GPS/compass module
 - 5V regulator + filtering capacitor
-- Receiver (manual override)
+- Receiver
 - Autonomous buzzer
 
-## Step 2 — The skeleton (frame) + propulsion
+## Step 2 — The skeleton (frame) + motors
 
 ### 2.1 Build the frame
 
@@ -76,19 +70,22 @@ The BOM is your shopping list. It should include:
 ### 3.2 GPS
 
 - Mount the GPS with good sky visibility
-- Keep it away from noisy power lines if possible
+- Keep it away from noisy power lines, like awg 12 battery wires if possible
 
 ### 3.3 Receiver
 
 - Install a receiver so you can always take back control
-- Confirm your “manual modes” plan before autonomy (ANGLE/ACRO/etc.)
+- Confirm that you have a good control before autonomy flights
 
 ### 3.4 Autonomous buzzer (highly recommended)
 
-- Install an autonomous buzzer connected to the FC on any free UART
+- Install an autonomous buzzer connected to the FC on BZ+ and BZ-.
 - Purpose: finding the drone after unexpected landings/crashes
 
 ## Step 4 — Wiring (power + data)
+
+![SpeedyBee F405 V4 wiring diagram](../../assets/fc-wiring.png)
+_SpeedyBee F405 V4 wiring diagram_
 
 This is where "circuits meet code".
 
@@ -112,6 +109,16 @@ Used for FC ↔ Raspberry Pi (telemetry + commands).
 
 - On the Pi, stable device paths often look like `/dev/ttyAMA0` / `/dev/ttyAMA1`
 - Keep UART wiring short/clean where possible
+
+##### FC UART assignments
+
+| UART | Function |
+|------|----------|
+| UART 2 | ELRS receiver |
+| UART 3 | FC to Raspberry Pi communications |
+| UART 4 | Not used |
+| UART 5 | Internal telemetry with ESCs |
+| UART 6 | GPS and compass |
 
 #### I²C (shared "group chat")
 
@@ -140,11 +147,6 @@ Used for multiple sensors on the same bus.
 
 > **Note:** TXD → RX and RXD → TX: UART lines cross between devices.
 
-### 4.3 Optional: Ethernet debug for field testing
-
-- Ethernet can be more reliable than Wi-Fi outdoors
-- Lets you read ROS2 logs and push quick updates between flights
-
 ## Step 5 — Raspberry Pi software (Ubuntu + ROS2 + Swarm stack)
 
 Follow the quick setup:
@@ -168,6 +170,9 @@ If you hit issues, go to:
 - Use INAV Configurator firmware flasher
 - Flash a supported INAV build for your flight controller. For SpeedyBee F405 V4, use our custom firmware: [`inav_8.0.1_SPEEDYBEEF405V4.hex`](../../inav-custom-firmware/inav_8.0.1_SPEEDYBEEF405V4.hex)
 - Reboot and confirm the FC connects properly
+
+![Flasher option of INAV configurator](../../assets/inav-flasher.png)
+_Flasher option of INAV configurator_
 
 ### 6.2 Apply baseline parameters (copy/paste script)
 
@@ -196,6 +201,12 @@ From [`../INAV_GUIDE.md#msp-configuration`](../INAV_GUIDE.md#msp-configuration):
 - Confirm sensors are detected (as per setup docs)
 - Run [`../../scripts/verify_setup.sh`](../../scripts/verify_setup.sh)
 - Confirm launch is stable and logs are clean
+- Confirm motor spin direction. Set reverse motor spin direction to follow this diagram:
+
+![Spin direction](../../assets/spin-direction.png)
+_Drone motor spin direction_
+
+> **Fixing wrong motor direction:** If any motor spins the wrong way, you can reverse it using the [ESC Configurator](https://esc-configurator.com). Connect the FC via USB, open the tool in a Chrome-based browser, select your ESC firmware (BLHeli_S / BLHeli_32 / AM32), and toggle the **Motor Direction** for the affected motor(s). Flash the updated settings and verify the correct spin direction.
 
 ### Manual flight first
 
@@ -204,7 +215,7 @@ Before autonomy:
 - Confirm arming checks pass
 - Confirm vibrations are reasonable
 - Confirm GPS meets minimum sats and is stable
-- Confirm manual override works reliably
+- Confirm flight mode works
 
 ### Then autonomy experiments
 

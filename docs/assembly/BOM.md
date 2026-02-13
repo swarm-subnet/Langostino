@@ -5,51 +5,51 @@ This BOM is the parts list for a Langostino-compatible 6" quadcopter and the onb
 ## Scope
 
 This list covers:
-- Airframe + propulsion + flight control electronics
-- Radio control for manual override
+- All parts required to build the drone.
+- Radio transmitter
 - Onboard computer for ROS2 + AI stack
-- Sensors and power conditioning required for reliable autonomy
+- Sensors and power supplier for reliable autonomy
 
 ## Core build (required)
 
-### 1) Airframe
+### 1) Frame
 
 | Part | Qty | Link | Notes |
 |---|---:|---|---|
-| FlyFishRC Volador II VD6 (6" carbon frame) | 1 | https://es.aliexpress.com/item/1005009244888358.html?spm=a2g0o.order_list.order_list_main.88.6195194dFQg94A&gatewayAdapt=glo2esp | 6" frame with room for onboard computer + sensors. |
+| FlyFishRC Volador II VD6 (6" carbon frame) | 1 | https://www.aliexpress.com/item/1005009244888358.html | 6" frame durable with enough room for onboard computer + sensors. |
 
-### 2) Propulsion
-
-| Part | Qty | Link | Notes |
-|---|---:|---|---|
-| iFlight XING-E Pro 2306 1700KV brushless motors | 4 | https://es.aliexpress.com/item/1005008310935904.html?spm=a2g0o.order_list.order_list_main.10.6195194dFQg94A&gatewayAdapt=glo2esp | Sized for 6" class builds. |
-| HQProp 6x3x3 propellers (6CW/6CCW, 12pcs) | 1 pack | https://es.aliexpress.com/item/1005009859783537.html?spm=a2g0o.order_list.order_list_main.76.6195194dFQg94A&gatewayAdapt=glo2esp | Keep spare propellers for testing and tuning. |
-
-### 3) Flight controller + ESC
+### 2) Motors and propellers
 
 | Part | Qty | Link | Notes |
 |---|---:|---|---|
-| SpeedyBee F405 V4 + 55A 4-in-1 ESC stack (30x30) | 1 | https://es.aliexpress.com/item/1005010224729199.html?spm=a2g0o.order_list.order_list_main.22.6195194dFQg94A&gatewayAdapt=glo2esp | Flight controller + ESC stack. Compatible with INAV. |
+| iFlight XING-E Pro 2306 1700KV brushless motors | 4 | https://www.aliexpress.com/item/1005008310935904.html | Sized for 6" class builds. |
+| HQProp 6x3x3 propellers (6CW/6CCW, 12pcs) | 1 pack | https://www.aliexpress.com/item/1005009859783537.html | Keep spare propellers for testing and tuning. |
 
-
-### 4) GPS
-
-| Part | Qty | Link | Notes |
-|---|---:|---|---|
-| HGLRC M10 GPS module + compass | 1 | https://es.aliexpress.com/item/1005008492407753.html?spm=a2g0o.order_list.order_list_main.16.6195194dFQg94A&gatewayAdapt=glo2esp | GPS/compass for navigation modes. Mount away from high-current wiring. |
-
-### 5) Radio control (manual override)
+### 3) Stack Flight controller + ESC
 
 | Part | Qty | Link | Notes |
 |---|---:|---|---|
-| RadioMaster Boxer 2.4G ELRS transmitter | 1 | https://es.aliexpress.com/item/1005005476887648.html?spm=a2g0o.order_list.order_list_main.5.6195194dFQg94A&gatewayAdapt=glo2esp | Manual control and safety override. |
-| SpeedyBee Nano ExpressLRS receiver | 1 | https://es.aliexpress.com/item/1005009188594963.html?spm=a2g0o.order_list.order_list_main.34.6195194dFQg94A&gatewayAdapt=glo2esp | Receiver installed on the drone. |
+| SpeedyBee F405 V4 + 55A 4-in-1 ESC stack (30x30) | 1 | https://www.aliexpress.com/item/1005010224729199.html | Flight controller + ESC stack. Compatible with INAV. |
+
+
+### 4) GPS and compass module
+
+| Part | Qty | Link | Notes |
+|---|---:|---|---|
+| HGLRC M10 GPS module + compass | 1 | https://www.aliexpress.com/item/1005008492407753.html | GPS/compass for navigation modes. Mount away from high-current wiring. |
+
+### 5) ERLS radio transmitter and receiver
+
+| Part | Qty | Link | Notes |
+|---|---:|---|---|
+| RadioMaster Boxer 2.4G ELRS transmitter | 1 | https://www.aliexpress.com/item/1005005476887648.html | Elrs and multichannel radio transmitter. |
+| SpeedyBee Nano ExpressLRS receiver | 1 | https://www.aliexpress.com/item/1005009188594963.html| Receiver installed on the drone. |
 
 ### 6) Battery
 
 | Part | Qty | Link | Notes |
 |---|---:|---|---|
-| Ovonic 4S LiPo 1300mAh 100C (XT60) | 1+ | https://es.aliexpress.com/item/1005009034486146.html?spm=a2g0o.order_list.order_list_main.58.6195194dFQg94A&gatewayAdapt=glo2esp | One battery is enough to start; multiple packs recommended for iteration. |
+| Ovonic 4S LiPo 1300mAh 100C (XT60) | 1+ | https://www.aliexpress.com/item/1005009034486146.html| One battery is enough to start; multiple packs recommended for iteration. |
 
 ## Autonomy stack
 
@@ -57,21 +57,19 @@ This list covers:
 
 | Part | Qty | Link | Notes |
 |---|---:|---|---|
-| Raspberry Pi 5 (4GB/8GB) + case/fan | 1 | https://es.aliexpress.com/item/1005006268136678.html?spm=a2g0o.order_list.order_list_main.28.6195194dFQg94A&gatewayAdapt=glo2esp | Runs Ubuntu 24.04 + ROS2 Jazzy. Ensure adequate cooling. |
+| Raspberry Pi 5 (4GB/8GB) + case/fan | 1 | https://www.aliexpress.com/item/1005006268136678.html | Runs Ubuntu 24.04 + ROS2 Jazzy. Ensure adequate cooling. |
 
 ### 8) Clean 5V power (critical)
 
 | Part | Qty | Link | Notes |
 |---|---:|---|---|
-| UBEC / switching regulator 5V (≥5A recommended) | 1 | https://es.aliexpress.com/item/1005009452713815.html?spm=a2g0o.order_list.order_list_main.40.6195194dFQg94A&gatewayAdapt=glo2esp | Stable 5V rail for Pi + sensors. Prefer ≥5A for Pi 5 headroom. |
+| UBEC / switching regulator 5V (≥5A recommended) | 1 | https://www.aliexpress.com/item/1005009452713815.html | Stable 5V rail for Pi + sensors. Prefer ≥5A for Pi 5 headroom. |
 
 ## Sensors
 
 | Part | Qty | Link | Notes |
 |---|---:|---|---|
-| LiDAR ToF (front-facing) | 1 | Link: TBD | Used for obstacle distance. Interface depends on model (I²C/UART). |
-| LiDAR ToF (downward-facing) | 1 | Link: TBD | Used for altitude/ground distance. |
-| LiDAR mounts (3D printed or equivalent) | 2 | Link: TBD | Improves alignment and reduces vibration. |
+| LiDAR ToF (front-facing) | +3 | https://www.aliexpress.com/item/1005008738338495.html| Used for obstacle distance. Interface depends on model (I²C/UART). |
 
 ---
 
@@ -79,18 +77,17 @@ This list covers:
 
 | Part | Qty | Link | Notes |
 |---|---:|---|---|
-| Autonomous buzzer / lost model buzzer | 1 | Link: TBD | Helps locate the drone after crashes or unexpected landings. |
-| Low-ESR filtering 2200µf capacitor (power line) | 1 | Link: TBD | Reduces electrical noise and voltage spikes from motors/ESC. |
+| Autonomous buzzer / lost model buzzer | 1 | https://www.aliexpress.com/item/1005009383497649.html | Helps locate the drone after crashes or unexpected landings. It works even if the battery has been desconnected |
+| Low-ESR filtering 35v 2200µf capacitor (power line) | 2 | https://www.aliexpress.com/item/1005003820087840.html| Reduces electrical noise and voltage spikes from motors/ESC. |
 
 ## Storage, wiring, and build consumables
 
-| Part | Qty | Link | Notes |
-|---|---:|---|---|
-| microSD | 1 | Link: TBD | OS + logs. Prefer reliable storage. |
-| Ethernet cable (field debugging) | 1 | Link: TBD | Useful for stable debugging outdoors. |
-| Silicone wire awg 12 (power + signal), heatshrink, zip ties | 1 set | Link: TBD | Cable management and strain relief are part of reliability. |
-| Battery straps + foam pad | 1–2 | Link: TBD | Secures LiPo during impact and vibration. |
-| Threadlocker (medium) | 1 | Link: TBD | Helps motor screws stay secure (if required). |
+| Part | Notes |
+|---|---|
+| microSD OS | 64GB min to store OS + proyect + logs
+| Ethernet cable (field debugging) | Useful for direct connection to ethernet-ethernet. |
+| Silicone wire awg 12 for and awg 16 for signals, heatshrink, zip ties | 
+| Battery straps + foam pad | Secures LiPo during impact and vibration. |
 
 ## Optional spares
 
@@ -103,6 +100,6 @@ This list covers:
 
 - This BOM targets a 6" class build (VD6 frame, 2306 motors, 6" props).
 - INAV is used for navigation/autonomy features and MSP control paths.
-- The autonomy stack assumes Ubuntu 22.04 + ROS2 Jazzy on Raspberry Pi.
+- The autonomy stack assumes Ubuntu 25.04 + ROS2 Jazzy on a Raspberry Pi 5.
 
 
