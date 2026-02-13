@@ -12,6 +12,7 @@ Action semantics:
 Control behavior:
   1. Arming phase: arm with throttle low
   2. Rise phase: climb until LiDAR reaches target altitude (default 3.0 m)
+     If LiDAR data is missing/stale during rise, trigger fatal stop/disarm
   3. Stabilize phase: short neutral hover after rise
   4. Initial yaw alignment phase: rotate to north (0 deg)
   5. AI phase: map direction + speed to body-frame RC commands + yaw hold
@@ -74,6 +75,7 @@ class FCAdapterNode(Node):
         self.declare_parameter('rise_throttle_value', 1600)
         self.declare_parameter('rise_target_altitude_m', 3.0)
         self.declare_parameter('rise_max_duration_sec', 20.0)
+        self.declare_parameter('lidar_missing_timeout_sec', 1.0)
         self.declare_parameter('post_rise_hover_sec', 1.0)
 
         # CRUISE mapping parameters (cm/s)
@@ -94,6 +96,7 @@ class FCAdapterNode(Node):
         self.rise_throttle = int(self.get_parameter('rise_throttle_value').value)
         self.rise_target_altitude = float(self.get_parameter('rise_target_altitude_m').value)
         self.rise_max_duration = float(self.get_parameter('rise_max_duration_sec').value)
+        self.lidar_missing_timeout = float(self.get_parameter('lidar_missing_timeout_sec').value)
         self.post_rise_hover_sec = float(self.get_parameter('post_rise_hover_sec').value)
 
         self.speed_limit_cms = float(self.get_parameter('speed_limit_cms').value)
@@ -107,6 +110,7 @@ class FCAdapterNode(Node):
 
         self.current_heading_deg = 0.0
         self.lidar_altitude = None  # meters
+        self.last_lidar_update_time = None  # unix timestamp of last valid LiDAR sample
 
         self.arming_complete = False
         self.arming_start_time = time.time()
@@ -118,6 +122,9 @@ class FCAdapterNode(Node):
         self.yaw_alignment_started = False
         self.yaw_alignment_complete = False
         self.last_yaw_hold_log_time = 0.0
+
+        self.fatal_error_active = False
+        self.fatal_error_reason = ''
 
         self.rc_publish_interval = 1.0 / max(1.0, self.rc_publish_rate_hz)
         self.last_rc_publish_time = 0.0
@@ -207,6 +214,7 @@ class FCAdapterNode(Node):
             return
 
         self.lidar_altitude = altitude
+        self.last_lidar_update_time = time.time()
 
     def cb_attitude(self, msg: Vector3Stamped):
         """Receive attitude and store yaw heading in degrees."""
@@ -244,6 +252,10 @@ class FCAdapterNode(Node):
         """Main control loop."""
         now = time.time()
 
+        if self.fatal_error_active:
+            self._send_abort_command()
+            return
+
         # Phase 0: Arming
         if not self.arming_complete:
             if (now - self.arming_start_time) >= self.arming_duration:
@@ -256,6 +268,17 @@ class FCAdapterNode(Node):
 
         # Phase 1: Rise until target altitude (default 3m) or timeout
         if not self.rise_complete:
+            lidar_stale = (
+                self.last_lidar_update_time is None or
+                (now - self.last_lidar_update_time) > self.lidar_missing_timeout
+            )
+            if lidar_stale:
+                self._trigger_fatal_error(
+                    'LiDAR data missing/stale during rise '
+                    f'(timeout={self.lidar_missing_timeout:.1f}s)'
+                )
+                return
+
             rise_elapsed = now - (self.rise_start_time or now)
             target_reached = (
                 self.lidar_altitude is not None and
@@ -349,6 +372,29 @@ class FCAdapterNode(Node):
         ]
         self._publish_rc_override(channels)
         self.get_logger().info(f'Hover command sent ({reason})', throttle_duration_sec=2.0)
+
+    def _send_abort_command(self):
+        """Send disarm/stop command frame while in fatal state."""
+        channels = [
+            self.rc_mid,  # CH1 ROLL neutral
+            self.rc_mid,  # CH2 PITCH neutral
+            1000,         # CH3 THROTTLE low
+            self.rc_mid,  # CH4 YAW neutral
+            1000,         # CH5 ARM low (disarm)
+            1500,         # CH6 ANGLE
+            1000,         # CH7 NAV off
+            2000,         # CH8 MSP override
+        ]
+        self._publish_rc_override(channels, force=True)
+
+    def _trigger_fatal_error(self, reason: str):
+        """Latch fatal error and switch to disarm/stop behavior."""
+        if self.fatal_error_active:
+            return
+        self.fatal_error_active = True
+        self.fatal_error_reason = reason
+        self.get_logger().fatal(f'CRITICAL: {reason}. Stopping control and disarming.')
+        self._send_abort_command()
 
     def _send_action_command(self):
         """
@@ -489,10 +535,10 @@ class FCAdapterNode(Node):
         return value
 
     # ------------ RC Publishing ------------
-    def _publish_rc_override(self, channels: list):
+    def _publish_rc_override(self, channels: list, force: bool = False):
         """Publish RC override values, throttled to configured RC publish rate."""
         now = time.time()
-        if (now - self.last_rc_publish_time) < self.rc_publish_interval:
+        if not force and (now - self.last_rc_publish_time) < self.rc_publish_interval:
             return
         self.last_rc_publish_time = now
 
@@ -511,7 +557,9 @@ class FCAdapterNode(Node):
         flags = []
         now = time.time()
 
-        if not self.arming_complete:
+        if self.fatal_error_active:
+            flags.append(f'FATAL({self.fatal_error_reason})')
+        elif not self.arming_complete:
             elapsed = now - self.arming_start_time
             remaining = max(0.0, self.arming_duration - elapsed)
             flags.append(f'ARMING({remaining:.1f}s)')

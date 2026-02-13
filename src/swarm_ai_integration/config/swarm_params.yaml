@@ -140,15 +140,13 @@ fc_adapter_node_cruise:
     rise_throttle_value: 1600
     rise_target_altitude_m: 3.0         # Requested initial rise altitude
     rise_max_duration_sec: 20.0
+    lidar_missing_timeout_sec: 1.0      # Fatal stop if LiDAR is missing/stale during rise
     post_rise_hover_sec: 1.0
 
     # CRUISE velocity mapping (cm/s)
     speed_limit_cms: 300.0
     nav_manual_speed_cms: 300.0
     nav_mc_manual_climb_rate_cms: 300.0
-
-    # Emergency landing
-    landing_descent_throttle: 1450
 
 # ═══════════════════════════════════════════════════════════════════
 # Black Box Recorder Node Parameters
