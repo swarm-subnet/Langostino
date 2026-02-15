@@ -145,8 +145,7 @@ class FCAdapterNode(Node):
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
         self.create_subscription(Bool, '/safety/emergency_land', self.cb_emergency_land, control_qos)
         self.create_subscription(Vector3Stamped, '/fc/attitude_degrees', self.cb_attitude, sensor_qos)
-        self.create_subscription(Range, '/lidar_distance', self.cb_lidar, sensor_qos)
-        self.get_logger().info('📡 Subscribed to /fc/attitude_degrees, /lidar_distance')
+        self.get_logger().info('📡 Subscribed to /fc/attitude_degrees')
 
         # Publications
         self.status_pub = self.create_publisher(String, '/fc_adapter/status', control_qos)

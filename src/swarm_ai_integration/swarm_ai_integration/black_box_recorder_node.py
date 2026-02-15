@@ -249,24 +249,24 @@ class BlackBoxRecorderNode(Node):
 
         # LiDAR Topics
         self.create_subscription(
-            Range, 'lidar_distance',
+            Range, '/lidar_distance',
             lambda msg: self._update_latest('lidar_distance', self._msg_to_dict(msg)), sensor_qos)
 
         self.create_subscription(
-            Float32MultiArray, 'lidar_raw',
+            Float32MultiArray, '/lidar_raw',
             lambda msg: self._update_latest('lidar_raw', self._msg_to_dict(msg)), sensor_qos)
 
         self.create_subscription(
-            PointStamped, 'lidar_point',
+            PointStamped, '/lidar_point',
             lambda msg: self._update_latest('lidar_point', self._msg_to_dict(msg)), sensor_qos)
 
         self.create_subscription(
-            String, 'lidar_status',
+            String, '/lidar_status',
             lambda msg: self._update_latest('lidar_status', msg.data), reliable_qos)
 
         self.create_subscription(
-            Bool, 'lidar_health',
-            lambda msg: self._update_latest('lidar_health', msg.data), sensor_qos)
+            Bool, '/lidar_healthy',
+            lambda msg: self._update_latest('lidar_healthy', msg.data), sensor_qos)
 
         # Safety System Topics
         self.create_subscription(
@@ -429,6 +429,9 @@ class BlackBoxRecorderNode(Node):
             point_data = self._convert_value(self.latest_data['lidar_point'])
             if isinstance(point_data, dict) and 'point' in point_data:
                 lidar['point'] = point_data['point']
+
+        if 'lidar_healthy' in self.latest_data:
+            lidar['healthy'] = bool(self.latest_data['lidar_healthy'])
 
         if lidar:
             snapshot['lidar'] = lidar

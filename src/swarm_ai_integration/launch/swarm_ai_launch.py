@@ -225,7 +225,7 @@ def generate_launch_description():
             ('/fc/rpm', '/fc/motor_rpm'),
             ('/goal_pose', '/move_base_simple/goal'),
             # ('/front_lidar/lidar_distance_front', '/front_lidar/lidar_distance_front'),
-            ('/down_lidar/lidar_distance_down', '/down_lidar/lidar_distance_down')
+            ('/lidar_distance', '/down_lidar/lidar_distance_down')
         ]
     )
 
@@ -261,6 +261,9 @@ def generate_launch_description():
                 'max_velocity': LaunchConfiguration('max_velocity'),
                 'safety_checks_enabled': LaunchConfiguration('enable_safety')
             }
+        ],
+        remappings=[
+            ('/lidar_distance', '/down_lidar/lidar_distance_down')
         ]
     )
 
@@ -273,6 +276,9 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('use_cruise_adapter')),
         parameters=[
             params_file,
+        ],
+        remappings=[
+            ('/lidar_distance', '/down_lidar/lidar_distance_down')
         ]
     )
 
@@ -310,6 +316,13 @@ def generate_launch_description():
                 # Override with launch arguments
                 'log_directory': LaunchConfiguration('log_directory')
             }
+        ],
+        remappings=[
+            ('/lidar_distance', '/down_lidar/lidar_distance_down'),
+            ('/lidar_raw', '/down_lidar/lidar_raw_down'),
+            ('/lidar_status', '/down_lidar/lidar_status_down'),
+            ('/lidar_point', '/down_lidar/lidar_point_down'),
+            ('/lidar_healthy', '/down_lidar/lidar_healthy_down')
         ],
         condition=IfCondition(LaunchConfiguration('enable_blackbox'))
     )
