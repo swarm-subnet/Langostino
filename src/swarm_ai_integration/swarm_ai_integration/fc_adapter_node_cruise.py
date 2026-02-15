@@ -76,7 +76,7 @@ class FCAdapterNode(Node):
         self.declare_parameter('rise_target_altitude_m', 3.0)
         self.declare_parameter('rise_max_duration_sec', 20.0)
         self.declare_parameter('lidar_missing_timeout_sec', 1.0)
-        self.declare_parameter('post_rise_hover_sec', 1.0)
+        self.declare_parameter('post_rise_hover_sec', 3.0)
 
         # CRUISE mapping parameters (cm/s)
         self.declare_parameter('speed_limit_cms', 300.0)
