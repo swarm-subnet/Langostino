@@ -6,21 +6,23 @@ Converts /ai/action commands into RC override commands for INAV CRUISE/POSHOLD.
 
 Action semantics:
   /ai/action = [dir_x, dir_y, dir_z, speed_fraction]
-  - First 3 entries define direction only (L2-normalized)
+  - Horizontal movement uses dir_x and dir_y only (L2-normalized in XY)
+  - dir_z is ignored for flight control (altitude is LiDAR-band controlled)
   - Fourth entry defines speed magnitude (absolute value)
 
 Control behavior:
   1. Arming phase: arm with throttle low
   2. Rise phase: climb until LiDAR reaches target altitude (default 3.0 m)
      If LiDAR data is missing/stale during rise, trigger fatal stop/disarm
-  3. Stabilize phase: short post-rise hold with simple altitude correction band
+  3. Stabilize phase: short post-rise hold with LiDAR altitude correction band
   4. Initial yaw alignment phase: rotate to north (0 deg) with same altitude correction
-  5. AI phase: map direction + speed to body-frame RC commands + yaw hold
+  5. AI phase: map XY direction + speed to body-frame RC commands + yaw hold
+     while altitude remains LiDAR-band controlled (2.5m..3.5m by default)
 
 RC channel mapping (AETR + AUX):
   CH1: Roll     (body-right velocity request)
   CH2: Pitch    (body-forward velocity request)
-  CH3: Throttle (vertical velocity request)
+  CH3: Throttle (LiDAR-band altitude hold during preparation and AI phases)
   CH4: Yaw      (startup alignment + heading-hold during AI)
   CH5: ARM
   CH6: ANGLE
@@ -457,12 +459,13 @@ class FCAdapterNode(Node):
 
         Steps:
           1) Clamp action to [-1, 1]
-          2) L2-normalize direction
+          2) L2-normalize horizontal direction (x,y); ignore z
           3) Use speed = abs(speed_fraction)
-          4) Build desired earth-frame velocity (cm/s)
+          4) Build desired earth-frame horizontal velocity (cm/s)
           5) Convert horizontal velocity earth->body via current yaw
-          6) Map body-forward/right and vertical requests to RC channels
-          7) Apply yaw heading hold around north
+          6) Map body-forward/right requests to RC channels
+          7) Set throttle from LiDAR altitude-band controller (ignore AI z)
+          8) Apply yaw heading hold around north
         """
         ax, ay, az, speed_fraction = self.last_action
 
@@ -472,17 +475,16 @@ class FCAdapterNode(Node):
         az = self._clamp_unit(az)
         speed_fraction = self._clamp_unit(speed_fraction)
 
-        # 2) L2-normalize direction; near-zero vector -> neutral direction
-        dir_x, dir_y, dir_z = self._normalize_direction_l2(ax, ay, az)
+        # 2) L2-normalize horizontal direction; AI vertical component is ignored.
+        dir_x, dir_y = self._normalize_horizontal_l2(ax, ay)
 
         # 3) speed is magnitude only
         speed_abs = abs(speed_fraction)
 
-        # 4) Desired earth-frame velocity (cm/s)
+        # 4) Desired earth-frame horizontal velocity (cm/s)
         target_speed_cms = self.speed_limit_cms * speed_abs
         v_east_cms = dir_x * target_speed_cms
         v_north_cms = dir_y * target_speed_cms
-        v_up_cms = dir_z * target_speed_cms
 
         # 5) Convert earth horizontal velocity -> body forward/right using yaw
         v_forward_cms, v_right_cms = self._earth_to_body_horizontal(
@@ -491,14 +493,14 @@ class FCAdapterNode(Node):
             self.current_heading_deg,
         )
 
-        # 6) Map desired velocities to RC stick deflections
+        # 6) Map desired horizontal velocities to RC stick deflections
         pitch_norm = self._safe_ratio(v_forward_cms, self.nav_manual_speed_cms)
         roll_norm = self._safe_ratio(v_right_cms, self.nav_manual_speed_cms)
-        throttle_norm = self._safe_ratio(v_up_cms, self.nav_mc_manual_climb_rate_cms)
 
         roll_rc = self._map_norm_to_rc(roll_norm)
         pitch_rc = self._map_norm_to_rc(pitch_norm)
-        throttle_rc = self._map_norm_to_rc(throttle_norm)
+        # 7) Altitude always controlled by LiDAR band, independent of AI z output.
+        throttle_rc = self._compute_preparation_throttle(default_throttle=self.rc_mid)
 
         heading_deg = self.get_current_heading_degrees()
         yaw_command, direction = self.yaw_controller.get_heading_hold_command(heading_deg)
@@ -527,8 +529,8 @@ class FCAdapterNode(Node):
 
         self.get_logger().info(
             f'Action=[{ax:+.2f},{ay:+.2f},{az:+.2f},s={speed_fraction:+.2f}] '
-            f'Dir=[{dir_x:+.2f},{dir_y:+.2f},{dir_z:+.2f}] '
-            f'Vel_earth=[{v_east_cms:+.1f},{v_north_cms:+.1f},{v_up_cms:+.1f}]cm/s '
+            f'Dir_xy=[{dir_x:+.2f},{dir_y:+.2f}] (z ignored) '
+            f'Vel_earth_xy=[{v_east_cms:+.1f},{v_north_cms:+.1f}]cm/s '
             f'Vel_body=[fwd={v_forward_cms:+.1f},right={v_right_cms:+.1f}]cm/s '
             f'RC=[R={roll_rc},P={pitch_rc},T={throttle_rc},Y={yaw_rc}]',
             throttle_duration_sec=0.5,
@@ -541,6 +543,13 @@ class FCAdapterNode(Node):
             return 0.0, 0.0, 0.0
         inv_norm = 1.0 / norm
         return x * inv_norm, y * inv_norm, z * inv_norm
+
+    def _normalize_horizontal_l2(self, x: float, y: float):
+        norm = math.sqrt((x * x) + (y * y))
+        if norm == 0.0:
+            return 0.0, 0.0
+        inv_norm = 1.0 / norm
+        return x * inv_norm, y * inv_norm
 
     def _earth_to_body_horizontal(self, v_east_cms: float, v_north_cms: float, yaw_deg: float):
         """
