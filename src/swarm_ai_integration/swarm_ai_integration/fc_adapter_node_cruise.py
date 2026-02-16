@@ -15,7 +15,10 @@ Control behavior:
   1. Arming phase: arm with throttle low
   2. Rise phase: climb until LiDAR reaches target altitude (default 3.0 m)
      If LiDAR data is missing/stale during rise, trigger fatal stop/disarm
-  3. Stabilize phase: short post-rise hold with LiDAR altitude correction band
+  3. Stabilize/settle phase: hold with LiDAR altitude correction band until:
+     - a minimum post-rise hover time has elapsed
+     - altitude is inside preparation band
+     - vertical speed magnitude stays below threshold for dwell time
   4. Initial yaw alignment phase: rotate to north (0 deg) with same altitude correction
   5. AI phase: map XY direction + speed to body-frame RC commands + yaw hold
      while altitude remains LiDAR-band controlled (2.5m..3.5m by default)
@@ -80,6 +83,10 @@ class FCAdapterNode(Node):
         self.declare_parameter('rise_max_duration_sec', 20.0)
         self.declare_parameter('lidar_missing_timeout_sec', 1.0)
         self.declare_parameter('post_rise_hover_sec', 10.0)
+        self.declare_parameter('settle_vspeed_threshold_mps', 0.15)
+        self.declare_parameter('settle_dwell_sec', 2.0)
+        self.declare_parameter('settle_timeout_sec', 45.0)
+        self.declare_parameter('settle_vspeed_filter_alpha', 0.25)
         self.declare_parameter('prep_altitude_min_m', 2.5)
         self.declare_parameter('prep_altitude_max_m', 3.5)
         self.declare_parameter('prep_throttle_up_value', 1600)
@@ -105,6 +112,10 @@ class FCAdapterNode(Node):
         self.rise_max_duration = float(self.get_parameter('rise_max_duration_sec').value)
         self.lidar_missing_timeout = float(self.get_parameter('lidar_missing_timeout_sec').value)
         self.post_rise_hover_sec = float(self.get_parameter('post_rise_hover_sec').value)
+        self.settle_vspeed_threshold = float(self.get_parameter('settle_vspeed_threshold_mps').value)
+        self.settle_dwell_sec = float(self.get_parameter('settle_dwell_sec').value)
+        self.settle_timeout_sec = float(self.get_parameter('settle_timeout_sec').value)
+        self.settle_vspeed_filter_alpha = float(self.get_parameter('settle_vspeed_filter_alpha').value)
         self.prep_altitude_min = float(self.get_parameter('prep_altitude_min_m').value)
         self.prep_altitude_max = float(self.get_parameter('prep_altitude_max_m').value)
         self.prep_throttle_up = int(self.get_parameter('prep_throttle_up_value').value)
@@ -118,6 +129,30 @@ class FCAdapterNode(Node):
             )
             self.prep_altitude_min = 2.5
             self.prep_altitude_max = 3.5
+        if self.settle_vspeed_threshold <= 0.0:
+            self.get_logger().warn(
+                f'Invalid settle_vspeed_threshold_mps={self.settle_vspeed_threshold:.3f}; '
+                'falling back to 0.15 m/s'
+            )
+            self.settle_vspeed_threshold = 0.15
+        if self.settle_dwell_sec <= 0.0:
+            self.get_logger().warn(
+                f'Invalid settle_dwell_sec={self.settle_dwell_sec:.3f}; '
+                'falling back to 2.0 s'
+            )
+            self.settle_dwell_sec = 2.0
+        if self.settle_timeout_sec <= 0.0:
+            self.get_logger().warn(
+                f'Invalid settle_timeout_sec={self.settle_timeout_sec:.3f}; '
+                'falling back to 45.0 s'
+            )
+            self.settle_timeout_sec = 45.0
+        if not (0.0 < self.settle_vspeed_filter_alpha <= 1.0):
+            self.get_logger().warn(
+                f'Invalid settle_vspeed_filter_alpha={self.settle_vspeed_filter_alpha:.3f}; '
+                'falling back to 0.25'
+            )
+            self.settle_vspeed_filter_alpha = 0.25
         self.prep_throttle_up = max(self.rc_min, min(self.rc_max, self.prep_throttle_up))
         self.prep_throttle_down = max(self.rc_min, min(self.rc_max, self.prep_throttle_down))
 
@@ -133,13 +168,18 @@ class FCAdapterNode(Node):
         self.current_heading_deg = 0.0
         self.lidar_altitude = None  # meters
         self.last_lidar_update_time = None  # unix timestamp of last valid LiDAR sample
+        self.vertical_speed_mps = 0.0  # positive means altitude increasing
+        self.last_lidar_sample_time = None
+        self.last_lidar_sample_altitude = None
 
         self.arming_complete = False
         self.arming_start_time = time.time()
 
         self.rise_complete = False
         self.rise_start_time = None
-        self.post_rise_hover_until = None
+        self.settling_start_time = None
+        self.settle_condition_start_time = None
+        self.settling_complete = False
 
         self.yaw_alignment_started = False
         self.yaw_alignment_complete = False
@@ -206,6 +246,12 @@ class FCAdapterNode(Node):
             f'[{self.prep_altitude_min:.2f}, {self.prep_altitude_max:.2f}]m '
             f'-> throttle up={self.prep_throttle_up}, down={self.prep_throttle_down}'
         )
+        self.get_logger().info(
+            'Settling gate: '
+            f'min_hover={self.post_rise_hover_sec:.1f}s, '
+            f'|vz|<{self.settle_vspeed_threshold:.2f}m/s for {self.settle_dwell_sec:.1f}s, '
+            f'timeout={self.settle_timeout_sec:.1f}s'
+        )
 
     # ------------ Callbacks ------------
     def cb_ai_action(self, msg: Float32MultiArray):
@@ -230,18 +276,35 @@ class FCAdapterNode(Node):
 
     def cb_lidar(self, msg: Range):
         """Receive downward LiDAR range (meters)."""
+        sample_time = time.time()
         try:
             altitude = float(msg.range)
         except Exception:
             self.lidar_altitude = None
+            self.last_lidar_sample_time = None
+            self.last_lidar_sample_altitude = None
             return
 
         if not math.isfinite(altitude) or altitude < 0.0:
             self.lidar_altitude = None
+            self.last_lidar_sample_time = None
+            self.last_lidar_sample_altitude = None
             return
 
+        if self.last_lidar_sample_time is not None and self.last_lidar_sample_altitude is not None:
+            dt = sample_time - self.last_lidar_sample_time
+            if dt > 1e-3:
+                raw_vertical_speed = (altitude - self.last_lidar_sample_altitude) / dt
+                alpha = self.settle_vspeed_filter_alpha
+                self.vertical_speed_mps = (
+                    ((1.0 - alpha) * self.vertical_speed_mps) +
+                    (alpha * raw_vertical_speed)
+                )
+
         self.lidar_altitude = altitude
-        self.last_lidar_update_time = time.time()
+        self.last_lidar_update_time = sample_time
+        self.last_lidar_sample_time = sample_time
+        self.last_lidar_sample_altitude = altitude
 
     def cb_attitude(self, msg: Vector3Stamped):
         """Receive attitude and store yaw heading in degrees."""
@@ -296,10 +359,7 @@ class FCAdapterNode(Node):
 
         # Phase 1: Rise until target altitude (default 3m) or timeout
         if not self.rise_complete:
-            lidar_stale = (
-                self.last_lidar_update_time is None or
-                (now - self.last_lidar_update_time) > self.lidar_missing_timeout
-            )
+            lidar_stale = not self._is_lidar_fresh(now)
             if lidar_stale:
                 self._trigger_fatal_error(
                     'LiDAR data missing/stale during rise '
@@ -316,7 +376,7 @@ class FCAdapterNode(Node):
 
             if target_reached or timed_out:
                 self.rise_complete = True
-                self.post_rise_hover_until = now + self.post_rise_hover_sec
+                self._start_settling_phase(now)
                 if target_reached:
                     self.get_logger().info(
                         f'Rise complete at {self.lidar_altitude:.2f}m '
@@ -331,10 +391,15 @@ class FCAdapterNode(Node):
                 self._send_rise_command()
                 return
 
-        # Phase 2: short stabilization hover after rise
-        if self.post_rise_hover_until is not None and now < self.post_rise_hover_until:
-            self._send_hover_command(reason='post_rise_stabilize', use_altitude_controller=True)
-            return
+        # Phase 2: stabilization/settling gate before yaw alignment.
+        # Stay here until min hover elapsed and settle conditions are held for dwell.
+        if not self.settling_complete:
+            settled = self._update_settling_gate(now)
+            if not settled:
+                if self.fatal_error_active:
+                    return
+                self._send_hover_command(reason='post_rise_settling', use_altitude_controller=True)
+                return
 
         # Phase 3: Initial yaw alignment (north-facing model assumption)
         if not self.yaw_alignment_complete:
@@ -359,6 +424,88 @@ class FCAdapterNode(Node):
 
         # Phase 4: Normal CRUISE AI control
         self._send_action_command()
+
+    def _is_lidar_fresh(self, now: float) -> bool:
+        if self.last_lidar_update_time is None:
+            return False
+        return (now - self.last_lidar_update_time) <= self.lidar_missing_timeout
+
+    def _start_settling_phase(self, now: float):
+        self.settling_start_time = now
+        self.settle_condition_start_time = None
+        self.settling_complete = False
+        self.get_logger().info(
+            'Entering post-rise settling gate '
+            f'(min_hover={self.post_rise_hover_sec:.1f}s, '
+            f'|vz|<{self.settle_vspeed_threshold:.2f}m/s for {self.settle_dwell_sec:.1f}s)'
+        )
+
+    def _get_settle_flags(self, now: float):
+        lidar_fresh = self._is_lidar_fresh(now)
+        in_altitude_band = (
+            lidar_fresh and
+            self.lidar_altitude is not None and
+            self.prep_altitude_min <= self.lidar_altitude <= self.prep_altitude_max
+        )
+        vertical_speed_ok = lidar_fresh and abs(self.vertical_speed_mps) <= self.settle_vspeed_threshold
+        return lidar_fresh, in_altitude_band, vertical_speed_ok
+
+    def _update_settling_gate(self, now: float) -> bool:
+        """
+        Update post-rise settling gate.
+
+        Returns True when settling is complete and the node may advance.
+        """
+        if self.settling_complete:
+            return True
+
+        if self.settling_start_time is None:
+            self._start_settling_phase(now)
+
+        settling_elapsed = now - (self.settling_start_time or now)
+        min_hover_done = settling_elapsed >= self.post_rise_hover_sec
+        lidar_fresh, in_band, vertical_speed_ok = self._get_settle_flags(now)
+        settle_conditions_ok = min_hover_done and lidar_fresh and in_band and vertical_speed_ok
+
+        if settle_conditions_ok:
+            if self.settle_condition_start_time is None:
+                self.settle_condition_start_time = now
+            dwell_elapsed = now - self.settle_condition_start_time
+            if dwell_elapsed >= self.settle_dwell_sec:
+                self.settling_complete = True
+                alt_str = f'{self.lidar_altitude:.2f}m' if self.lidar_altitude is not None else 'no_lidar'
+                self.get_logger().info(
+                    'Settling gate complete: '
+                    f'alt={alt_str}, vz={self.vertical_speed_mps:+.2f}m/s, '
+                    f'dwell={dwell_elapsed:.2f}s'
+                )
+                return True
+        else:
+            self.settle_condition_start_time = None
+
+        if settling_elapsed >= self.settle_timeout_sec:
+            alt_str = f'{self.lidar_altitude:.2f}m' if self.lidar_altitude is not None else 'no_lidar'
+            self._trigger_fatal_error(
+                'Settling gate timeout '
+                f'({settling_elapsed:.1f}s, alt={alt_str}, vz={self.vertical_speed_mps:+.2f}m/s)'
+            )
+            return False
+
+        min_hover_remaining = max(0.0, self.post_rise_hover_sec - settling_elapsed)
+        dwell_elapsed = 0.0
+        if self.settle_condition_start_time is not None:
+            dwell_elapsed = now - self.settle_condition_start_time
+
+        alt_str = f'{self.lidar_altitude:.2f}m' if self.lidar_altitude is not None else 'no_lidar'
+        self.get_logger().info(
+            'Settling gate active: '
+            f'alt={alt_str}, vz={self.vertical_speed_mps:+.2f}m/s, '
+            f'band={in_band}, vz_ok={vertical_speed_ok}, '
+            f'min_hover_left={min_hover_remaining:.1f}s, '
+            f'dwell={dwell_elapsed:.1f}/{self.settle_dwell_sec:.1f}s',
+            throttle_duration_sec=1.0,
+        )
+        return False
 
     # ------------ Command Builders ------------
     def _send_arming_command(self):
@@ -399,9 +546,7 @@ class FCAdapterNode(Node):
         throttle_cmd = int(default_throttle)
         if self.lidar_altitude is None:
             return throttle_cmd
-        if self.last_lidar_update_time is None:
-            return throttle_cmd
-        if (time.time() - self.last_lidar_update_time) > self.lidar_missing_timeout:
+        if not self._is_lidar_fresh(time.time()):
             return throttle_cmd
 
         if self.lidar_altitude > self.prep_altitude_max:
@@ -629,9 +774,23 @@ class FCAdapterNode(Node):
             flags.append(
                 f'RISING(alt={alt_str},target={self.rise_target_altitude:.2f}m,timeout={remaining:.1f}s)'
             )
-        elif self.post_rise_hover_until is not None and now < self.post_rise_hover_until:
-            remaining = self.post_rise_hover_until - now
-            flags.append(f'STABILIZING({remaining:.1f}s)')
+        elif not self.settling_complete:
+            settling_elapsed = now - (self.settling_start_time or now)
+            min_hover_remaining = max(0.0, self.post_rise_hover_sec - settling_elapsed)
+            dwell_elapsed = 0.0
+            if self.settle_condition_start_time is not None:
+                dwell_elapsed = now - self.settle_condition_start_time
+
+            _, in_band, vertical_speed_ok = self._get_settle_flags(now)
+            alt_str = f'{self.lidar_altitude:.2f}m' if self.lidar_altitude is not None else 'no_lidar'
+            flags.append(
+                'STABILIZING('
+                f'alt={alt_str},vz={self.vertical_speed_mps:+.2f}m/s,'
+                f'band={in_band},vz_ok={vertical_speed_ok},'
+                f'dwell={dwell_elapsed:.1f}/{self.settle_dwell_sec:.1f}s,'
+                f'min_hold={min_hover_remaining:.1f}s'
+                ')'
+            )
         elif not self.yaw_alignment_complete:
             heading = self.get_current_heading_degrees()
             flags.append(f'YAW_ALIGN({heading:.1f}°)')
