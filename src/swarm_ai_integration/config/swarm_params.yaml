@@ -141,7 +141,11 @@ fc_adapter_node_cruise:
     rise_target_altitude_m: 3.0         # Requested initial rise altitude
     rise_max_duration_sec: 20.0
     lidar_missing_timeout_sec: 1.0      # Fatal stop if LiDAR is missing/stale during rise
-    post_rise_hover_sec: 1.0
+    post_rise_hover_sec: 10
+    prep_altitude_min_m: 2.5            # During STABILIZING/YAW_ALIGN: below -> throttle up
+    prep_altitude_max_m: 3.5            # During STABILIZING/YAW_ALIGN: above -> throttle down
+    prep_throttle_up_value: 1550        # If lidar < prep_altitude_min_m
+    prep_throttle_down_value: 1450      # If lidar > prep_altitude_max_m
 
     # CRUISE velocity mapping (cm/s)
     speed_limit_cms: 300.0
