@@ -92,7 +92,8 @@ def run_action_mapping_samples(samples: List[Tuple[str, List[float]]]):
 
     print('Assumptions for action mapping: yaw=0.0 deg (North), lidar=3.0 m, startup phases complete')
     print('Action format: [dir_x, dir_y, dir_z, speed_fraction]')
-    print('Note: dir_z is ignored in CRUISE control; throttle is LiDAR-band controlled')
+    print('Note: dir_z no longer drives throttle directly; throttle is LiDAR-band controlled')
+    print('      Direction is still normalized in 3D, so z affects XY speed split.')
     print('RC format: [roll, pitch, throttle, yaw, arm, angle, nav, msp]')
     _print_table_header('Action Mapping Samples')
 

@@ -223,12 +223,13 @@ class FCAdapterNodeCruiseTest:
         az = self._clamp_unit(az)
         speed_fraction = self._clamp_unit(speed_fraction)
 
-        dir_x, dir_y = self._normalize_horizontal_l2(ax, ay)
+        dir_x, dir_y, dir_z = self._normalize_direction_l2(ax, ay, az)
         speed_abs = abs(speed_fraction)
 
         target_speed_cms = self.speed_limit_cms * speed_abs
         v_east_cms = dir_x * target_speed_cms
         v_north_cms = dir_y * target_speed_cms
+        _v_up_cms = dir_z * target_speed_cms
 
         v_forward_cms, v_right_cms = self._earth_to_body_horizontal(
             v_east_cms,
@@ -272,13 +273,6 @@ class FCAdapterNodeCruiseTest:
             return 0.0, 0.0, 0.0
         inv_norm = 1.0 / norm
         return x * inv_norm, y * inv_norm, z * inv_norm
-
-    def _normalize_horizontal_l2(self, x: float, y: float):
-        norm = math.sqrt((x * x) + (y * y))
-        if norm == 0.0:
-            return 0.0, 0.0
-        inv_norm = 1.0 / norm
-        return x * inv_norm, y * inv_norm
 
     @staticmethod
     def _earth_to_body_horizontal(v_east_cms: float, v_north_cms: float, yaw_deg: float):

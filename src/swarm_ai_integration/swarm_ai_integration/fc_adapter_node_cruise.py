@@ -6,8 +6,9 @@ Converts /ai/action commands into RC override commands for INAV CRUISE/POSHOLD.
 
 Action semantics:
   /ai/action = [dir_x, dir_y, dir_z, speed_fraction]
-  - Horizontal movement uses dir_x and dir_y only (L2-normalized in XY)
-  - dir_z is ignored for flight control (altitude is LiDAR-band controlled)
+  - First 3 entries define direction only (L2-normalized in 3D)
+  - dir_z does not directly command throttle (altitude is LiDAR-band controlled)
+    but still affects XY speed split via 3D normalization
   - Fourth entry defines speed magnitude (absolute value)
 
 Control behavior:
@@ -459,12 +460,12 @@ class FCAdapterNode(Node):
 
         Steps:
           1) Clamp action to [-1, 1]
-          2) L2-normalize horizontal direction (x,y); ignore z
+          2) L2-normalize direction in 3D (x,y,z)
           3) Use speed = abs(speed_fraction)
-          4) Build desired earth-frame horizontal velocity (cm/s)
+          4) Build desired earth-frame velocity (cm/s)
           5) Convert horizontal velocity earth->body via current yaw
           6) Map body-forward/right requests to RC channels
-          7) Set throttle from LiDAR altitude-band controller (ignore AI z)
+          7) Set throttle from LiDAR altitude-band controller (AI z does not command throttle)
           8) Apply yaw heading hold around north
         """
         ax, ay, az, speed_fraction = self.last_action
@@ -475,16 +476,17 @@ class FCAdapterNode(Node):
         az = self._clamp_unit(az)
         speed_fraction = self._clamp_unit(speed_fraction)
 
-        # 2) L2-normalize horizontal direction; AI vertical component is ignored.
-        dir_x, dir_y = self._normalize_horizontal_l2(ax, ay)
+        # 2) L2-normalize full direction to preserve trained speed split behavior.
+        dir_x, dir_y, dir_z = self._normalize_direction_l2(ax, ay, az)
 
         # 3) speed is magnitude only
         speed_abs = abs(speed_fraction)
 
-        # 4) Desired earth-frame horizontal velocity (cm/s)
+        # 4) Desired earth-frame velocity (cm/s)
         target_speed_cms = self.speed_limit_cms * speed_abs
         v_east_cms = dir_x * target_speed_cms
         v_north_cms = dir_y * target_speed_cms
+        v_up_cms = dir_z * target_speed_cms
 
         # 5) Convert earth horizontal velocity -> body forward/right using yaw
         v_forward_cms, v_right_cms = self._earth_to_body_horizontal(
@@ -529,8 +531,8 @@ class FCAdapterNode(Node):
 
         self.get_logger().info(
             f'Action=[{ax:+.2f},{ay:+.2f},{az:+.2f},s={speed_fraction:+.2f}] '
-            f'Dir_xy=[{dir_x:+.2f},{dir_y:+.2f}] (z ignored) '
-            f'Vel_earth_xy=[{v_east_cms:+.1f},{v_north_cms:+.1f}]cm/s '
+            f'Dir_xyz=[{dir_x:+.2f},{dir_y:+.2f},{dir_z:+.2f}] '
+            f'Vel_earth=[{v_east_cms:+.1f},{v_north_cms:+.1f},{v_up_cms:+.1f}]cm/s '
             f'Vel_body=[fwd={v_forward_cms:+.1f},right={v_right_cms:+.1f}]cm/s '
             f'RC=[R={roll_rc},P={pitch_rc},T={throttle_rc},Y={yaw_rc}]',
             throttle_duration_sec=0.5,
@@ -543,13 +545,6 @@ class FCAdapterNode(Node):
             return 0.0, 0.0, 0.0
         inv_norm = 1.0 / norm
         return x * inv_norm, y * inv_norm, z * inv_norm
-
-    def _normalize_horizontal_l2(self, x: float, y: float):
-        norm = math.sqrt((x * x) + (y * y))
-        if norm == 0.0:
-            return 0.0, 0.0
-        inv_norm = 1.0 / norm
-        return x * inv_norm, y * inv_norm
 
     def _earth_to_body_horizontal(self, v_east_cms: float, v_north_cms: float, yaw_deg: float):
         """
