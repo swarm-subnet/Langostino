@@ -13,8 +13,8 @@ Control behavior:
   1. Arming phase: arm with throttle low
   2. Rise phase: climb until LiDAR reaches target altitude (default 3.0 m)
      If LiDAR data is missing/stale during rise, trigger fatal stop/disarm
-  3. Stabilize phase: short neutral hover after rise
-  4. Initial yaw alignment phase: rotate to north (0 deg)
+  3. Stabilize phase: short post-rise hold with simple altitude correction band
+  4. Initial yaw alignment phase: rotate to north (0 deg) with same altitude correction
   5. AI phase: map direction + speed to body-frame RC commands + yaw hold
 
 RC channel mapping (AETR + AUX):
@@ -76,7 +76,11 @@ class FCAdapterNode(Node):
         self.declare_parameter('rise_target_altitude_m', 3.0)
         self.declare_parameter('rise_max_duration_sec', 20.0)
         self.declare_parameter('lidar_missing_timeout_sec', 1.0)
-        self.declare_parameter('post_rise_hover_sec', 3.0)
+        self.declare_parameter('post_rise_hover_sec', 10.0)
+        self.declare_parameter('prep_altitude_min_m', 2.5)
+        self.declare_parameter('prep_altitude_max_m', 3.5)
+        self.declare_parameter('prep_throttle_up_value', 1550)
+        self.declare_parameter('prep_throttle_down_value', 1450)
 
         # CRUISE mapping parameters (cm/s)
         self.declare_parameter('speed_limit_cms', 300.0)
@@ -98,6 +102,21 @@ class FCAdapterNode(Node):
         self.rise_max_duration = float(self.get_parameter('rise_max_duration_sec').value)
         self.lidar_missing_timeout = float(self.get_parameter('lidar_missing_timeout_sec').value)
         self.post_rise_hover_sec = float(self.get_parameter('post_rise_hover_sec').value)
+        self.prep_altitude_min = float(self.get_parameter('prep_altitude_min_m').value)
+        self.prep_altitude_max = float(self.get_parameter('prep_altitude_max_m').value)
+        self.prep_throttle_up = int(self.get_parameter('prep_throttle_up_value').value)
+        self.prep_throttle_down = int(self.get_parameter('prep_throttle_down_value').value)
+
+        if self.prep_altitude_min >= self.prep_altitude_max:
+            self.get_logger().warn(
+                'Invalid preparation altitude band '
+                f'[{self.prep_altitude_min:.2f}, {self.prep_altitude_max:.2f}]m; '
+                'falling back to [2.50, 3.50]m'
+            )
+            self.prep_altitude_min = 2.5
+            self.prep_altitude_max = 3.5
+        self.prep_throttle_up = max(self.rc_min, min(self.rc_max, self.prep_throttle_up))
+        self.prep_throttle_down = max(self.rc_min, min(self.rc_max, self.prep_throttle_down))
 
         self.speed_limit_cms = float(self.get_parameter('speed_limit_cms').value)
         self.nav_manual_speed_cms = float(self.get_parameter('nav_manual_speed_cms').value)
@@ -179,6 +198,11 @@ class FCAdapterNode(Node):
             f'speed_limit={self.speed_limit_cms:.1f}cm/s, nav_manual_speed={self.nav_manual_speed_cms:.1f}cm/s, '
             f'climb_rate={self.nav_mc_manual_climb_rate_cms:.1f}cm/s'
         )
+        self.get_logger().info(
+            'Preparation altitude hold band: '
+            f'[{self.prep_altitude_min:.2f}, {self.prep_altitude_max:.2f}]m '
+            f'-> throttle up={self.prep_throttle_up}, down={self.prep_throttle_down}'
+        )
 
     # ------------ Callbacks ------------
     def cb_ai_action(self, msg: Float32MultiArray):
@@ -235,10 +259,11 @@ class FCAdapterNode(Node):
 
         This callback is used by YawAlignmentController.
         """
+        throttle_cmd = self._compute_preparation_throttle(default_throttle=throttle)
         channels = [
             roll,      # CH1 ROLL
             pitch,     # CH2 PITCH
-            throttle,  # CH3 THROTTLE
+            throttle_cmd,  # CH3 THROTTLE
             yaw,       # CH4 YAW
             2000,      # CH5 ARM
             1500,      # CH6 ANGLE
@@ -305,7 +330,7 @@ class FCAdapterNode(Node):
 
         # Phase 2: short stabilization hover after rise
         if self.post_rise_hover_until is not None and now < self.post_rise_hover_until:
-            self._send_hover_command(reason='post_rise_stabilize')
+            self._send_hover_command(reason='post_rise_stabilize', use_altitude_controller=True)
             return
 
         # Phase 3: Initial yaw alignment (north-facing model assumption)
@@ -359,11 +384,38 @@ class FCAdapterNode(Node):
         ]
         self._publish_rc_override(channels)
 
-    def _send_hover_command(self, reason: str):
+    def _compute_preparation_throttle(self, default_throttle: int) -> int:
+        """
+        Simple altitude-band throttle controller for post-rise preparation phases.
+
+        Rules:
+          - altitude > prep_altitude_max -> prep_throttle_down
+          - altitude < prep_altitude_min -> prep_throttle_up
+          - otherwise -> default_throttle
+        """
+        throttle_cmd = int(default_throttle)
+        if self.lidar_altitude is None:
+            return throttle_cmd
+        if self.last_lidar_update_time is None:
+            return throttle_cmd
+        if (time.time() - self.last_lidar_update_time) > self.lidar_missing_timeout:
+            return throttle_cmd
+
+        if self.lidar_altitude > self.prep_altitude_max:
+            return self.prep_throttle_down
+        if self.lidar_altitude < self.prep_altitude_min:
+            return self.prep_throttle_up
+        return throttle_cmd
+
+    def _send_hover_command(self, reason: str, use_altitude_controller: bool = False):
+        throttle_cmd = self.rc_mid
+        if use_altitude_controller:
+            throttle_cmd = self._compute_preparation_throttle(default_throttle=self.rc_mid)
+
         channels = [
             self.rc_mid,  # CH1 ROLL neutral
             self.rc_mid,  # CH2 PITCH neutral
-            self.rc_mid,  # CH3 THROTTLE neutral
+            throttle_cmd,  # CH3 THROTTLE
             self.rc_mid,  # CH4 YAW neutral
             2000,         # CH5 ARM
             1500,         # CH6 ANGLE
@@ -371,7 +423,10 @@ class FCAdapterNode(Node):
             2000,         # CH8 MSP override
         ]
         self._publish_rc_override(channels)
-        self.get_logger().info(f'Hover command sent ({reason})', throttle_duration_sec=2.0)
+        self.get_logger().info(
+            f'Hover command sent ({reason}, throttle={throttle_cmd})',
+            throttle_duration_sec=2.0,
+        )
 
     def _send_abort_command(self):
         """Send disarm/stop command frame while in fatal state."""

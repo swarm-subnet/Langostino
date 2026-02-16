@@ -31,6 +31,10 @@ class FCAdapterNodeCruiseTest:
         self.rise_max_duration = 20.0
         self.lidar_missing_timeout = 1.0
         self.post_rise_hover_sec = 1.0
+        self.prep_altitude_min = 2.5
+        self.prep_altitude_max = 3.5
+        self.prep_throttle_up = 1550
+        self.prep_throttle_down = 1450
         self.speed_limit_cms = 300.0
         self.nav_manual_speed_cms = 300.0
         self.nav_mc_manual_climb_rate_cms = 300.0
@@ -125,9 +129,9 @@ class FCAdapterNodeCruiseTest:
                 return self._send_rise_command()
 
         if self.post_rise_hover_until is not None and now < self.post_rise_hover_until:
-            return self._send_hover_command()
+            return self._send_hover_command(use_altitude_controller=True)
         if not self.yaw_alignment_complete:
-            return self._send_hover_command()
+            return self._send_hover_command(use_altitude_controller=True)
 
         if (now - self.last_cmd_time) > self.cmd_timeout:
             return self._send_hover_command()
@@ -162,11 +166,28 @@ class FCAdapterNodeCruiseTest:
         ]
         return self._store_and_return(channels)
 
-    def _send_hover_command(self) -> List[int]:
+    def _compute_preparation_throttle(self, default_throttle: int) -> int:
+        throttle_cmd = int(default_throttle)
+        if self.lidar_altitude is None:
+            return throttle_cmd
+        if self.last_lidar_update_time is None:
+            return throttle_cmd
+        if (time.time() - self.last_lidar_update_time) > self.lidar_missing_timeout:
+            return throttle_cmd
+        if self.lidar_altitude > self.prep_altitude_max:
+            return self.prep_throttle_down
+        if self.lidar_altitude < self.prep_altitude_min:
+            return self.prep_throttle_up
+        return throttle_cmd
+
+    def _send_hover_command(self, use_altitude_controller: bool = False) -> List[int]:
+        throttle_cmd = self.rc_mid
+        if use_altitude_controller:
+            throttle_cmd = self._compute_preparation_throttle(default_throttle=self.rc_mid)
         channels = [
             self.rc_mid,
             self.rc_mid,
-            self.rc_mid,
+            throttle_cmd,
             self.rc_mid,
             2000,
             1500,
