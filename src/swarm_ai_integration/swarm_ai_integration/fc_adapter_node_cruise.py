@@ -82,8 +82,8 @@ class FCAdapterNode(Node):
         self.declare_parameter('post_rise_hover_sec', 10.0)
         self.declare_parameter('prep_altitude_min_m', 2.5)
         self.declare_parameter('prep_altitude_max_m', 3.5)
-        self.declare_parameter('prep_throttle_up_value', 1550)
-        self.declare_parameter('prep_throttle_down_value', 1450)
+        self.declare_parameter('prep_throttle_up_value', 1600)
+        self.declare_parameter('prep_throttle_down_value', 1400)
 
         # CRUISE mapping parameters (cm/s)
         self.declare_parameter('speed_limit_cms', 300.0)
