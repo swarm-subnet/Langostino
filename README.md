@@ -21,7 +21,7 @@
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" />
   </a>
   <img alt="Version" src="https://img.shields.io/badge/Version-v1.0.0-black?style=flat-square" />
-  <a href="https://discord.gg/vSJtvBbF">
+  <a href="https://discord.gg/txzvKMSd">
     <img alt="Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square" />
   </a>
 </p>
@@ -67,23 +67,6 @@
 <p align="center">
   <a href="https://www.youtube.com/shorts/gf9mxroeurU" target="_blank" rel="noopener noreferrer">
     <img src="https://img.youtube.com/vi/gf9mxroeurU/maxresdefault.jpg" alt="Langostino position hold - click to watch" width="720" loading="lazy" />
-  </a>
-</p>
-<p align="center">
-  <a href="https://www.youtube.com/shorts/gf9mxroeurU" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.shields.io/badge/Watch%20on-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch on YouTube" />
-  </a>
-</p>
-
-### Step 2 - AI-powered autonomous flight (placeholder)
-
-<p align="center">
-  <b>AI-powered navigation (placeholder)</b>
-</p>
-
-<p align="center">
-  <a href="https://www.youtube.com/shorts/gf9mxroeurU" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.youtube.com/vi/gf9mxroeurU/maxresdefault.jpg" alt="Langostino AI navigation placeholder - click to watch" width="720" loading="lazy" />
   </a>
 </p>
 <p align="center">
@@ -174,7 +157,7 @@ Pick what you want to do next — you don't need to be an expert to start.
     <td width="50%" valign="top">
       <h4>I want to contribute</h4>
       <ul>
-        <li>Join <a href="https://discord.com/invite/bittensor">Discord</a></li>
+        <li>Join <a href="https://discord.gg/txzvKMSd">Discord</a></li>
         <li>Read <a href="CONTRIBUTING.md">CONTRIBUTING.md</a></li>
         <li>Pick a <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">good first issue</a></li>
       </ul>
@@ -189,17 +172,15 @@ Pick what you want to do next — you don't need to be an expert to start.
 
 Your path from zero to first flight:
 
-1. **Watch a 60-second demo** — Get the idea fast. [Watch video →](#see-it-in-action)
+1. **Get the parts** — Use the [BOM](docs/assembly/BOM.md) as your shopping list to source every component.
 
-2. **Get the parts** — Use the [BOM](docs/assembly/README.md#bill-of-materials-bom) as your shopping list to source every component.
+2. **Assemble the airframe** — Follow the build guide step-by-step. [Build guide →](docs/assembly/README.md)
 
-3. **Assemble the airframe** — Follow the build guide step-by-step. [Build guide →](docs/assembly/README.md)
+3. **Install, then wire it up** — Follow the quickstart checklist step by step. [Quickstart →](docs/SETUP_GUIDE.md#quick-setup)
 
-4. **Install, then wire it up** — Follow the quickstart checklist step by step. [Quickstart →](docs/SETUP_GUIDE.md#quick-setup)
+4. **Troubleshooting** — Diagnose setup, hardware, and runtime issues quickly with step-by-step checks. [Troubleshooting guide →](docs/TROUBLESHOOTING_GUIDE.md)
 
-5. **Calibrate & safety** — Props off, arming checks, failsafes, first hover indoor. [Safety checklist →](docs/SETUP_GUIDE.md#safety-checklist)
-
-6. **Go outside & share** — Short flight, record a clip, star the repo, post your build. [Join Discord →](https://discord.com/invite/bittensor)
+5. **Go outside & share** — Short flight, record a clip, star the repo, post your build. [Join Discord →](https://discord.gg/txzvKMSd)
 
 <p align="center">
   <sub>Want the bigger picture? See the <a href="https://swarm124.com/decentralized-training">Swarm roadmap →</a></sub>
@@ -218,6 +199,7 @@ Want to understand the project in depth? Check out our Substack series that walk
 | [**Chapter 2**][chapter-2-url] | The Wiring Brain | Wiring, connections, and power distribution |
 | [**Chapter 3**][chapter-3-url] | From Data to Motion | Software architecture and data flow |
 | [**Chapter 3.5**][chapter-3.5-url] | Additional Configurations | Advanced configuration and tuning |
+| [**Chapter 4**][chapter-4-url] | End-to-End Open Autonomy | Langostino, the first end-to-end open-source autonomous drone |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -286,13 +268,13 @@ swarm-ros/
 Langostino is built with a **global** community of builders and contributors. If you're building, testing, or improving it — we want to hear from you.
 
 <p align="center">
-  <a href="https://discord.com/invite/bittensor">
+  <a href="https://discord.gg/txzvKMSd">
     <img alt="Join Discord" src="https://img.shields.io/badge/Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" />
   </a>
 </p>
 
 <p align="center">
-  <a href="https://discord.com/invite/bittensor"><b>Discord</b></a>
+  <a href="https://discord.gg/txzvKMSd"><b>Discord</b></a>
   &nbsp;•&nbsp;
   <a href="https://x.com/"><b>X</b></a>
   &nbsp;•&nbsp;
@@ -317,12 +299,12 @@ Langostino is built with a **global** community of builders and contributors. If
 
 <details>
   <summary><b>How do I get started?</b></summary>
-  <p>Start with the <a href="docs/SETUP_GUIDE.md#quick-setup">Quick Setup Guide</a> if you already have compatible hardware. Otherwise, refer to the <a href="docs/assembly/README.md">Assembly Guide</a> for a list of materials and steps to follow. Join <a href="https://discord.com/invite/bittensor">Discord</a> if you have any questions.</p>
+  <p>Start with the <a href="docs/SETUP_GUIDE.md#quick-setup">Quick Setup Guide</a> if you already have compatible hardware. Otherwise, refer to the <a href="docs/assembly/README.md">Assembly Guide</a> for a list of materials and steps to follow. Join <a href="https://discord.gg/txzvKMSd">Discord</a> if you have any questions.</p>
 </details>
 
 <details>
   <summary><b>How do I contribute?</b></summary>
-  <p>Join <a href="https://discord.com/invite/bittensor">Discord</a>, check <a href="CONTRIBUTING.md">CONTRIBUTING.md</a>, and pick a <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">good first issue</a>.</p>
+  <p>Join <a href="https://discord.gg/txzvKMSd">Discord</a>, check <a href="CONTRIBUTING.md">CONTRIBUTING.md</a>, and pick a <a href="https://github.com/swarm-subnet/Langostino/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">good first issue</a>.</p>
 </details>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -353,7 +335,7 @@ Want to help Langostino reach more builders? Copy/paste one of these.
   The goal: make drone autonomy understandable and buildable, so more builders can go from "curious" to "first flight".
 
   Repo: https://github.com/swarm-subnet/Langostino
-  Discord: https://discord.com/invite/bittensor
+  Discord: https://discord.gg/txzvKMSd
   ```
 </details>
 
@@ -385,3 +367,4 @@ Distributed under the MIT License. See [LICENSE](LICENSE.md) for more informatio
 [chapter-2-url]: https://substack.com/home/post/p-176136139
 [chapter-3-url]: https://substack.com/home/post/p-177453660
 [chapter-3.5-url]: https://substack.com/home/post/p-180586067
+[chapter-4-url]: https://example.com/chapter-4-placeholder
