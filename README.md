@@ -17,7 +17,7 @@
   <a href="https://github.com/swarm-subnet/Langostino/stargazers">
     <img alt="GitHub Stars" src="https://img.shields.io/github/stars/swarm-subnet/Langostino?style=flat-square" />
   </a>
-  <a href="LICENSE">
+  <a href="LICENSE.md">
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" />
   </a>
   <img alt="Version" src="https://img.shields.io/badge/Version-v1.0.0-black?style=flat-square" />
@@ -127,7 +127,7 @@ By sharing a reference drone in the open, we lower the barrier from "curious" to
 > [!CAUTION]
 > **⚠️ Langostino is a real flying machine.**
 > * Follow local regulations
-> * Test in a safe enviroment responsibly and keep propellers off during bench tests.
+> * Test in a safe environment responsibly and keep propellers off during bench tests.
 > * Drones can cause injury and property damage. 
 > * Use prop guards and appropriate failsafes
 
@@ -276,9 +276,7 @@ Langostino is built with a **global** community of builders and contributors. If
 <p align="center">
   <a href="https://discord.gg/txzvKMSd"><b>Discord</b></a>
   &nbsp;•&nbsp;
-  <a href="https://x.com/"><b>X</b></a>
-  &nbsp;•&nbsp;
-  <a href="https://www.linkedin.com/company/"><b>LinkedIn</b></a>
+  <a href="https://x.com/SwarmSubnet"><b>X</b></a>
   &nbsp;•&nbsp;
   <a href="https://github.com/swarm-subnet"><b>GitHub</b></a>
 </p>
@@ -323,19 +321,6 @@ Want to help Langostino reach more builders? Copy/paste one of these.
   Langostino is a reference drone you can understand, build, and fly — built with a global community.
 
   https://github.com/swarm-subnet/Langostino
-  ```
-</details>
-
-<details>
-  <summary><b>LinkedIn</b></summary>
-
-  ```
-  We're open-sourcing Langostino — an AI autopilot + reference drone focused on real-world flight.
-
-  The goal: make drone autonomy understandable and buildable, so more builders can go from "curious" to "first flight".
-
-  Repo: https://github.com/swarm-subnet/Langostino
-  Discord: https://discord.gg/txzvKMSd
   ```
 </details>
 
