@@ -38,7 +38,7 @@
 </p>
 
 <!-- TABLE OF CONTENTS -->
-<details open>
+<details>
   <summary><b>Table of Contents</b></summary>
   <ol>
     <li><a href="#see-it-in-action">See It In Action</a></li>
@@ -58,7 +58,7 @@
 <!-- SEE IT IN ACTION -->
 ## See It In Action
 
-### Step 1 - Assemble the drone and get it to hold position
+### Assemble the drone and fly it autonomously
 
 <p align="center">
   <b>"Build from scratch" drone holding its position</b>
