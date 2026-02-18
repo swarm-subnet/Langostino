@@ -48,14 +48,9 @@ class SimpleFlightTestNode(Node):
         # Phase durations (seconds)
         self.declare_parameter('arm_duration', 3.0)
         self.declare_parameter('rise_duration', 0.5)
-        self.declare_parameter('hover_duration', 1.0)
-        self.declare_parameter('yaw_duration', 3.0)
+        self.declare_parameter('hover_duration', 2.0)
+        self.declare_parameter('pitch_forward', 3.0)
         self.declare_parameter('land_duration', 5.0)
-
-        # RC values
-        self.declare_parameter('throttle_rise', 1100)
-        self.declare_parameter('throttle_hover', 1500)
-        self.declare_parameter('throttle_land', 1100)
 
         # Get parameters
         self.serial_port = self.get_parameter('serial_port').value
@@ -65,25 +60,22 @@ class SimpleFlightTestNode(Node):
         self.arm_duration = self.get_parameter('arm_duration').value
         self.rise_duration = self.get_parameter('rise_duration').value
         self.hover_duration = self.get_parameter('hover_duration').value
-        self.yaw_duration = self.get_parameter('yaw_duration').value
+        self.pitch_forward = self.get_parameter('pitch_forward').value
         self.land_duration = self.get_parameter('land_duration').value
-
-        self.throttle_rise = self.get_parameter('throttle_rise').value
-        self.throttle_hover = self.get_parameter('throttle_hover').value
-        self.throttle_land = self.get_parameter('throttle_land').value
 
         # RC channel constants
         self.RC_NEUTRAL = 1500
-        self.RC_THROTTLE_LOW = 900
+        self.RC_THROTTLE_ARM = 900
+        self.RC_THROTTLE_RISE = 1600
+        self.RC_THROTTLE_HOVER = 1500
+        self.RC_THROTTLE_LAND = 1400
+        self.RC_PITCH_FORWARD = 1520
         self.RC_ARM = 1800
         self.RC_DISARM = 1000
         self.RC_ANGLE_MODE = 1500      # CH6 - Angle mode enabled
-        self.RC_ALT_HOLD_ON = 1800     # CH7 - Alt Hold enabled (>1700)
-        self.RC_ALT_HOLD_OFF = 1000    # CH7 - Alt Hold disabled
+        self.RC_POS_HOLD_OFF = 1000    # CH7 - Alt Hold disabled
         self.RC_POS_HOLD_ON = 1500    # CH7 - Pos Hold enabled (=1500)
-        self.RC_MSP_OVERRIDE = 1800
-        self.RC_YAW_LEFT = 1460
-        self.RC_YAW_RIGHT = 1540
+        self.RC_MSP_OVERRIDE = 2000  # CH8 - MSP Override enabled
 
         # Serial connection
         self.ser: Optional[serial.Serial] = None
@@ -161,14 +153,14 @@ class SimpleFlightTestNode(Node):
         try:
             # PHASE 1: ARM
             arm_frame = [
-                1500,  # CH1 - Roll
-                1500,  # CH2 - Pitch
-                1000,  # CH3 - Throttle
-                1500,  # CH4 - Yaw
-                2000,  # CH5 - Arm
-                1500,  # CH6 - Angle Mode
-                1000,  # CH7 - NAV modes off
-                2000,  # CH8 - MSP Override
+                self.RC_NEUTRAL,  # CH1 - Roll
+                self.RC_NEUTRAL,  # CH2 - Pitch
+                self.RC_THROTTLE_ARM,  # CH3 - Throttle
+                self.RC_NEUTRAL,  # CH4 - Yaw
+                self.RC_ARM,  # CH5 - Arm
+                self.RC_ANGLE_MODE,  # CH6 - Angle Mode
+                self.RC_POS_HOLD_OFF,  # CH7 - NAV modes off
+                self.RC_MSP_OVERRIDE,  # CH8 - MSP Override
                 self.RC_NEUTRAL,  # CH9
                 self.RC_NEUTRAL,  # CH10
                 self.RC_NEUTRAL,  # CH11
@@ -182,14 +174,14 @@ class SimpleFlightTestNode(Node):
 
             # PHASE 2: RISE
             rise_frame = [
-                1500,  # CH1 - Roll
-                1500,  # CH2 - Pitch
-                1550,  # CH3 - Throttle
-                1500,  # CH4 - Yaw
-                2000,  # CH5 - Arm
-                1500,  # CH6 - Angle Mode
-                1500,  # CH7 - NAV POSHOLD
-                2000,  # CH8 - MSP Override
+                self.RC_NEUTRAL,  # CH1 - Roll
+                self.RC_NEUTRAL,  # CH2 - Pitch
+                self.RC_THROTTLE_RISE,  # CH3 - Throttle
+                self.RC_NEUTRAL,  # CH4 - Yaw
+                self.RC_ARM,  # CH5 - Arm
+                self.RC_ANGLE_MODE,  # CH6 - Angle Mode
+                self.RC_POS_HOLD_ON,  # CH7 - NAV POSHOLD
+                self.RC_MSP_OVERRIDE,  # CH8 - MSP Override
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
@@ -201,16 +193,16 @@ class SimpleFlightTestNode(Node):
             ]
             self.stream_for(rise_frame, self.rise_duration, 'PHASE 2: RISE')
 
-            # PHASE 3: HOVER (30 seconds)
+            # PHASE 3: HOVER (2 seconds)
             hover_frame = [
-                1500,  # CH1 - Roll
-                1500,  # CH2 - Pitch
-                1500,  # CH3 - Throttle
-                1500,  # CH4 - Yaw
-                2000,  # CH5 - Arm
-                1500,  # CH6 - Angle Mode
-                1500,  # CH7 - NAV POSHOLD
-                2000,  # CH8 - MSP Override
+                self.RC_NEUTRAL,  # CH1 - Roll
+                self.RC_NEUTRAL,  # CH2 - Pitch
+                self.RC_THROTTLE_HOVER,  # CH3 - Throttle
+                self.RC_NEUTRAL,  # CH4 - Yaw
+                self.RC_ARM,  # CH5 - Arm
+                self.RC_ANGLE_MODE,  # CH6 - Angle Mode
+                self.RC_POS_HOLD_ON,  # CH7 - NAV POSHOLD
+                self.RC_MSP_OVERRIDE,  # CH8 - MSP Override
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
@@ -220,18 +212,18 @@ class SimpleFlightTestNode(Node):
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL
             ]
-            self.stream_for(hover_frame, 30.0, 'PHASE 3: HOVER (30s)')
+            self.stream_for(hover_frame, self.hover_duration, 'PHASE 3: HOVER (2s)')
 
-            # PHASE 4: ROLL NUDGE (5 seconds)
+            # PHASE 4: PITCH FORWARD (3 seconds)
             nudge_frame = [
-                1520,  # CH1 - Roll
-                1500,  # CH2 - Pitch
-                1500,  # CH3 - Throttle
-                1500,  # CH4 - Yaw
-                2000,  # CH5 - Arm
-                1500,  # CH6 - Angle Mode
-                1500,  # CH7 - NAV POSHOLD
-                2000,  # CH8 - MSP Override
+                self.RC_NEUTRAL,  # CH1 - Roll
+                self.RC_PITCH_FORWARD,  # CH2 - Pitch
+                self.RC_THROTTLE_HOVER,  # CH3 - Throttle
+                self.RC_NEUTRAL,  # CH4 - Yaw
+                self.RC_ARM,  # CH5 - Arm
+                self.RC_ANGLE_MODE,  # CH6 - Angle Mode
+                self.RC_POS_HOLD_ON,  # CH7 - NAV POSHOLD
+                self.RC_MSP_OVERRIDE,  # CH8 - MSP Override
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
@@ -241,21 +233,21 @@ class SimpleFlightTestNode(Node):
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL
             ]
-            self.stream_for(nudge_frame, 5.0, 'PHASE 4: ROLL NUDGE (5s)')
+            self.stream_for(nudge_frame, self.pitch_forward, 'PHASE 4: PITCH FORWARD (3s)')
 
-            # PHASE 5: HOVER (20 seconds)
-            self.stream_for(hover_frame, 20.0, 'PHASE 5: HOVER (20s)')
+            # PHASE 5: HOVER (2 seconds)
+            self.stream_for(hover_frame, self.hover_duration, 'PHASE 5: HOVER (2s)')
 
             # PHASE 6: LAND (Throttle 1450)
             land_frame = [
-                1500,  # CH1 - Roll
-                1500,  # CH2 - Pitch
-                1450,  # CH3 - Throttle
-                1500,  # CH4 - Yaw
-                2000,  # CH5 - Arm
-                1500,  # CH6 - Angle Mode
-                1500,  # CH7 - NAV POSHOLD
-                2000,  # CH8 - MSP Override
+                self.RC_NEUTRAL,  # CH1 - Roll
+                self.RC_NEUTRAL,  # CH2 - Pitch
+                self.RC_THROTTLE_LAND,  # CH3 - Throttle
+                self.RC_NEUTRAL,  # CH4 - Yaw
+                self.RC_ARM,  # CH5 - Disarm
+                self.RC_ANGLE_MODE,  # CH6 - Angle Mode
+                self.RC_POS_HOLD_ON,  # CH7 - NAV POSHOLD
+                self.RC_MSP_OVERRIDE,  # CH8 - MSP Override
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
@@ -275,7 +267,7 @@ class SimpleFlightTestNode(Node):
                 self.RC_NEUTRAL,
                 self.RC_DISARM,         # CH5 - Disarm
                 self.RC_ANGLE_MODE,
-                self.RC_ALT_HOLD_OFF,
+                self.RC_POS_HOLD_OFF,
                 self.RC_MSP_OVERRIDE,
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
