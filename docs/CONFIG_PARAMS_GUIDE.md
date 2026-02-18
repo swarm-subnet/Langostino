@@ -690,7 +690,20 @@ gps_altitude_timeout: 5.0  # seconds
 
 **Node name:** `fc_adapter_node`
 
-**Purpose:** Converts AI velocity commands to RC values for the flight controller. Uses a simple joystick-style mapping approach.
+**Purpose:** Converts AI action vectors to RC values for the flight controller. Uses a normalization-based joystick-style mapping where the direction vector is normalized by its max component and scaled by a speed factor.
+
+### Action Vector Mapping
+
+The AI publishes `[vx, vy, vz, speed]` action vectors. The node maps these to RC channels using normalization:
+
+1. Find the max absolute component in `(vx, vy, vz)`
+2. Normalize each component by this max value (so the dominant axis reaches ±1)
+3. Scale by `speed` (0-1)
+4. Map to RC range: `-1 → rc_min`, `0 → rc_mid`, `+1 → rc_max`
+
+**Examples:**
+- `(1, 1, 1, 1)` and `(0.25, 0.25, 0.25, 1)` produce the same output (same direction & speed)
+- `(1, -1, 0, 1)` → roll=1550, pitch=1450, throttle=1500
 
 ### Parameters
 
@@ -833,83 +846,18 @@ rc_max_value: 1550
 
 **Calculation:** With `rc_mid_value: 1500` and `rc_max_value: 1550`, maximum positive deflection is 50 RC units.
 
-**IMPORTANT:** The range between `rc_min_value` and `rc_max_value` determines the maximum tilt/thrust the drone can achieve. Start with conservative values (1450-1550) for testing.
+**IMPORTANT:** The range between `rc_min_value` and `rc_max_value` determines the maximum tilt/thrust the drone can achieve. The `half_range` (rc_max - rc_mid = 50) is the maximum RC deflection per axis. Start with conservative values (1450-1550) for testing.
 
 ---
 
-#### Joystick Mapping Gains
+### Tuning the RC Range
 
-These parameters control how velocity commands from the AI are converted to RC channel deflections. They work like virtual joystick sensitivity settings.
-
-##### `vx_to_roll_gain`
-```yaml
-vx_to_roll_gain: 50.0  # RC units per m/s
-```
-
-**Description:** Gain for East/West velocity commands. Converts vx (m/s) to roll channel deflection.
-
-**Range:** 10.0 - 200.0
-
-**Tuning:**
-- **Lower (10-30):** Less responsive to East/West commands
-- **Medium (30-70):** Balanced response
-- **Higher (70-150):** More aggressive East/West movement
-
-**Calculation:** At gain 50.0, a velocity command of 1.0 m/s produces 50 RC units of roll deflection.
-
-**Note:** Actual movement is also limited by `rc_min_value` and `rc_max_value`.
-
----
-
-##### `vy_to_pitch_gain`
-```yaml
-vy_to_pitch_gain: 50.0  # RC units per m/s
-```
-
-**Description:** Gain for North/South velocity commands. Converts vy (m/s) to pitch channel deflection.
-
-**Range:** 10.0 - 200.0
-
-**Tuning:**
-- **Lower (10-30):** Less responsive to North/South commands
-- **Medium (30-70):** Balanced response
-- **Higher (70-150):** More aggressive North/South movement
-
-**Calculation:** At gain 50.0, a velocity command of 1.0 m/s produces 50 RC units of pitch deflection.
-
----
-
-##### `vz_to_throttle_gain`
-```yaml
-vz_to_throttle_gain: 100.0  # RC units per m/s
-```
-
-**Description:** Gain for up/down velocity commands. Converts vz (m/s) to throttle channel deflection.
-
-**Range:** 50.0 - 300.0
-
-**Tuning:**
-- **Lower (50-75):** Less responsive altitude changes
-- **Medium (75-150):** Balanced vertical response
-- **Higher (150-300):** More aggressive altitude changes
-
-**Calculation:** At gain 100.0, a velocity command of 0.5 m/s produces 50 RC units of throttle deflection.
-
-**Note:** Vertical control is typically more sensitive, hence the higher default gain compared to horizontal gains.
-
----
-
-### Tuning the Joystick Mapping
-
-The joystick mapping system is designed to be simple and predictable:
+The control sensitivity is determined entirely by `rc_min_value` and `rc_max_value`. There are no per-axis gain parameters — the normalization approach ensures all axes use the full RC range proportionally.
 
 1. **Start conservative:**
    ```yaml
    rc_min_value: 1450
    rc_max_value: 1550
-   vx_to_roll_gain: 50.0
-   vy_to_pitch_gain: 50.0
-   vz_to_throttle_gain: 100.0
    ```
 
 2. **Increase range for more aggressive flight:**
@@ -918,9 +866,7 @@ The joystick mapping system is designed to be simple and predictable:
    rc_max_value: 1650
    ```
 
-3. **Adjust individual gains** if one axis feels too slow or fast relative to others.
-
-4. **For testing:** Keep gains low and RC range narrow until behavior is verified.
+3. **For testing:** Keep the RC range narrow until behavior is verified.
 
 ---
 
@@ -1279,8 +1225,8 @@ Override individual parameters:
 
 ```bash
 ros2 launch swarm_ai_integration swarm_ai_launch.py \
-  fc_adapter_node.vx_to_roll_gain:=75.0 \
-  fc_adapter_node.rc_max_value:=1600
+  fc_adapter_node.rc_max_value:=1600 \
+  fc_adapter_node.rc_min_value:=1400
 ```
 
 ### Use Custom Config File
@@ -1299,12 +1245,12 @@ ros2 param list /fc_adapter_node
 
 **Get parameter value:**
 ```bash
-ros2 param get /fc_adapter_node vx_to_roll_gain
+ros2 param get /fc_adapter_node rc_max_value
 ```
 
 **Set parameter value:**
 ```bash
-ros2 param set /fc_adapter_node vx_to_roll_gain 75.0
+ros2 param set /fc_adapter_node rc_max_value 1600
 ```
 
 **Dump all parameters:**
@@ -1326,12 +1272,10 @@ Start with conservative values for first flights:
 ```yaml
 fc_adapter_node:
   ros__parameters:
-    rc_min_value: 1450         # Limited RC range
-    rc_max_value: 1550         # Limited RC range
-    vx_to_roll_gain: 50.0     # Conservative gains
-    vy_to_pitch_gain: 50.0
-    vz_to_throttle_gain: 100.0
+    rc_min_value: 1450         # Limited RC range (50 units deflection)
+    rc_max_value: 1550         # Limited RC range (50 units deflection)
     warmup_duration_sec: 10.0  # Good stabilization time
+    arming_duration_sec: 20.0  # Time for GPS lock
 
 safety_monitor_node:
   ros__parameters:
@@ -1344,22 +1288,18 @@ safety_monitor_node:
 1. **Test hover and basic movement** with narrow RC range (1450-1550)
 2. **Verify stability** - drone should hold position without oscillations
 3. **Increase RC range gradually** for more aggressive flight (1400-1600, then 1350-1650)
-4. **Adjust individual gains** if one axis responds differently than others
-5. **Expand safety limits** (altitude, distance as needed)
+4. **Expand safety limits** (altitude, distance as needed)
 
 ### Common Tuning Scenarios
 
 #### Drone movement is too slow
 - Increase `rc_max_value` and decrease `rc_min_value` (wider range)
-- Increase `vx_to_roll_gain` and `vy_to_pitch_gain`
 
 #### Drone overshoots or feels twitchy
-- Decrease gains (`vx_to_roll_gain`, `vy_to_pitch_gain`)
 - Narrow the RC range (`rc_min_value: 1450`, `rc_max_value: 1550`)
 
 #### Altitude changes too aggressively
-- Reduce `vz_to_throttle_gain` (try 75-80)
-- Narrow throttle range via `rc_min_value`/`rc_max_value`
+- Narrow the RC range via `rc_min_value`/`rc_max_value`
 
 #### Drone drifts during hover
 - This is typically a flight controller tuning issue (INAV PIDs)
@@ -1368,8 +1308,7 @@ safety_monitor_node:
 - See [INAV_GUIDE.md](INAV_GUIDE.md) for FC-level tuning
 
 #### Sluggish response to AI commands
-- Increase gains (`vx_to_roll_gain`, `vy_to_pitch_gain`, `vz_to_throttle_gain`)
-- Widen RC range
+- Widen RC range (`rc_min_value`/`rc_max_value`)
 - Check `prediction_rate` is adequate (10+ Hz)
 
 ## Troubleshooting

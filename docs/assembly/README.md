@@ -66,6 +66,7 @@ The BOM is your shopping list. It should include:
 - Install LiDAR downward-facing (front-facing optional)
 - Use stable mounts (3D-printed mounts help reduce vibration + keep alignment)
 - Keep cables tidy and strain-relieved
+- See [`3D_PARTS.md`](./3D_PARTS.md) for printable sensor mounts and assembly notes
 
 ### 3.2 GPS
 
