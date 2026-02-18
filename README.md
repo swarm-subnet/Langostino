@@ -75,6 +75,21 @@
   </a>
 </p>
 
+<p align="center">
+  <b>Fly it and improve it!</b>
+</p>
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=hTTbhE_WiQQ" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.youtube.com/vi/hTTbhE_WiQQ/maxresdefault.jpg" alt="Fly it and improve it - click to watch" width="720" loading="lazy" />
+  </a>
+</p>
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=hTTbhE_WiQQ" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Watch%20on-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch on YouTube" />
+  </a>
+</p>
+
 ### Do it yourself, from ZERO!
 
 <p align="center">
