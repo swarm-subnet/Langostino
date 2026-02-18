@@ -475,6 +475,8 @@ class FCCommsNode(Node):
             return
 
         channels = [int(x) for x in msg.data]
+        while len(channels) < 16:
+            channels.append(1500)
         payload = MSPDataTypes.pack_rc_channels(channels)
 
         message = MSPMessage(MSPCommand.MSP_SET_RAW_RC, payload, MSPDirection.REQUEST)

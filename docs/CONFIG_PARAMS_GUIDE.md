@@ -690,20 +690,25 @@ gps_altitude_timeout: 5.0  # seconds
 
 **Node name:** `fc_adapter_node`
 
-**Purpose:** Converts AI action vectors to RC values for the flight controller. Uses a normalization-based joystick-style mapping where the direction vector is normalized by its max component and scaled by a speed factor.
+**Purpose:** Converts AI action vectors to RC values for the flight controller. Roll and pitch use a normalization-based joystick-style mapping; throttle is controlled by a LiDAR-based altitude hold controller (AI `vz` is ignored).
 
 ### Action Vector Mapping
 
-The AI publishes `[vx, vy, vz, speed]` action vectors. The node maps these to RC channels using normalization:
+The AI publishes `[vx, vy, vz, speed]` action vectors. The node maps **roll/pitch** using normalization and delegates **throttle** to the altitude hold controller:
 
-1. Find the max absolute component in `(vx, vy, vz)`
+**Roll & Pitch:**
+1. Find the max absolute component in `(vx, vy)` (vz is not used)
 2. Normalize each component by this max value (so the dominant axis reaches ±1)
 3. Scale by `speed` (0-1)
 4. Map to RC range: `-1 → rc_min`, `0 → rc_mid`, `+1 → rc_max`
 
+**Throttle (altitude hold):**
+- A bang-bang controller reads the downward LiDAR (`/lidar_distance`) and compares against `target_altitude_m ± 0.5m`
+- Below band → throttle 1600 (climb), above band → throttle 1400 (descend), in band → throttle 1500 (neutral)
+- If no fresh LiDAR data, throttle defaults to 1500
+
 **Examples:**
-- `(1, 1, 1, 1)` and `(0.25, 0.25, 0.25, 1)` produce the same output (same direction & speed)
-- `(1, -1, 0, 1)` → roll=1550, pitch=1450, throttle=1500
+- `(1, -1, 0, 1)` → roll=1800, pitch=1200, throttle=altitude-hold value
 
 ### Parameters
 
@@ -799,7 +804,7 @@ rise_duration_sec: 5.0  # seconds
 - **Longer (5-10s):** Gradual rise, more stable altitude hold engagement
 - **Recommendation:** 5 seconds for smooth transition to altitude hold
 
-**Note:** During this phase, throttle is set to `rise_throttle` (hardcoded at 1550) with POSHOLD mode active.
+**Note:** During this phase, throttle is set to `rise_throttle` (hardcoded at 1600) with POSHOLD mode active.
 
 ---
 
@@ -820,53 +825,74 @@ rc_mid_value: 1500
 
 ##### `rc_min_value`
 ```yaml
-rc_min_value: 1450
+rc_min_value: 1200
 ```
 
-**Description:** Minimum RC value output (safety limit).
+**Description:** Minimum RC value output for roll/pitch.
 
 **Range:** 1000 - 1500
 
-**Purpose:** Limits how far below center the RC values can go, preventing extreme control inputs.
+**Purpose:** Limits how far below center the RC values can go.
 
-**Calculation:** With `rc_mid_value: 1500` and `rc_min_value: 1450`, maximum negative deflection is 50 RC units.
+**Calculation:** With `rc_mid_value: 1500` and `rc_min_value: 1200`, maximum negative deflection is 300 RC units.
 
 ---
 
 ##### `rc_max_value`
 ```yaml
-rc_max_value: 1550
+rc_max_value: 1800
 ```
 
-**Description:** Maximum RC value output (safety limit).
+**Description:** Maximum RC value output for roll/pitch.
 
 **Range:** 1500 - 2000
 
-**Purpose:** Limits how far above center the RC values can go, preventing extreme control inputs.
+**Purpose:** Limits how far above center the RC values can go.
 
-**Calculation:** With `rc_mid_value: 1500` and `rc_max_value: 1550`, maximum positive deflection is 50 RC units.
+**Calculation:** With `rc_mid_value: 1500` and `rc_max_value: 1800`, maximum positive deflection is 300 RC units.
 
-**IMPORTANT:** The range between `rc_min_value` and `rc_max_value` determines the maximum tilt/thrust the drone can achieve. The `half_range` (rc_max - rc_mid = 50) is the maximum RC deflection per axis. Start with conservative values (1450-1550) for testing.
+**IMPORTANT:** The range between `rc_min_value` and `rc_max_value` determines the maximum tilt the drone can achieve. The `half_range` (rc_max - rc_mid = 300) is the maximum RC deflection for roll/pitch. Throttle is independently controlled by the altitude hold controller.
+
+---
+
+#### Altitude Hold
+
+##### `target_altitude_m`
+```yaml
+target_altitude_m: 3.0  # meters
+```
+
+**Description:** Target altitude for the LiDAR-based altitude hold controller.
+
+**Range:** 1.0 - 10.0 meters
+
+**Purpose:** The altitude hold controller uses a bang-bang approach: if LiDAR altitude is below `target - 0.5m` it sends throttle up (1600), above `target + 0.5m` it sends throttle down (1400), and within the band it sends neutral throttle (1500).
+
+**Tuning:**
+- **Low (2.0-3.0m):** Close to ground, good for testing
+- **High (4.0-6.0m):** Higher operating altitude, needs reliable LiDAR readings
+
+**Note:** Requires the downward LiDAR sensor to be active and publishing on `/lidar_distance`.
 
 ---
 
 ### Tuning the RC Range
 
-The control sensitivity is determined entirely by `rc_min_value` and `rc_max_value`. There are no per-axis gain parameters — the normalization approach ensures all axes use the full RC range proportionally.
+The roll/pitch sensitivity is determined by `rc_min_value` and `rc_max_value`. Throttle is independently managed by the altitude hold controller using LiDAR.
 
-1. **Start conservative:**
+1. **Default (flight-tested):**
    ```yaml
-   rc_min_value: 1450
-   rc_max_value: 1550
+   rc_min_value: 1200
+   rc_max_value: 1800
    ```
 
-2. **Increase range for more aggressive flight:**
+2. **Conservative (for initial testing):**
    ```yaml
-   rc_min_value: 1350
-   rc_max_value: 1650
+   rc_min_value: 1400
+   rc_max_value: 1600
    ```
 
-3. **For testing:** Keep the RC range narrow until behavior is verified.
+3. **Narrow range** reduces roll/pitch authority; **wider range** gives more aggressive movement.
 
 ---
 
@@ -1272,8 +1298,9 @@ Start with conservative values for first flights:
 ```yaml
 fc_adapter_node:
   ros__parameters:
-    rc_min_value: 1450         # Limited RC range (50 units deflection)
-    rc_max_value: 1550         # Limited RC range (50 units deflection)
+    rc_min_value: 1200         # RC range (300 units deflection for roll/pitch)
+    rc_max_value: 1800         # RC range (300 units deflection for roll/pitch)
+    target_altitude_m: 3.0     # LiDAR altitude hold target
     warmup_duration_sec: 10.0  # Good stabilization time
     arming_duration_sec: 20.0  # Time for GPS lock
 
@@ -1285,21 +1312,23 @@ safety_monitor_node:
 
 ### Progressive Tuning Steps
 
-1. **Test hover and basic movement** with narrow RC range (1450-1550)
+1. **Test hover and altitude hold** - verify LiDAR altitude hold keeps drone at target
 2. **Verify stability** - drone should hold position without oscillations
-3. **Increase RC range gradually** for more aggressive flight (1400-1600, then 1350-1650)
+3. **Adjust RC range** if roll/pitch response is too aggressive (try 1400-1600) or too sluggish
 4. **Expand safety limits** (altitude, distance as needed)
 
 ### Common Tuning Scenarios
 
 #### Drone movement is too slow
-- Increase `rc_max_value` and decrease `rc_min_value` (wider range)
+- Increase `rc_max_value` and decrease `rc_min_value` (wider range for roll/pitch)
 
 #### Drone overshoots or feels twitchy
-- Narrow the RC range (`rc_min_value: 1450`, `rc_max_value: 1550`)
+- Narrow the RC range (`rc_min_value: 1400`, `rc_max_value: 1600`)
 
-#### Altitude changes too aggressively
-- Narrow the RC range via `rc_min_value`/`rc_max_value`
+#### Altitude is unstable
+- Verify LiDAR is publishing on `/lidar_distance`
+- Adjust `target_altitude_m` if needed
+- The altitude hold uses a ±0.5m deadband around the target
 
 #### Drone drifts during hover
 - This is typically a flight controller tuning issue (INAV PIDs)
@@ -1308,7 +1337,7 @@ safety_monitor_node:
 - See [INAV_GUIDE.md](INAV_GUIDE.md) for FC-level tuning
 
 #### Sluggish response to AI commands
-- Widen RC range (`rc_min_value`/`rc_max_value`)
+- Widen RC range (`rc_min_value`/`rc_max_value`) for more roll/pitch authority
 - Check `prediction_rate` is adequate (10+ Hz)
 
 ## Troubleshooting

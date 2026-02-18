@@ -39,7 +39,7 @@ from std_msgs.msg import Float32MultiArray, Bool, String
 from geometry_msgs.msg import Vector3Stamped
 from sensor_msgs.msg import Range
 
-from swarm_ai_integration.utils import YawAlignmentController, EmergencyLandingController
+from swarm_ai_integration.utils import YawAlignmentController, EmergencyLandingController, AltitudeHoldController
 
 
 class FCAdapterNode(Node):
@@ -62,8 +62,9 @@ class FCAdapterNode(Node):
         # ------------ Parameters ------------
         self.declare_parameter('control_rate_hz', 40.0)
         self.declare_parameter('rc_mid_value', 1500)
-        self.declare_parameter('rc_min_value', 1450)
-        self.declare_parameter('rc_max_value', 1550)
+        self.declare_parameter('rc_min_value', 1200)
+        self.declare_parameter('rc_max_value', 1800)
+        self.declare_parameter('target_altitude_m', 3.0)
 
         # Startup sequence timing
         self.declare_parameter('warmup_duration_sec', 10.0)  # Total warmup before AI control
@@ -122,10 +123,16 @@ class FCAdapterNode(Node):
             max_align_duration=30.0      # Timeout for yaw alignment
         )
         # Rise throttle during rise phase
-        self.rise_throttle = 1550
-        # RC publishing throttle (cap to ~20 Hz to avoid flooding FC comms)
-        self.rc_publish_interval = 1.0 / 20.0
-        self.last_rc_publish_time = 0.0
+        self.rise_throttle = 1600
+
+        # Altitude hold controller
+        target_alt = float(self.get_parameter('target_altitude_m').value)
+        self.altitude_hold = AltitudeHoldController(
+            node=self,
+            get_lidar_altitude_callback=self.get_lidar_altitude,
+            target_altitude_m=target_alt,
+        )
+
         self.last_yaw_hold_log_time = 0.0
 
         # ------------ QoS & ROS I/O ------------
@@ -145,7 +152,8 @@ class FCAdapterNode(Node):
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
         self.create_subscription(Bool, '/safety/emergency_land', self.cb_emergency_land, control_qos)
         self.create_subscription(Vector3Stamped, '/fc/attitude_degrees', self.cb_attitude, sensor_qos)
-        self.get_logger().info('📡 Subscribed to /fc/attitude_degrees')
+        self.create_subscription(Range, '/lidar_distance', self.cb_lidar, sensor_qos)
+        self.get_logger().info('📡 Subscribed to /fc/attitude_degrees, /lidar_distance')
 
         # Publications
         self.status_pub = self.create_publisher(String, '/fc_adapter/status', control_qos)
@@ -339,12 +347,13 @@ class FCAdapterNode(Node):
         self._publish_rc_override(channels)
 
     def _send_hover_command(self, reason: str):
-        """Send hover RC values (neutral with ALT HOLD active)"""
+        """Send hover RC values (neutral with altitude hold active)"""
+        throttle_rc = self.altitude_hold.compute_throttle()
         channels = [
-            self.rc_mid,  # CH1: ROLL (neutral)
-            self.rc_mid,  # CH2: PITCH (neutral)
-            self.rc_mid,  # CH3: THROTTLE (neutral in ALT HOLD = maintain altitude)
-            self.rc_mid,  # CH4: YAW (neutral)
+            self.rc_mid,    # CH1: ROLL (neutral)
+            self.rc_mid,    # CH2: PITCH (neutral)
+            throttle_rc,    # CH3: THROTTLE (altitude hold controller)
+            self.rc_mid,    # CH4: YAW (neutral)
             2000,         # CH5: ARM (high per mapping)
             1500,         # CH6: ANGLE mode (high range)
             1500,         # CH7: NAV POSHOLD (poshold + altitude hold)
@@ -373,27 +382,19 @@ class FCAdapterNode(Node):
         """
         vx, vy, vz, speed = self.last_action
 
-        # Find max absolute component for normalization
-        max_component = max(abs(vx), abs(vy), abs(vz))
+        # Find max absolute component for normalization (only roll/pitch)
+        max_component = max(abs(vx), abs(vy), 1e-6)
 
-        if max_component > 1e-6:
-            # Normalize direction by max component
-            vx_norm = vx / max_component
-            vy_norm = vy / max_component
-            vz_norm = vz / max_component
+        # Normalize direction by max component
+        vx_norm = vx / max_component
+        vy_norm = vy / max_component
 
-            # Scale by speed (0-1)
-            vx_scaled = vx_norm * speed
-            vy_scaled = vy_norm * speed
-            vz_scaled = vz_norm * speed
-        else:
-            # No direction specified, stay neutral
-            vx_scaled = 0.0
-            vy_scaled = 0.0
-            vz_scaled = 0.0
+        # Scale by speed (0-1)
+        vx_scaled = vx_norm * speed
+        vy_scaled = vy_norm * speed
 
         # Calculate half range for mapping
-        half_range = self.rc_max - self.rc_mid  # 50 units
+        half_range = self.rc_max - self.rc_mid
 
         # Map scaled components to RC values
         # vx (East) → ROLL (CH1): positive vx = higher roll
@@ -402,13 +403,12 @@ class FCAdapterNode(Node):
         # vy (North) → PITCH (CH2): positive vy = higher pitch
         pitch_rc = self.rc_mid + int(vy_scaled * half_range)
 
-        # vz (up) → THROTTLE (CH3): positive vz = higher throttle
-        throttle_rc = self.rc_mid + int(vz_scaled * half_range)
+        # Throttle from altitude hold controller (LiDAR-controlled, AI vz ignored)
+        throttle_rc = self.altitude_hold.compute_throttle()
 
-        # Clamp to RC limits
+        # Clamp roll/pitch to RC limits
         roll_rc = max(self.rc_min, min(self.rc_max, roll_rc))
         pitch_rc = max(self.rc_min, min(self.rc_max, pitch_rc))
-        throttle_rc = max(self.rc_min, min(self.rc_max, throttle_rc))
 
         # Heading hold: keep facing north using yaw alignment tolerances/commands
         heading_deg = self.get_current_heading_degrees()
@@ -442,17 +442,13 @@ class FCAdapterNode(Node):
         # Log action with normalized values
         self.get_logger().info(
             f'Action=[{vx:+.2f}, {vy:+.2f}, {vz:+.2f}, s={speed:.2f}] '
-            f'Norm=[{vx_scaled:+.2f}, {vy_scaled:+.2f}, {vz_scaled:+.2f}] → '
-            f'RC[R={roll_rc}, P={pitch_rc}, T={throttle_rc}, Y={yaw_rc}]'
+            f'Norm=[{vx_scaled:+.2f}, {vy_scaled:+.2f}] → '
+            f'RC[R={roll_rc}, P={pitch_rc}, T={throttle_rc}(alt-hold), Y={yaw_rc}]'
         )
 
     # ------------ RC Publishing ------------
     def _publish_rc_override(self, channels: list):
-        """Publish RC override values to topic for fc_comms_node, throttled to ~20 Hz"""
-        now = time.time()
-        if (now - self.last_rc_publish_time) < self.rc_publish_interval:
-            return  # Skip to avoid flooding MSP queue
-        self.last_rc_publish_time = now
+        """Publish RC override values to topic for fc_comms_node"""
         rc_msg = Float32MultiArray()
         rc_msg.data = [float(ch) for ch in channels]
         self.rc_override_pub.publish(rc_msg)

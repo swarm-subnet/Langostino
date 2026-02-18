@@ -111,14 +111,11 @@ fc_adapter_node:
 
     # RC channel settings
     rc_mid_value: 1500                  # RC channel center value (neutral)
-    rc_min_value: 1450                  # RC minimum value (safety limit)
-    rc_max_value: 1550                  # RC maximum value (safety limit)
+    rc_min_value: 1200                  # RC minimum value
+    rc_max_value: 1800                  # RC maximum value
 
-    # Joystick mapping gains (RC units per m/s)
-    # These control how much RC deflection per unit of velocity command
-    vx_to_roll_gain: 50.0               # East/West gain (vx → roll channel)
-    vy_to_pitch_gain: 50.0              # North/South gain (vy → pitch channel)
-    vz_to_throttle_gain: 100.0          # Up/down gain (vz → throttle channel)
+    # Altitude hold
+    target_altitude_m: 3.0              # Target altitude for LiDAR altitude hold (meters)
 
 # ═══════════════════════════════════════════════════════════════════
 # FC Adapter Node (CRUISE Direction Mode) Parameters

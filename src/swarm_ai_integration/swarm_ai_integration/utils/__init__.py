@@ -22,6 +22,7 @@ from .sensor_data_manager import SensorDataManager
 from .debug_logger import DebugLogger
 from .yaw_alignment import YawAlignmentController
 from .emergency_landing import EmergencyLandingController
+from .altitude_hold import AltitudeHoldController
 
 __all__ = [
     'MSPSerialHandler',
@@ -33,4 +34,5 @@ __all__ = [
     'DebugLogger',
     'YawAlignmentController',
     'EmergencyLandingController',
+    'AltitudeHoldController',
 ]

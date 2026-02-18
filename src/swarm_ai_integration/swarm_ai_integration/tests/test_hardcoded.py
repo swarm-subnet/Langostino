@@ -49,7 +49,7 @@ class SimpleFlightTestNode(Node):
         self.declare_parameter('arm_duration', 3.0)
         self.declare_parameter('rise_duration', 0.5)
         self.declare_parameter('hover_duration', 2.0)
-        self.declare_parameter('pitch_forward', 3.0)
+        self.declare_parameter('pitch_forward', 15.0)
         self.declare_parameter('land_duration', 5.0)
 
         # Get parameters
@@ -69,7 +69,7 @@ class SimpleFlightTestNode(Node):
         self.RC_THROTTLE_RISE = 1600
         self.RC_THROTTLE_HOVER = 1500
         self.RC_THROTTLE_LAND = 1400
-        self.RC_PITCH_FORWARD = 1520
+        self.RC_PITCH_FORWARD = 1800
         self.RC_ARM = 1800
         self.RC_DISARM = 1000
         self.RC_ANGLE_MODE = 1500      # CH6 - Angle mode enabled
@@ -89,10 +89,12 @@ class SimpleFlightTestNode(Node):
         self.get_logger().info('')
         self.get_logger().info('Test Sequence:')
         self.get_logger().info(f'  1. ARM ({self.arm_duration}s) - Angle mode, Alt Hold OFF')
-        self.get_logger().info(f'  2. RISE ({self.rise_duration}s) - Throttle {self.throttle_rise}, Angle mode')
-        self.get_logger().info(f'  3. HOVER ({self.hover_duration}s) - Alt Hold ON at 1800')
-        self.get_logger().info(f'  4. LAND ({self.land_duration}s) - Throttle {self.throttle_land}')
-        self.get_logger().info(f'  5. DISARM')
+        self.get_logger().info(f'  2. RISE ({self.rise_duration}s) - Throttle {self.RC_THROTTLE_RISE}, Angle mode, Pos Hold ON')
+        self.get_logger().info(f'  3. HOVER ({self.hover_duration}s) - Pos Hold ON at 1800')
+        self.get_logger().info(f'  4. PITCH FORWARD ({self.pitch_forward}s) - Pitch {self.RC_PITCH_FORWARD}')
+        self.get_logger().info(f'  5. HOVER ({self.hover_duration}s) - Pos Hold ON at 1800')
+        self.get_logger().info(f'  6. LAND ({self.land_duration}s) - Throttle {self.RC_THROTTLE_LAND}')
+        self.get_logger().info(f'  7. DISARM')
         self.get_logger().info('═' * 60)
 
     def connect(self) -> bool:
@@ -263,7 +265,7 @@ class SimpleFlightTestNode(Node):
             disarm_frame = [
                 self.RC_NEUTRAL,
                 self.RC_NEUTRAL,
-                self.RC_NEUTRAL,
+                self.RC_THROTTLE_ARM,
                 self.RC_NEUTRAL,
                 self.RC_DISARM,         # CH5 - Disarm
                 self.RC_ANGLE_MODE,
