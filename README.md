@@ -214,7 +214,6 @@ Want to understand the project in depth? Check out our Substack series that walk
 | [**Chapter 2**][chapter-2-url] | The Wiring Brain | Wiring, connections, and power distribution |
 | [**Chapter 3**][chapter-3-url] | From Data to Motion | Software architecture and data flow |
 | [**Chapter 3.5**][chapter-3.5-url] | Additional Configurations | Advanced configuration and tuning |
-| [**Chapter 4**][chapter-4-url] | End-to-End Open Autonomy | Langostino, the first end-to-end open-source autonomous drone |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -367,4 +366,3 @@ Distributed under the MIT License. See [LICENSE](LICENSE.md) for more informatio
 [chapter-2-url]: https://substack.com/home/post/p-176136139
 [chapter-3-url]: https://substack.com/home/post/p-177453660
 [chapter-3.5-url]: https://substack.com/home/post/p-180586067
-[chapter-4-url]: https://example.com/chapter-4-placeholder
