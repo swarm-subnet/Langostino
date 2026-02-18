@@ -88,6 +88,7 @@ This list covers:
 | Ethernet cable (field debugging) | Useful for direct connection to ethernet-ethernet. |
 | Silicone wire awg 12 for and awg 16 for signals, heatshrink, zip ties | 
 | Battery straps + foam pad | Secures LiPo during impact and vibration. |
+| 3D printer | Recommended to print the files present in the `assets/3D_print_STL` folder. |
 
 ## Optional spares
 
