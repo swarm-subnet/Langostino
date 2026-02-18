@@ -217,7 +217,6 @@ Want to understand the project in depth? Check out our Substack series that walk
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- DOCUMENTATION -->
 ## Documentation
 
 Find detailed guides for every aspect of the project.
