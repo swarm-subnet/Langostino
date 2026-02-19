@@ -107,7 +107,8 @@ fc_adapter_node:
     # Startup sequence timing
     warmup_duration_sec: 10.0           # Total warmup before AI control (seconds)
     arming_duration_sec: 20.0           # Arming phase duration (seconds)
-    rise_duration_sec: 5.0              # Rise phase duration (seconds)
+    # Rise uses a LiDAR-guided burst+tick state machine (no fixed duration param):
+    #   1 s burst at 1600 → 2 s wait → 0.5 s ticks at 1600/1400 until in target band
 
     # RC channel settings
     rc_mid_value: 1500                  # RC channel center value (neutral)

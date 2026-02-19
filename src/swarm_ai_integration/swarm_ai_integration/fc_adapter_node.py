@@ -39,7 +39,7 @@ from std_msgs.msg import Float32MultiArray, Bool, String
 from geometry_msgs.msg import Vector3Stamped
 from sensor_msgs.msg import Range
 
-from swarm_ai_integration.utils import YawAlignmentController, EmergencyLandingController, AltitudeHoldController
+from swarm_ai_integration.utils import YawAlignmentController, EmergencyLandingController, AltitudeHoldController, RiseController
 
 
 class FCAdapterNode(Node):
@@ -69,7 +69,6 @@ class FCAdapterNode(Node):
         # Startup sequence timing
         self.declare_parameter('warmup_duration_sec', 10.0)  # Total warmup before AI control
         self.declare_parameter('arming_duration_sec', 20.0)  # Arming phase duration
-        self.declare_parameter('rise_duration_sec', 5.0)     # Rise phase duration
         self.declare_parameter('command_timeout', 1.0)
 
         # Get parameter values
@@ -80,7 +79,6 @@ class FCAdapterNode(Node):
 
         self.warmup_duration = float(self.get_parameter('warmup_duration_sec').value)
         self.arming_duration = float(self.get_parameter('arming_duration_sec').value)
-        self.rise_duration = float(self.get_parameter('rise_duration_sec').value)
         self.cmd_timeout = float(self.get_parameter('command_timeout').value)
 
         # ------------ State ------------
@@ -106,7 +104,7 @@ class FCAdapterNode(Node):
 
         # Rise state
         self.rise_complete = False
-        self.rise_start_time = None  # Will be set after arming complete
+        self.rise_started = False
 
         # Yaw alignment state
         self.yaw_alignment_started = False
@@ -131,6 +129,16 @@ class FCAdapterNode(Node):
             node=self,
             get_lidar_altitude_callback=self.get_lidar_altitude,
             target_altitude_m=target_alt,
+        )
+
+        # Rise controller
+        self.rise_controller = RiseController(
+            node=self,
+            send_rc_callback=self._send_rise_command,
+            get_lidar_altitude_callback=self.get_lidar_altitude,
+            rise_throttle=self.rise_throttle,
+            target_altitude_m=target_alt,
+            band_m=self.altitude_hold.band_m,
         )
 
         self.last_yaw_hold_log_time = 0.0
@@ -270,13 +278,13 @@ class FCAdapterNode(Node):
 
         # Phase 1: Rise
         if not self.rise_complete:
-            if (now - self.rise_start_time) >= self.rise_duration:
+            if not self.rise_started:
+                self.rise_started = True
+                self.rise_controller.start_sequence()
+            if self.rise_controller.tick():
                 self.rise_complete = True
-                self.get_logger().info(f'✅ Rise complete ({self.rise_duration}s) - proceeding to yaw alignment')
-            else:
-                # During rise: send neutral position with elevated throttle and poshold
-                self._send_rise_command()
-                return
+                self.get_logger().info('✅ Rise complete - proceeding to yaw alignment')
+            return
 
         # Phase 2: Yaw Alignment (after rise, before AI control)
         if not self.yaw_alignment_complete:
@@ -332,12 +340,14 @@ class FCAdapterNode(Node):
         ]
         self._publish_rc_override(channels)
 
-    def _send_rise_command(self):
-        """Send rise RC values (rise phase with POSHOLD + ALT HOLD active)"""
+    def _send_rise_command(self, throttle: int = None):
+        """Send rise RC values with POSHOLD active. throttle defaults to rise_throttle."""
+        if throttle is None:
+            throttle = self.rise_throttle
         channels = [
             self.rc_mid,  # CH1: ROLL (neutral)
             self.rc_mid,  # CH2: PITCH (neutral)
-            self.rise_throttle,  # CH3: THROTTLE (rise throttle)
+            throttle,     # CH3: THROTTLE
             self.rc_mid,  # CH4: YAW (neutral)
             2000,         # CH5: ARM (high per mapping)
             1500,         # CH6: ANGLE mode (high range)
@@ -476,9 +486,9 @@ class FCAdapterNode(Node):
             remaining = max(0, self.arming_duration - elapsed)
             flags.append(f'ARMING({remaining:.1f}s)')
         elif not self.rise_complete:
-            elapsed = now - self.rise_start_time
-            remaining = max(0, self.rise_duration - elapsed)
-            flags.append(f'RISE({remaining:.1f}s)')
+            alt = self.lidar_altitude
+            alt_str = f'{alt:.2f}m' if alt is not None else 'no data'
+            flags.append(f'RISE_{self.rise_controller.get_status().upper()}(alt={alt_str})')
         elif not self.yaw_alignment_complete:
             heading = self.get_current_heading_degrees()
             flags.append(f'YAW_ALIGN({heading:.1f}°)')
