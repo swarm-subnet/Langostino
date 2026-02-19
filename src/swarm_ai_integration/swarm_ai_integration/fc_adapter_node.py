@@ -33,7 +33,7 @@ import time
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, qos_profile_sensor_data
 
 from std_msgs.msg import Float32MultiArray, Bool, String
 from geometry_msgs.msg import Vector3Stamped
@@ -160,7 +160,8 @@ class FCAdapterNode(Node):
         self.create_subscription(Bool, '/safety/override', self.cb_safety, control_qos)
         self.create_subscription(Bool, '/safety/emergency_land', self.cb_emergency_land, control_qos)
         self.create_subscription(Vector3Stamped, '/fc/attitude_degrees', self.cb_attitude, sensor_qos)
-        self.create_subscription(Range, '/lidar_distance', self.cb_lidar, sensor_qos)
+        # LiDAR publishes BEST_EFFORT — must subscribe with matching QoS or it silently drops all messages
+        self.create_subscription(Range, '/lidar_distance', self.cb_lidar, qos_profile_sensor_data)
         self.get_logger().info('📡 Subscribed to /fc/attitude_degrees, /lidar_distance')
 
         # Publications
@@ -175,7 +176,7 @@ class FCAdapterNode(Node):
         self.get_logger().info(
             f'FC Adapter Node (Joystick Mode) started @ {self.control_rate}Hz\n'
             f'  RC range: [{self.rc_min}, {self.rc_mid}, {self.rc_max}]\n'
-            f'  Arming: {self.arming_duration}s, Rise: {self.rise_duration}s\n'
+            f'  Arming: {self.arming_duration}s, Rise: LiDAR-guided (burst+tick)\n'
             f'  Publishing to: /fc/rc_override'
         )
 
