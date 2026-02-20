@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Flight Test Node - Hardcoded flight sequence for testing drone capabilities
+Roll Flight Test Node - Hardcoded flight sequence for testing drone capabilities
 
 This node executes a predefined flight sequence to test basic drone movements:
 1. Arm and setup flight modes (Angle mode + Alt Hold)
@@ -12,7 +12,6 @@ This node executes a predefined flight sequence to test basic drone movements:
 All RC commands are published to /fc/rc_override and automatically logged
 by the black_box_recorder_node.
 
-Author: ROS2 Swarm Project
 """
 
 import rclpy
@@ -36,7 +35,7 @@ class FlightPhase(Enum):
     COMPLETE = 8
 
 
-class FlightTestNode(Node):
+class RollFlightTestNode(Node):
     """
     Node that executes a hardcoded flight test sequence.
 
@@ -345,7 +344,7 @@ def main(args=None):
     """Main entry point"""
     rclpy.init(args=args)
 
-    node = FlightTestNode()
+    node = RollFlightTestNode()
 
     try:
         rclpy.spin(node)

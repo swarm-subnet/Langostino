@@ -3,11 +3,13 @@
 Simple Flight Test Node - Direct MSP Control
 
 This script executes a simple flight test sequence using direct MSP communication:
-1. ARM for 3 seconds (throttle low, Angle mode, Alt Hold OFF)
-2. RISE for 2 seconds (throttle 1300, Angle mode, Alt Hold OFF)
-3. HOVER for 5 seconds (throttle 1500, Angle mode, Alt Hold ON at 1800)
-4. LAND for 3 seconds (throttle 1300, Angle mode, Alt Hold OFF)
-5. DISARM
+1. ARM for 3 seconds (throttle low, Angle mode, Pos Hold ON)
+2. RISE for 0.5 seconds (throttle 1600, Angle mode, Pos Hold ON)
+3. HOVER for 2 seconds (throttle 1500, Angle mode, Pos Hold ON at 1800)
+4. PITCH FORWARD for 15 seconds (throttle 1500, Pitch 1800, Angle mode, Pos Hold ON)
+5. HOVER for 2 seconds (throttle 1500, Angle mode, Pos Hold ON at 1800)
+6. LAND for 5 seconds (throttle 1400, Angle mode, Pos Hold ON)
+7. DISARM
 
 RC Channel Mapping (AETR + AUX):
 - CH1 (index 0): Roll (1500 = neutral)
@@ -16,10 +18,9 @@ RC Channel Mapping (AETR + AUX):
 - CH4 (index 3): Yaw (1500 = neutral)
 - CH5 (index 4): Arm/Disarm (1800 = armed, 1000 = disarmed)
 - CH6 (index 5): Angle Mode (1500 = enabled)
-- CH7 (index 6): Alt Hold (1800 = enabled, 1000 = disabled)
+- CH7 (index 6): Pos Hold (1800 = enabled, 1000 = disabled)
 - CH8 (index 7): MSP Override (1800 = enabled)
 
-Safety: TEST WITH PROPS OFF FIRST
 """
 
 import time
@@ -73,7 +74,7 @@ class SimpleFlightTestNode(Node):
         self.RC_ARM = 1800
         self.RC_DISARM = 1000
         self.RC_ANGLE_MODE = 1500      # CH6 - Angle mode enabled
-        self.RC_POS_HOLD_OFF = 1000    # CH7 - Alt Hold disabled
+        self.RC_POS_HOLD_OFF = 1000    # CH7 - Pos Hold disabled
         self.RC_POS_HOLD_ON = 1500    # CH7 - Pos Hold enabled (=1500)
         self.RC_MSP_OVERRIDE = 2000  # CH8 - MSP Override enabled
 
@@ -88,7 +89,7 @@ class SimpleFlightTestNode(Node):
         self.get_logger().info(f'Stream Rate: {self.stream_hz} Hz')
         self.get_logger().info('')
         self.get_logger().info('Test Sequence:')
-        self.get_logger().info(f'  1. ARM ({self.arm_duration}s) - Angle mode, Alt Hold OFF')
+        self.get_logger().info(f'  1. ARM ({self.arm_duration}s) - Angle mode, Pos Hold OFF')
         self.get_logger().info(f'  2. RISE ({self.rise_duration}s) - Throttle {self.RC_THROTTLE_RISE}, Angle mode, Pos Hold ON')
         self.get_logger().info(f'  3. HOVER ({self.hover_duration}s) - Pos Hold ON at 1800')
         self.get_logger().info(f'  4. PITCH FORWARD ({self.pitch_forward}s) - Pitch {self.RC_PITCH_FORWARD}')

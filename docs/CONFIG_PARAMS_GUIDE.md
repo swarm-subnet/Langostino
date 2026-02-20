@@ -784,27 +784,7 @@ arming_duration_sec: 20.0  # seconds
 - **Longer (20-30s):** More time for GPS satellites and sensor initialization
 - **Recommendation:** 20 seconds provides good balance for outdoor flights
 
-**Startup Sequence:** This is Phase 0 (Arming) → followed by Phase 1 (Rise) → Phase 2 (Yaw Alignment) → Phase 3 (AI Control)
-
----
-
-##### `rise_duration_sec`
-```yaml
-rise_duration_sec: 5.0  # seconds
-```
-
-**Description:** Duration of the rise phase where the drone climbs to operating altitude with POSHOLD enabled.
-
-**Range:** 2.0 - 15.0 seconds
-
-**Purpose:** Elevates the drone to a safe altitude before AI control begins.
-
-**Tuning:**
-- **Shorter (2-3s):** Quick rise, less time to stabilize altitude
-- **Longer (5-10s):** Gradual rise, more stable altitude hold engagement
-- **Recommendation:** 5 seconds for smooth transition to altitude hold
-
-**Note:** During this phase, throttle is set to `rise_throttle` (hardcoded at 1600) with POSHOLD mode active.
+**Startup Sequence:** Phase 0 (Arming) → Phase 1 (Rise, LiDAR-guided: 0.5 s burst at 1600, then 0.5 s ticks until target altitude band is reached) → Phase 2 (Yaw Alignment) → Phase 3 (AI Control)
 
 ---
 
@@ -873,6 +853,30 @@ target_altitude_m: 3.0  # meters
 - **High (4.0-6.0m):** Higher operating altitude, needs reliable LiDAR readings
 
 **Note:** Requires the downward LiDAR sensor to be active and publishing on `/lidar_distance`.
+
+---
+
+#### Speed Multiplier
+
+##### `speed_multiplier`
+```yaml
+speed_multiplier: 2.0
+```
+
+**Description:** Scales the AI model's speed output before it is used to compute roll/pitch RC deflection.
+
+**Range:** 0.5 - 4.0 (output is clamped to 1.0 so it can never exceed RC limits)
+
+**Purpose:** The AI model typically outputs speed values in the range 0.10–0.33. Without amplification, the effective RC deflection is small (e.g. `0.18 × 300 ≈ 54 units`). A multiplier of 2.0 doubles it to `~108 units`, making the drone move noticeably faster toward its target.
+
+**Calculation:** `effective_speed = min(1.0, ai_speed × speed_multiplier)` → used to scale roll/pitch RC deviation.
+
+**Tuning:**
+- **1.0:** No amplification — useful to observe raw AI behavior
+- **2.0 (default):** Recommended starting point; doubles effective deflection
+- **3.0–4.0:** Aggressive movement; verify stability before using outdoors
+
+**Note:** This only affects roll and pitch (lateral movement). Throttle is independently managed by the altitude hold controller.
 
 ---
 
@@ -1301,6 +1305,7 @@ fc_adapter_node:
     rc_min_value: 1200         # RC range (300 units deflection for roll/pitch)
     rc_max_value: 1800         # RC range (300 units deflection for roll/pitch)
     target_altitude_m: 3.0     # LiDAR altitude hold target
+    speed_multiplier: 2.0      # Amplify AI speed output (1.0 = no amplification)
     warmup_duration_sec: 10.0  # Good stabilization time
     arming_duration_sec: 20.0  # Time for GPS lock
 
@@ -1314,13 +1319,15 @@ safety_monitor_node:
 
 1. **Test hover and altitude hold** - verify LiDAR altitude hold keeps drone at target
 2. **Verify stability** - drone should hold position without oscillations
-3. **Adjust RC range** if roll/pitch response is too aggressive (try 1400-1600) or too sluggish
-4. **Expand safety limits** (altitude, distance as needed)
+3. **Tune movement speed** - increase `speed_multiplier` if motion is too slow; decrease if twitchy
+4. **Adjust RC range** if roll/pitch response still needs tuning (try 1400-1600 for conservative)
+5. **Expand safety limits** (altitude, distance as needed)
 
 ### Common Tuning Scenarios
 
 #### Drone movement is too slow
-- Increase `rc_max_value` and decrease `rc_min_value` (wider range for roll/pitch)
+- Increase `speed_multiplier` (primary lever — doubles or triples effective RC deflection without changing limits)
+- Alternatively, increase `rc_max_value` / decrease `rc_min_value` to widen the roll/pitch range
 
 #### Drone overshoots or feels twitchy
 - Narrow the RC range (`rc_min_value: 1400`, `rc_max_value: 1600`)

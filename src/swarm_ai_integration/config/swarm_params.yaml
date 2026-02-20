@@ -108,7 +108,7 @@ fc_adapter_node:
     warmup_duration_sec: 10.0           # Total warmup before AI control (seconds)
     arming_duration_sec: 20.0           # Arming phase duration (seconds)
     # Rise uses a LiDAR-guided burst+tick state machine (no fixed duration param):
-    #   1 s burst at 1600 → 2 s wait → 0.5 s ticks at 1600/1400 until in target band
+    #   0.5 s burst at 1600 → 2 s wait → 0.5 s ticks at 1600/1400 until in target band
 
     # RC channel settings
     rc_mid_value: 1500                  # RC channel center value (neutral)
@@ -117,6 +117,11 @@ fc_adapter_node:
 
     # Altitude hold
     target_altitude_m: 3.0              # Target altitude for LiDAR altitude hold (meters)
+
+    # Speed multiplier — scales the AI speed output before RC mapping.
+    # Model outputs speed ≈ 0.10–0.33; multiplier=2.0 gives effective speed ≈ 0.20–0.66.
+    # Increase to make the drone move faster; clamped to 1.0 to not exceed RC limits.
+    speed_multiplier: 2.0
 
 # ═══════════════════════════════════════════════════════════════════
 # FC Adapter Node (CRUISE Direction Mode) Parameters

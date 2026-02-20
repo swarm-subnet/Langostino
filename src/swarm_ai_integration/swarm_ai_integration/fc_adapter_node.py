@@ -65,6 +65,7 @@ class FCAdapterNode(Node):
         self.declare_parameter('rc_min_value', 1200)
         self.declare_parameter('rc_max_value', 1800)
         self.declare_parameter('target_altitude_m', 3.0)
+        self.declare_parameter('speed_multiplier', 2.0)  # Scale AI speed output (>1 = faster)
 
         # Startup sequence timing
         self.declare_parameter('warmup_duration_sec', 10.0)  # Total warmup before AI control
@@ -80,6 +81,7 @@ class FCAdapterNode(Node):
         self.warmup_duration = float(self.get_parameter('warmup_duration_sec').value)
         self.arming_duration = float(self.get_parameter('arming_duration_sec').value)
         self.cmd_timeout = float(self.get_parameter('command_timeout').value)
+        self.speed_multiplier = float(self.get_parameter('speed_multiplier').value)
 
         # ------------ State ------------
         self.last_action = [0.0, 0.0, 0.0, 0.0]  # [vx, vy, vz, speed]
@@ -139,6 +141,7 @@ class FCAdapterNode(Node):
             rise_throttle=self.rise_throttle,
             target_altitude_m=target_alt,
             band_m=self.altitude_hold.band_m,
+            burst_sec=0.5,
         )
 
         self.last_yaw_hold_log_time = 0.0
@@ -400,9 +403,10 @@ class FCAdapterNode(Node):
         vx_norm = vx / max_component
         vy_norm = vy / max_component
 
-        # Scale by speed (0-1)
-        vx_scaled = vx_norm * speed
-        vy_scaled = vy_norm * speed
+        # Scale by speed, boosted by multiplier, clamped to 1.0
+        effective_speed = min(1.0, speed * self.speed_multiplier)
+        vx_scaled = vx_norm * effective_speed
+        vy_scaled = vy_norm * effective_speed
 
         # Calculate half range for mapping
         half_range = self.rc_max - self.rc_mid
@@ -452,7 +456,7 @@ class FCAdapterNode(Node):
 
         # Log action with normalized values
         self.get_logger().info(
-            f'Action=[{vx:+.2f}, {vy:+.2f}, {vz:+.2f}, s={speed:.2f}] '
+            f'Action=[{vx:+.2f}, {vy:+.2f}, {vz:+.2f}, s={speed:.2f}×{self.speed_multiplier}={effective_speed:.2f}] '
             f'Norm=[{vx_scaled:+.2f}, {vy_scaled:+.2f}] → '
             f'RC[R={roll_rc}, P={pitch_rc}, T={throttle_rc}(alt-hold), Y={yaw_rc}]'
         )
